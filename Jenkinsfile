@@ -7,8 +7,7 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh 'conda create --name=pypeline --channel=defaults --channel=conda-forge --file=conda_requirements.txt'
-                sh 'source pypeline.sh --no_shell'
+                sh 'sh ./jenkins/install.sh'
             }
         }
 

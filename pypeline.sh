@@ -55,6 +55,7 @@ has_pypeline_env() {
 }
 
 load_pypeline_env() {
+    source $(conda info --base)/etc/profile.d/conda.sh
     conda activate pypeline
 
     # CasaCore: add <miniconda_root>/lib/ to LD_LIBRARY_PATH for libtinfow.so
