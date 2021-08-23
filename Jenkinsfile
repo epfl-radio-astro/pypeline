@@ -4,11 +4,18 @@ pipeline {
     }
 
     stages {
-        stage('Testing') {
+
+        stage('Build') {
             steps {
-                //sh  'sbatch ./blah.sh'
-		sh 'pwd'
-		sh 'ls -rlth'
+                sh 'conda create --name=pypeline --channel=defaults --channel=conda-forge --file=conda_requirements.txt'
+                sh 'source pypeline.sh --no_shell'
+            }
+        }
+
+        stage('Testing') {
+            steps {                
+                sh 'pwd'
+                sh 'ls -rlth'
             }
         }
     }
