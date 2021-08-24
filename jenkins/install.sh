@@ -36,3 +36,14 @@ git checkout v1.0
 python3 setup.py develop
 cd ..
 
+# Check out 'dev' branch, otherwise no fits.py under io/
+git clone https://github.com/imagingofthings/ImoT_tools.git
+cd ImoT_tools/
+#git checkout v1.0
+git checkout dev
+python3 setup.py develop
+cd ..
+
+git clone https://github.com/matthieumeo/pycsou.git
+pip install -e pycsou/
+
