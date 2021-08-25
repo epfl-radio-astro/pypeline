@@ -1,7 +1,7 @@
 #!/bin/bash
 
-#SBATCH --partition debug
-#SBATCH --time 00-00:01:00
+#SBATCH --partition build
+#SBATCH --time 00-00:15:00
 #SBATCH --qos gpu
 #SBATCH --gres gpu:1
 
@@ -11,14 +11,10 @@ module load gcc/8.4.0-cuda
 module load cuda/10.2.89
 module list
 
-echo date = `date`
-echo
-pwd
-echo
-sinfo
-echo
-hostname
-echo
-nvidia-smi
+source pypeline.sh --no_shell
+which python
+python -V
+
+time python ./examples/simulation/lofar_toothbrush_ps.py
 
 echo _DONE_
