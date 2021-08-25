@@ -8,15 +8,15 @@
 
 # Setup Pypeline environment + launch shell.
 
-abs_script_dir="$(echo "${PWD}" | python3 -c "
-import pathlib;
-import sys;
-
-file_path = sys.stdin.readline();
-abs_cwd = pathlib.Path(file_path).absolute();
-
-print(abs_cwd);
-")"
+#abs_script_dir="$(echo "${PWD}" | python3 -c "
+#import pathlib;
+#import sys;
+#
+#file_path = sys.stdin.readline();
+#abs_cwd = pathlib.Path(file_path).absolute();
+#
+#print(abs_cwd);
+#")"
 
 show_help_message() {
     cat << EOF
