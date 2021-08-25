@@ -14,7 +14,10 @@ import astropy.units as u
 import imot_tools.io.fits as ifits
 import imot_tools.io.s2image as s2image
 import imot_tools.math.sphere.grid as grid
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
+from matplotlib import pyplot as plt
 import numpy as np
 import scipy.constants as constants
 
@@ -33,8 +36,8 @@ import joblib as job
 
 # Instrument
 N_station = 12
-ms_file = "/Users/mmjasime/Documents/Datasets/RX42_SB100-109.2ch10s.ms"
-ms_file = "/home/etolley/data/toothbrush/RX42_SB100-109.2ch10s.ms"
+#ms_file = "/Users/mmjasime/Documents/Datasets/RX42_SB100-109.2ch10s.ms"
+ms_file = "/work/scitas-share/SKA/data/toothbrush/RX42_SB100-109.2ch10s.ms"
 ms = measurement_set.LofarMeasurementSet(ms_file, N_station)
 gram = bb_gr.GramBlock()
 
@@ -127,8 +130,8 @@ ax[0].set_title("Bluebild Standardized Image")
 I_lsq_eq = s2image.Image(I_lsq.data / S.data, I_lsq.grid)
 I_lsq_eq.draw(catalog=sky_model.xyz.T, ax=ax[1])
 ax[1].set_title("Bluebild Least-Squares Image")
-fig.show()
-plt.show()
+#fig.show()
+#plt.show()
 plt.savefig('standard_fig')
 
 ### Interpolate critical-rate image to any grid resolution ====================
@@ -136,7 +139,7 @@ plt.savefig('standard_fig')
 # interpolate the Bluebild estimate at CLEAN (cl_) sky coordinates.
 
 # 1. Load pixel grid the CLEAN image is defined on.
-cl_WCS = ifits.wcs('/home/etolley//data/toothbrush/toothbrush-image.fits')
+cl_WCS = ifits.wcs('/work/scitas-share/SKA/data/toothbrush/toothbrush-image.fits')
 cl_WCS = cl_WCS.sub(['celestial'])
 cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10)))  # downsample, too high res!
 cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame
