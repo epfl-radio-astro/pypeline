@@ -28,7 +28,7 @@ conda list
 
 python -V
 
-#pip install -e . #EO: dead slow
+#pip install -e . #EO: dead slow (from dev branch)
 #pip uninstall .
 
 #exit
@@ -38,7 +38,7 @@ python -V
 #pip freeze > req_delete_all.txt
 #pip uninstall -r req_delete_all.txt -y
 
-#pip install cupy-cuda102
+pip install cupy-cuda102
 
 if [ 1 -eq 1 ]; then
 
@@ -74,9 +74,10 @@ if [ 1 -eq 1 ]; then
     fi
     git clone https://github.com/matthieumeo/pycsou.git
     cd pycsou
-    git checkout tags/v1.0.5
+    #git checkout tags/v1.0.5 #EO: lofar_toothbrush_ps.py uses head version (eps in call to mappeddistancematrix)
     cat requirements.txt
-    pip install -e .
+    #pip install -e .
+    pip install .
     cd ..
 fi
 
