@@ -1,4 +1,5 @@
 pipeline {
+
     agent {
         label 'izar-orliac'
     }
@@ -14,8 +15,9 @@ pipeline {
         stage('Testing') {
             steps {                
                 sh 'pwd'
-                sh 'srun -t 00:01:00 --partition=gpu --qos=gpu --gres=gpu:1 nvidia-smi'
-                sh 'sbatch ./jenkins/slurm_test.sh'
+                sh 'srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G ./jenkins/slurm_test.sh'
+                sh 'ls -rtl'
+                //sh 'sbatch ./jenkins/slurm_test.sh'
             }
         }
     }

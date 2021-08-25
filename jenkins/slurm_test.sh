@@ -4,6 +4,7 @@
 #SBATCH --time 00-00:15:00
 #SBATCH --qos gpu
 #SBATCH --gres gpu:1
+#SBATCH --mem 40G
 
 set -e
 
@@ -14,7 +15,6 @@ module list
 source pypeline.sh --no_shell
 which python
 python -V
+hostname
 
-time python ./examples/simulation/lofar_toothbrush_ps.py
-
-echo _DONE_
+python "./examples/simulation/lofar_toothbrush_ps.py"
