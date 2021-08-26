@@ -109,7 +109,7 @@ if __name__ == "__main__":
 
     # iterate though timesteps
     # increase the range to run through more calls
-    for t in range(1,100):
+    for t in range(1,10):
         (V, XYZ, W) = data.getVXYZW(t)
         print("t = {0}".format(t))
 
@@ -122,9 +122,16 @@ if __name__ == "__main__":
         
         # call the Bluebild Standard Synthesis Kernel
         stat_bbss = synthesizer(V,XYZ,W)
+        
+        #eo call gpu ss kernel
+        stat_bbss_gpu = synthesizer_test(V1, XYZ1, W)
+
+        print("Difference in results between standard & optimized synthesizers:", np.average(stat_bbss_gpu - stat_bbss))
+
 
         # call the dummy synthesis kernal
-        '''stat_dum  = dummy_synthesis.synthesize(pix,V1,XYZ1,W, wl)
+        '''
+        stat_dum  = dummy_synthesis.synthesize(pix,V1,XYZ1,W, wl)
 
         # call an alternate dummy synthesis kernel which reshapes the matrices
         stat_sdum = dummy_synthesis.synthesize_reshape(pix,V2,XYZ2,W, wl)
@@ -134,5 +141,6 @@ if __name__ == "__main__":
 
         print("Difference in results between dummy & optimized synthesizers:", np.average( stat_dum - stat_bbss))
         print("Avg diff between dummy & dummy reshape synthesizers:", np.average( stat_dum - stat_sdum))
-        print("Avg diff between dummy & ZGEMM synthesizers:", np.max( np.abs(stat_dum - stat_zdum)))'''
+        print("Avg diff between dummy & ZGEMM synthesizers:", np.max( np.abs(stat_dum - stat_zdum)))
+        '''
     print(timer.summary())
