@@ -107,7 +107,7 @@ if __name__ == "__main__":
     precision = 32 # 32 or 64
 
     #data = SimulatedDataGen(frequency = 145e6)
-    data = RealDataGen("/home/etolley/data/gauss4/gauss4_t201806301100_SBL180.MS", N_level = 4, N_station = 24) # n level = # eigenimages
+    data = RealDataGen("/work/scitas-share/SKA/data/gauss4/gauss4_t201806301100_SBL180.MS", N_level = 4, N_station = 37) # n level = # eigenimages
     #data = dummy_synthesis.RandomDataGen()
 
     ################################### 
@@ -153,12 +153,15 @@ if __name__ == "__main__":
         D_r =  D.reshape(-1, 1, 1)
 
         stats_standard_norm = stats_standard * D_r
-        stats_periodic_norm = stats_periodic * D_r
+
+        sys.exit(0)
+
+
+        #@@stats_periodic_norm = stats_periodic * D_r
 
         # trasform the periodic field statistics to periodic eigenimages
-        field_periodic      = synthesizer_periodic.synthesize(stats_periodic)
-        field_periodic_norm = synthesizer_periodic.synthesize(stats_periodic_norm)
-
+        #@@field_periodic      = synthesizer_periodic.synthesize(stats_periodic)
+        #@@field_periodic_norm = synthesizer_periodic.synthesize(stats_periodic_norm)
 
         bfsf_grid = transform.pol2cart(1, data.px_colat_periodic, data.px_lon_periodic)
         icrs_grid = np.tensordot(synthesizer_periodic._R.T, bfsf_grid, axes=1)
