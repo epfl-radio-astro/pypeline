@@ -86,5 +86,7 @@ pwd
 ls -l
 echo
 
-python3 setup.py develop --user --uninstall
-python3 setup.py develop --user
+#python3 setup.py develop --user --uninstall
+#python3 setup.py develop --user
+python3 setup.py uninstall
+python3 setup.py install --user
