@@ -88,6 +88,6 @@ echo
 
 #python3 setup.py develop --user --uninstall
 #python3 setup.py develop --user
-pip uninstall pypeline
+pip uninstall pypeline --yes
 pip install -e .
 
