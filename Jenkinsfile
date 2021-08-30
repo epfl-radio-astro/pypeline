@@ -8,18 +8,22 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh 'sh ./jenkins/install.sh'
+                sh 'echo !! install.sh disabled !!'
+                //sh 'sh ./jenkins/install.sh'
             }
         }
 
         stage('Testing') {
             steps {                
                 sh 'pwd'
-                sh 'echo $BUILD_TIMESTAMP'
+                echo "Running ${env.BUILD_ID} on ${env.JENKINS_URL}"
+                sh "echo Running ${env.BUILD_ID} on ${env.JENKINS_URL}"
+                sh "echo TAG_DATE = ${env.TAG_DATE}"
+                sh 'echo TAG_UNIXTIME = ${env.TAG_UNIXTIME}'
                 //sh 'srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G ./jenkins/slurm_lofar_toothbrush_ps.sh'
                 //sh 'srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G ./jenkins/slurm_test_fastsynthesizer.sh'
                 //sh 'srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G ./jenkins/slurm_test_synthesizer.sh'
-                sh 'ls -rtl'
+                //sh 'ls -rtl'
             }
         }
     }
