@@ -4,6 +4,10 @@ pipeline {
         label 'izar-orliac'
     }
 
+    environment {
+        UTC_TAG = "${sh(script:'date -u +"%Y-%m-%dT%H-%M-%SZ"', returnStdout: true).trim()}"
+    }
+
     stages {
 
         stage('Build') {
@@ -11,10 +15,6 @@ pipeline {
                 sh 'echo !! install.sh disabled !!'
                 //sh 'sh ./jenkins/install.sh'
             }
-        }
-
-        environment {
-            UTC_TAG = "${sh(script:'date -u +"%Y-%m-%dT%H-%M-%SZ"', returnStdout: true).trim()}"
         }
 
         stage('Testing') {
