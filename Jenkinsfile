@@ -27,6 +27,7 @@ pipeline {
 
             steps {
                 sh 'pwd'
+                sh 'env'
                 sh "mkdir -pv ${env.TEST_DIR}"
                 sh 'srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G -o slurm-%j.out ./jenkins/slurm_test_synthesizer.sh'
 

@@ -22,7 +22,10 @@ pip show pypeline
 hostname
 
 # From Jenkins
-echo "OUT_DIR = $OUT_DIR"
+echo "TEST_DIR = $TEST_DIR"
+echo
+
+exit 0
 
 # 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
