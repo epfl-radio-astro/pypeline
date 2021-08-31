@@ -18,33 +18,24 @@ source pypeline.sh --no_shell
 which python
 python -V
 pip show pypeline
-
+echo
 hostname
-
-# From Jenkins
-echo "TEST_DIR = $TEST_DIR"
 echo
 
-exit 0
-
-# 
+#EO: numexpr: check env and tidy up this
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export OPENBLAS_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export VECLIB_MAXIMUM_THREADS=$SLURM_CPUS_PER_TASK
 export NUMEXPR_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
-# Debug
-#time python "./benchmarking/debug.py"
-#amplxe-cl -collect hotspots -strategy ldconfig:notrace:notrace -- ~/miniconda3/envs/pypeline/bin/python ./benchmarking/debug.py
+PY_SCRIPT="./benchmarking/test_synthesizer_cpu.py"
 
 # Timing
-echo;echo
-#time python "./benchmarking/test_synthesizer.py"
-time python "./benchmarking/test_synthesizer_cpu.py"
+time python $PY_SCRIPT
 
 # cProfile
-time python -m cProfile -o cpu.pstats "./benchmarking/test_synthesizer_cpu.py"
+time python -m cProfile -o $TEST_DIR/cProfile.out $PY_SCRIPT
 
 exit 0
 
