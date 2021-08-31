@@ -15,10 +15,11 @@ import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.data_gen.source as source
 import pypeline.phased_array.data_gen.statistics as statistics
 import pypeline.phased_array.bluebild.field_synthesizer.spatial_domain as synth
-import pypeline.phased_array.bluebild.field_synthesizer.spatial_domain_optimized as synth_test
+#import pypeline.phased_array.bluebild.field_synthesizer.spatial_domain_optimized as synth_test
 import timing
 import dummy_synthesis 
 from dummy_synthesis import RandomDataGen, synthesize, synthesize_stack
+
 
 class SimulatedDataGen():
     def __init__(self, wl):
@@ -104,29 +105,32 @@ if __name__ == "__main__":
     synthesizer.set_timer(timer,)
 
     # a copy of the Standard Synthesis Kernel that will be used for testing
-    synthesizer_test = synth_test.SpatialFieldSynthesizerOptimizedBlock(wl, pix, precision)
-    synthesizer_test.set_timer(timer, "Test ")
+    #synthesizer_test = synth_test.SpatialFieldSynthesizerOptimizedBlock(wl, pix, precision)
+    #synthesizer_test.set_timer(timer, "Test ")
 
     # iterate though timesteps
     # increase the range to run through more calls
-    for t in range(1,10):
+    for t in range(1,100):
+
         (V, XYZ, W) = data.getVXYZW(t)
-        print("t = {0}".format(t))
+
+        if t % 10 == 0:
+            print("t = {0}".format(t))
 
 
         #do some copying for inputs which get modified by the synthesizer
-        V1 = np.copy(V) 
-        XYZ1 = np.copy(XYZ) 
-        V2 = np.copy(V)
-        XYZ2 = np.copy(XYZ) 
+        #V1 = np.copy(V) 
+        #XYZ1 = np.copy(XYZ) 
+        #V2 = np.copy(V)
+        #XYZ2 = np.copy(XYZ) 
         
         # call the Bluebild Standard Synthesis Kernel
         stat_bbss = synthesizer(V,XYZ,W)
         
-        #eo call gpu ss kernel
-        stat_bbss_gpu = synthesizer_test(V1, XYZ1, W)
+        #eo call opt ss kernel
+        #stat_bbss_gpu = synthesizer_test(V1, XYZ1, W)
 
-        print("Difference in results between standard & optimized synthesizers:", np.average(stat_bbss_gpu - stat_bbss))
+        #print("Difference in results between standard & optimized synthesizers:", np.average(stat_bbss_gpu - stat_bbss))
 
 
         # call the dummy synthesis kernal

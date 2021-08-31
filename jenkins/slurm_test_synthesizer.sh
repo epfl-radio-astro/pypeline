@@ -19,8 +19,11 @@ which python
 python -V
 pip show pypeline
 echo
+pwd
 hostname
 echo
+
+env | grep SLURM
 
 #EO: numexpr: check env and tidy up this
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -29,17 +32,27 @@ export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export VECLIB_MAXIMUM_THREADS=$SLURM_CPUS_PER_TASK
 export NUMEXPR_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
-PY_SCRIPT="./benchmarking/test_synthesizer_cpu.py"
+# TEST_DIR defined via Jenkins, so default to local when outside
+OUTPUT_DIR=${TEST_DIR:-.}
+echo OUTPUT_DIR = $OUTPUT_DIR
+
+# Script to be run
+PY_SCRIPT="./benchmarking/test_synthesizer.py"
 
 # Timing
 time python $PY_SCRIPT
+echo; echo
 
 # cProfile
-time python -m cProfile -o $TEST_DIR/cProfile.out $PY_SCRIPT
+time python -m cProfile -o $OUTPUT_DIR/cProfile.out $PY_SCRIPT
+echo; echo
 
-exit 0
+# Nvprof
+nvprof -o $OUTPUT_DIR/nvvp.out python $PY_SCRIPT
+echo; echo
 
-# Profiling
-echo;echo;echo
-#amplxe-cl -collect hotspots -strategy ldconfig:notrace:notrace -- ~/miniconda3/envs/pypeline/bin/python benchmarking/test_synthesizer.py
-amplxe-cl -collect hotspots -strategy ldconfig:notrace:notrace -- ~/miniconda3/envs/pypeline/bin/python benchmarking/test_synthesizer_cpu.py
+# Intel VTune Amplifier
+amplxe-cl -collect hotspots -strategy ldconfig:notrace:notrace -result-dir=$OUTPUT_DIR -- ~/miniconda3/envs/pypeline/bin/python $PY_SCRIPT
+echo; echo
+
+ls -rtl $OUTPUT_DIR
