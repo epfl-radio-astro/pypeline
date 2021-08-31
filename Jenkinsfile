@@ -20,15 +20,15 @@ pipeline {
         }
 
         stage('Test1') {
-            def bench_name = "test_synthesizer"
+
             environment {
-                TEST_DIR  = "${env.OUT_DIR}/${bench_name}"
+                TEST_DIR  = "${env.OUT_DIR}/test_synthesizer"
             }
 
             steps {
                 sh 'pwd'
                 sh "mkdir -pv ${env.TEST_DIR}"
-                sh 'srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G -o slurm-%j.out ./jenkins/slurm_${bench_name}.sh'
+                sh 'srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G -o slurm-%j.out ./jenkins/slurm_test_synthesizer.sh'
 
                 //sh 'srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G ./jenkins/slurm_lofar_toothbrush_ps.sh'
                 //sh 'srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G ./jenkins/slurm_test_fastsynthesizer.sh'
