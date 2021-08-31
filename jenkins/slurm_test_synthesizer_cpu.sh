@@ -48,7 +48,7 @@ time python -m cProfile -o $OUTPUT_DIR/cProfile.out $PY_SCRIPT
 echo; echo
 
 # Intel VTune Amplifier
-amplxe-cl -collect hotspots -strategy ldconfig:notrace:notrace -- ~/miniconda3/envs/pypeline/bin/python $PY_SCRIPT
+amplxe-cl -collect hotspots -strategy ldconfig:notrace:notrace -result-dir=$OUTPUT_DIR -- ~/miniconda3/envs/pypeline/bin/python $PY_SCRIPT
 echo; echo
 
 ls -rtl $OUTPUT_DIR
