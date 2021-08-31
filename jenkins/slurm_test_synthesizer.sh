@@ -21,7 +21,8 @@ pip show pypeline
 
 hostname
 
-echo "UTC_TAG = $UTC_TAG"
+echo "UTC_TAG  = $UTC_TAG"
+echo "WORK_DIR = $WORK_DIR"
 
 exit 0
 
