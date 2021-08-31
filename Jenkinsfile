@@ -19,14 +19,19 @@ pipeline {
             }
         }
 
-        stage('Testing') {
-            steps {                
+        stage('Test1') {
+            def bench_name = "test_synthesizer"
+            environment {
+                TEST_DIR  = "${env.OUT_DIR}/${bench_name}"
+            }
+
+            steps {
                 sh 'pwd'
-                echo "Running ${env.BUILD_ID} on ${env.JENKINS_URL}, Git branch ${env.GIT_BRANCH}"
-                echo "OUT_DIR = ${env.OUT_DIR}"
+                sh "mkdir -pv ${env.TEST_DIR}"
+                sh 'srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G -o slurm-%j.out ./jenkins/slurm_${bench_name}.sh'
+
                 //sh 'srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G ./jenkins/slurm_lofar_toothbrush_ps.sh'
                 //sh 'srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G ./jenkins/slurm_test_fastsynthesizer.sh'
-                sh 'srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G ./jenkins/slurm_test_synthesizer.sh'
                 //sh 'ls -rtl'
             }
         }

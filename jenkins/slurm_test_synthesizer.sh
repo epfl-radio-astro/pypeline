@@ -21,26 +21,22 @@ pip show pypeline
 
 hostname
 
-echo "UTC_TAG  = $UTC_TAG"
-echo "WORK_DIR = $WORK_DIR"
+# From Jenkins
+echo "OUT_DIR = $OUT_DIR"
 
-exit 0
-
+# 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export OPENBLAS_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export VECLIB_MAXIMUM_THREADS=$SLURM_CPUS_PER_TASK
 export NUMEXPR_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
-
-echo 
-
 # Debug
 #time python "./benchmarking/debug.py"
 #amplxe-cl -collect hotspots -strategy ldconfig:notrace:notrace -- ~/miniconda3/envs/pypeline/bin/python ./benchmarking/debug.py
 
 # Timing
-echo;echo;echo
+echo;echo
 #time python "./benchmarking/test_synthesizer.py"
 time python "./benchmarking/test_synthesizer_cpu.py"
 
@@ -51,5 +47,5 @@ exit 0
 
 # Profiling
 echo;echo;echo
-amplxe-cl -collect hotspots -strategy ldconfig:notrace:notrace -- ~/miniconda3/envs/pypeline/bin/python benchmarking/test_synthesizer.py
+#amplxe-cl -collect hotspots -strategy ldconfig:notrace:notrace -- ~/miniconda3/envs/pypeline/bin/python benchmarking/test_synthesizer.py
 amplxe-cl -collect hotspots -strategy ldconfig:notrace:notrace -- ~/miniconda3/envs/pypeline/bin/python benchmarking/test_synthesizer_cpu.py
