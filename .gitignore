@@ -4,6 +4,8 @@
 # Author : Sepand KASHANI [kashani.sepand@gmail.com]
 # #############################################################################
 
+*~
+slurm-*.out
 *.png
 *.fits
 
