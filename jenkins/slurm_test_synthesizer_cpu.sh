@@ -11,8 +11,12 @@ set -e
 
 #module load gcc/8.4.0-cuda
 #module load cuda/10.2.89
-module load intel-vtune
-module list
+#module load intel-vtune
+#module list
+
+# From Nicolas Ricart, as the Vtune from the stack does not 
+# work with python 3.7
+source /work/scitas-ge/richart/test_stacks/syrah/v1/opt/spack/linux-rhel7-skylake_avx512/gcc-8.4.0/intel-oneapi-vtune-2021.6.0-34ym22fgautykbgmg5hhgkiwrvbwfvko/setvars.sh
 
 source pypeline.sh --no_shell
 which python
