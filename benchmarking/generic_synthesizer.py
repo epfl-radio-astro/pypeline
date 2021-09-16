@@ -37,28 +37,31 @@ if __name__ == "__main__":
         print("Will use periodic algorithm")
         algo = 'periodic'
 
-    ###### make simulated dataset ###### 
     precision = 32 # 32 or 64
+
     data = SimulatedDataGen(frequency = 145e6)
-    #data = RealDataGen("/work/scitas-share/SKA/data/gauss4/gauss4_t201806301100_SBL180.MS", N_level = 4, N_station = 37) # n level = # eigenimages
+    #MS_file = "/work/scitas-share/SKA/data/gauss4/gauss4_t201806301100_SBL180.MS"
+    #data = RealDataGen(MS_file, N_level = 4, N_station = 37) # n level = # eigenimages
     #data = dummy_synthesis.RandomDataGen()
-    ################################### 
 
     timer = timing.Timer()
+
 
     if args.periodic:
         synthesizer = synth_periodic.FourierFieldSynthesizerBlock(data.wl, data.px_colat_periodic, data.px_lon_periodic, data.N_FS, data.T_kernel, data.R, precision)
         synthesizer.set_timer(timer, "Periodic ")
         bfsf_grid = transform.pol2cart(1, data.px_colat_periodic, data.px_lon_periodic)
-        icrs_grid = np.tensordot(synthesizer._R.T, bfsf_grid, axes=1)
-        print("icrs_grid has type", type(icrs_grid), " and shape ", icrs_grid.shape)
+        grid = np.tensordot(synthesizer._R.T, bfsf_grid, axes=1)
     else:
-        pix = data.getPixGrid()
-        print("pix has type", type(pix), " and shape ", pix.shape)
-        synthesizer = synth_standard.SpatialFieldSynthesizerBlock(data.wl, pix, precision)
+        grid = data.getPixGrid()
+        synthesizer = synth_standard.SpatialFieldSynthesizerBlock(data.wl, grid, precision)
         synthesizer.set_timer(timer, "Standard ")
 
+    print("grid has type", type(grid), " and shape ", grid.shape)
+
+
     # iterate though timesteps; increase the range to run through more calls
+
     stats_combined = None
     stats_normcombined = None
 
@@ -87,22 +90,6 @@ if __name__ == "__main__":
         if args.periodic:    # transform the periodic field statistics to periodic eigenimages
             stats      = synthesizer.synthesize(stats)
             stats_norm = synthesizer.synthesize(stats_norm)
-            bfsf_grid_ = transform.pol2cart(1, data.px_colat_periodic, data.px_lon_periodic)
-            icrs_grid_ = np.tensordot(synthesizer._R.T, bfsf_grid_, axes=1)
-            print(np.max(np.absolute(icrs_grid_ - icrs_grid)))
-        """
-        bfsf_grid = transform.pol2cart(1, data.px_colat_periodic, data.px_lon_periodic)
-        icrs_grid = np.tensordot(synthesizer_periodic._R.T, bfsf_grid, axes=1)
-
-        try:
-            print("Difference in results between standard & periodic synthesizers:", np.average( stats_standard - np.rot90(field_periodic,2)))
-        except:
-            print("Shapes are different between standard & periodic synthesizers. Standard: {0}, periodic: {1}".format(stats_standard.shape, field_periodic.shape ))
-            print("Trimming down PS grid")
-            icrs_grid = icrs_grid[:,:,:-1]
-            field_periodic = field_periodic[:,:,:-1]
-            field_periodic_norm = field_periodic_norm[:,:,:-1]
-        """
 
         try:    stats_combined += stats
         except: stats_combined  = stats
@@ -111,17 +98,21 @@ if __name__ == "__main__":
         except: stats_normcombined  = stats_norm
 
 
-    # Dump combined stats
+    # Dump combined stats if --outdir was passed
     if args.outdir:
         outname = ''
         #outname = '_' + algo + '_' + arch
         outcomb = os.path.join(args.outdir, 'stats_combined' + outname + '.npy')
         outnormcomb = os.path.join(args.outdir, 'stats_normcombined' + outname + '.npy')
+        outgrid = os.path.join(args.outdir, 'grid' + outname + '.npy')
         with open(outcomb, 'wb') as f:
             np.save(f, stats_combined)
             print("Wrote ", outcomb)
         with open(outnormcomb, 'wb') as f:
             np.save(f, stats_normcombined)
             print("Wrote ", outnormcomb)
+        with open(outgrid, 'wb') as f:
+            np.save(f, grid)
+            print("Wrote ", outgrid)
 
     print(timer.summary())
