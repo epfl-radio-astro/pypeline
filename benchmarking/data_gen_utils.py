@@ -100,19 +100,19 @@ class SimulatedDataGen():
         self.vis = statistics.VisibilityGeneratorBlock(self.sky_model, T_integration, fs=196000, SNR=np.inf)
 
         _, _, self.px_colat_periodic, self.px_lon_periodic = grid.equal_angle(
-            N=self.dev.nyquist_rate(wl),
+            N=self.dev.nyquist_rate(self.wl),
             direction= self.R @ field_center.cartesian.xyz.value,  # BFSF-equivalent f_dir.
             FoV=self.FoV
         )
 
         _, _, self.px_colat, self.px_lon = grid.equal_angle(
-            N=self.dev.nyquist_rate(wl),
+            N=self.dev.nyquist_rate(self.wl),
             direction=field_center.cartesian.xyz.value,
             FoV=self.FoV
         )
         self.pix_grid = transform.pol2cart(1, self.px_colat, self.px_lon)
         self.T_kernel = np.deg2rad(10)
-        self.N_FS = self.dev.bfsf_kernel_bandwidth(wl, self.obs_start, self.time[-1])
+        self.N_FS = self.dev.bfsf_kernel_bandwidth(self.wl, self.obs_start, self.time[-1])
 
         self.estimateParams()
 
@@ -172,6 +172,8 @@ class RealDataGen():
              direction=self.ms.field_center.cartesian.xyz.value,
              FoV=self.FoV
         )
+        print("pix_grid ", self.px_colat.shape, "x", self.px_lon.shape)
+
         #self.pix_grid = transform.pol2cart(1, self.px_colat, self.px_lon).reshape(3, -1)
         self.pix_grid = transform.pol2cart(1, self.px_colat, self.px_lon)
 
@@ -202,6 +204,7 @@ class RealDataGen():
 
     def getPixGrid(self):
         return self.pix_grid
+
     def getVXYZWD(self, i):
         t, f, S = next(self.ms.visibilities(channel_id=[self.channel_id], time_id=slice(i, i+1, None), column="DATA"))
 

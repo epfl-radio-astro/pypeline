@@ -307,10 +307,18 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
 
 
         self.mark(self.timer_tag + "Synthesizer: IFFS")
-        E_Ny = pyffs.iffs(E_FS, self._T, self._Tc, self._NFS, axis=2) # TODO: send on GPU
+
+        """
+        print("type E_FS =", type(E_FS))
+        print("type self._T", type(self._T))
+        print("type self._Tc", type(self._Tc))
+        print("type self._NFS", type(self._NFS))
+        """
+
+        E_Ny = pyffs.iffs(cp.asnumpy(E_FS), self._T, self._Tc, self._NFS, axis=2) # TODO: send on GPU
         self.unmark(self.timer_tag + "Synthesizer: IFFS")
         I_Ny = E_Ny.real ** 2 + E_Ny.imag ** 2
-        I_Ny = I_Ny.get()
+        #I_Ny = I_Ny.get()
         self.unmark(self.timer_tag + "Synthesizer call")
         return I_Ny
 
@@ -397,7 +405,9 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
 
         N_samples = fftpack.next_fast_len(self._NFS) # TODO: need to also cupy this (if possible)
         lon_smpl = pyffs.ffs_sample(self._T, self._NFS, self._Tc, N_samples)[0] # TODO: need to take first element instead of two DONE
-        lon_smpl = lon_smpl.get()
+        print("DEBUG lon_smpl: ", type(lon_smpl))
+        ##EO##lon_smpl = lon_smpl.get() # numpy object, not cupy
+        print("DEBUG lon_smpl: ", type(lon_smpl))
         pix_smpl = transform.pol2cart(1, self._grid_colat, lon_smpl.reshape(1, -1))
 
         N_antenna = len(XYZ)
