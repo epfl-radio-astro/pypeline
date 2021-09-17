@@ -39,9 +39,9 @@ if __name__ == "__main__":
 
     precision = 32 # 32 or 64
 
-    data = SimulatedDataGen(frequency = 145e6)
-    #MS_file = "/work/scitas-share/SKA/data/gauss4/gauss4_t201806301100_SBL180.MS"
-    #data = RealDataGen(MS_file, N_level = 4, N_station = 37) # n level = # eigenimages
+    #data = SimulatedDataGen(frequency = 145e6)
+    MS_file = "/work/scitas-share/SKA/data/gauss4/gauss4_t201806301100_SBL180.MS"
+    data = RealDataGen(MS_file, N_level = 4, N_station = 24) # n level = # eigenimages
     #data = dummy_synthesis.RandomDataGen()
 
     timer = timing.Timer()
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     stats_combined = None
     stats_normcombined = None
 
-    for t in range(0, 100):
+    for t in range(0, 10):
 
         print("t = {0}".format(t))
 
