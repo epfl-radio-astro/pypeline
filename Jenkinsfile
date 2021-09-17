@@ -14,8 +14,8 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh 'echo !! install.sh disabled !!'
-                //sh 'sh ./jenkins/install.sh'
+                //sh 'echo !! install.sh disabled !!'
+                sh 'sh ./jenkins/install.sh'
             }
         }
 

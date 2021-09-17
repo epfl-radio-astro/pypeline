@@ -50,7 +50,8 @@ if [ 1 -eq 1 ]; then
     fi
     git clone https://github.com/imagingofthings/pyFFS.git
     cd pyFFS/
-    git checkout v1.0
+    #EO: use head, otherwise periodic analysis is broken
+    #git checkout v1.0
     python3 setup.py develop --user
     cd ..
     
