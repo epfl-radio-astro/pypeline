@@ -1,0 +1,20 @@
+#
+## See new_install.sh to generate the conda environment based on
+## global requirements of pycsou + ImoT_tools + pypeline
+#
+
+## On izar
+
+ENV_NAME=new_pypeline
+
+conda activate $ENV_NAME
+conda env export > ${ENV_NAME}_environment.yml
+
+
+## On laptop (anywhere with root permissions)
+
+scp orliac@izar:/path/to/${ENV_NAME}_environment.yml .
+sudo /home/orliac/inst/singularity/bin/singularity build ${ENV_NAME}.sif ${ENV_NAME}.def
+
+# Then copy back the .sif (watch out not to overwrite a production container!)
+#scp ${ENV_NAME}.sif /work/scitas-share/SKA/singularity/

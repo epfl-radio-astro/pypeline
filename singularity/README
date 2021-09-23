@@ -1,0 +1,29 @@
+
+### Building the container (laptop with VM Debian 9.3.0)
+sudo /home/orliac/inst/singularity/bin/singularity build new_pypeline.sif new_pypeline.def
+
+
+
+### Using the container on izar.
+
+# Install pypeline in editable mode;
+# Required only once. Rerun if SIF's Python version changes.
+
+singularity run /work/scitas-share/SKA/singularity/new_pypeline.sif pip install --no-deps -e /path/to/pypeline
+
+
+### Live test
+
+salloc -t 1:0:0 --partition=gpu --qos=gpu --gres=gpu:1 --mem=40G
+ssh the allocated node
+
+module load gcc cuda
+export SINGULARITY_BINDPATH=$CUDA_ROOT
+export SINGULARITYENV_LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CUDA_LIBRARY
+
+singularity run --nv -B /work /work/scitas-share/SKA/singularity/new_pypeline.sif python /path/to/pypeline/benchmarking/test_fastsynthesizer.py
+
+
+### Batch mode
+
+Copy sbatch_new_pypeline.sh and adapt the paths according to your enivornment.
