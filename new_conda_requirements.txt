@@ -1,0 +1,25 @@
+astropy
+dask[complete]
+healpy
+#ImoT-tools == 1.1.*        #no conda
+ipython
+joblib
+matplotlib
+numexpr
+numpy
+numba
+pandas
+plotly
+#pycsou == 1.0.6            #no conda
+#pyFFS == 2.1.1             #no conda
+pylops
+pyproj
+pytest
+python-casacore
+scikit-image
+scikit-learn
+scipy
+sphinx
+sphinx_rtd_theme
+tqdm
+#cupy-cuda102               #no conda
