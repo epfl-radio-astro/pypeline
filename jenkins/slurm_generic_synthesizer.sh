@@ -14,7 +14,10 @@ module load cuda/10.2.89
 module load intel-vtune
 module list
 
-source pypeline.sh --no_shell
+#source pypeline.sh --no_shell
+eval "$(conda shell.bash hook)"
+conda activate new_pypeline
+
 which python
 python -V
 pip show pypeline
