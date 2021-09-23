@@ -14,6 +14,8 @@ pipeline {
 
         stage('Build') {
             steps {
+                slackSend message:"Build Started - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
+            
                 //sh 'echo !! install.sh disabled !!'
                 sh 'sh ./jenkins/install.sh'
             }
@@ -61,6 +63,12 @@ pipeline {
                 sh "mkdir -pv ${env.TEST_DIR}"
                 sh "srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 4 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
            }
+        }
+    }
+    
+    post {
+        failure {
+            slackSend failOnError:true, message:"Build failed  - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
         }
     }
 }
