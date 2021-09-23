@@ -14,7 +14,7 @@ pipeline {
 
         stage('Build') {
             steps {
-                slackSend color:'green', message:"Build Started - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
+                slackSend color:'good', message:"Build Started - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
             
                 sh 'echo !! install.sh disabled !!'
                 //sh 'sh ./jenkins/install.sh'
@@ -68,10 +68,10 @@ pipeline {
     
     post {
         success {
-            slackSend failOnError:true, color:'green', message:"Build succeeded  - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
+            slackSend failOnError:true, color:'good', message:"Build succeeded  - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
         }
         failure {
-            slackSend failOnError:true, color:'red', message:"Build failed  - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
+            slackSend failOnError:true, color:'danger', message:"Build failed  - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
         }
     }
 }
