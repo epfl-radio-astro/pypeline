@@ -16,8 +16,8 @@ pipeline {
             steps {
                 slackSend message:"Build Started - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
             
-                //sh 'echo !! install.sh disabled !!'
-                sh 'sh ./jenkins/install.sh'
+                sh 'echo !! install.sh disabled !!'
+                //sh 'sh ./jenkins/install.sh'
             }
         }
 
