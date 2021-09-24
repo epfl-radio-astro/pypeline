@@ -56,7 +56,7 @@ echo; echo
 # cProfile
 echo "cProfile - on"
 #time python -m cProfile -o $OUTPUT_DIR/cProfile.out $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
-time python $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
+time python  -m cProfile $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
 echo; echo
 
 exit 0
