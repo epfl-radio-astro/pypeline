@@ -50,16 +50,12 @@ echo "PY_SCRIPT = $PY_SCRIPT"
 
 # Timing
 echo "Timing - off"
-#time python $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO} --outdir $OUTPUT_DIR
+time python $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO} --outdir $OUTPUT_DIR
 echo; echo
 
 # cProfile
 echo "cProfile - on"
-python ./benchmarking/hello.py
-python -m cProfile -o $OUTPUT_DIR/cProfile.out ./benchmarking/hello.py
-
-echo "cProfile - on"
-#python -m cProfile -o $OUTPUT_DIR/cProfile.out $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
+python -m cProfile -o $OUTPUT_DIR/cProfile.out $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
 echo; echo
 
 exit 0
