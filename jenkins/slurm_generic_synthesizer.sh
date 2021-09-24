@@ -49,18 +49,17 @@ echo "PY_SCRIPT = $PY_SCRIPT"
 # Note: --outdir is omitted, no output is written on disk
 
 # Timing
-echo "Timing - off"
+echo "Timing"
 time python $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO} --outdir $OUTPUT_DIR
 echo; echo
 
 # cProfile
-echo "cProfile - on"
+echo "cProfile"
 python -m cProfile -o $OUTPUT_DIR/cProfile.out $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
 echo; echo
 
-exit 0
-
 # Nvprof
+echo "nvprof"
 nvprof -o $OUTPUT_DIR/nvvp.out python $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
 echo; echo
 
