@@ -48,8 +48,8 @@ pipeline {
                         sh "srun --partition gpu --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 4 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
                    }
                 }
-            
-               stage('Periodic CPU') {
+                
+                stage('Periodic CPU') {
 
                     environment {
                         TEST_DIR  = "${env.OUT_DIR}/test_periodic_cpu"
@@ -59,7 +59,7 @@ pipeline {
                     steps {
                         sh "mkdir -pv ${env.TEST_DIR}"
                         sh "srun --partition gpu --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 4 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
-                   }
+                    }
                 }
             }
         }
