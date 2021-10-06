@@ -2,6 +2,11 @@ import os, sys, timing, argparse
 import numpy as np
 import cupy as cp
 import scipy.sparse as sparse
+import nvtx
+import multiprocessing as mp
+import time
+from functools import partial
+
 import imot_tools.math.sphere.transform as transform
 import pypeline.phased_array.bluebild.field_synthesizer.fourier_domain as synth_periodic
 import pypeline.phased_array.bluebild.field_synthesizer.spatial_domain as synth_standard
@@ -12,13 +17,76 @@ from data_gen_utils import RandomDataGen, SimulatedDataGen, RealDataGen
 #EO: make it a cl arg
 np.random.seed(1234)
 
+
+def worker_info(wid):
+    print("printing info on pool worker ", mp.current_process().name, " (input ",wid,")")
+
+    print('module name:', __name__)
+    print('parent process:', os.getppid())
+    print('process id:', os.getpid())
+    time.sleep(10)
+
+
+@nvtx.annotate(color="yellow")
+def t_stats(t, data, args, synthesizer):
+
+    with cp.cuda.profile():
+        #pass
+        
+        with nvtx.annotate("Get data", color="blue"):
+            (V, XYZ, W, D) = data.getVXYZWD(t)
+
+        D_r = D.reshape(-1, 1, 1)
+    
+        if isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix):
+            with nvtx.annotate("sparse", color="aqua"):
+                W = W.toarray()
+
+        if args.gpu:
+            with nvtx.annotate("XYZ,W,V asarray", color="green"):
+                XYZ_gpu = cp.asarray(XYZ)
+                W_gpu   = cp.asarray(W)
+                V_gpu   = cp.asarray(V)
+            with nvtx.annotate("Synthesizer", color="red"):
+                stats   = synthesizer(V_gpu, XYZ_gpu, W_gpu)
+                stats   = stats.get()
+        else:
+            with nvtx.annotate("Synthesizer", color="red"):
+                stats   = synthesizer(V, XYZ, W)
+            
+        stats_norm = stats * D_r
+
+        if args.periodic:    # transform the periodic field statistics to periodic eigenimages
+            stats      = synthesizer.synthesize(stats)
+            stats_norm = synthesizer.synthesize(stats_norm)
+
+    return (stats, stats_norm)
+
+
+# Dump data to args.outdir if defined
+def dump_data(stats, filename):
+    if args.outdir:
+        fp = os.path.join(args.outdir, filename + '.npy')
+        with open(fp, 'wb') as f:
+            np.save(f, stats)
+            print("Wrote ", fp)
+
+
 if __name__ == "__main__":
 
+    mp.set_start_method('spawn')
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("--outdir",   help="Path to dumping location")
+    parser.add_argument("--outdir",   help="Path to dumping location (no dumps if not set)")
     parser.add_argument("--gpu",      help="Use GPU (default is CPU only)", action="store_true")
     parser.add_argument("--periodic", help="Use periodic algorithm (default is standard one)", action="store_true")
+    parser.add_argument("--bench",    help="Run a multi-processing benchmark", action="store_true")
+    parser.add_argument("--t_range",  help="Number of time steps to consider", type=int, default=10)
+
     args = parser.parse_args()
+
+    t_range = args.t_range
+    print("t_range =", t_range)
 
     arch = 'cpu'
     algo = 'standard'
@@ -29,7 +97,7 @@ if __name__ == "__main__":
             sys.exit(1)
         print("Dumping directory: ", args.outdir)        
     else:
-        print("Will not dump anything")
+        print("Will not dump anything, --outdir not set.")
     if args.gpu:
         print("Will use GPU")
         arch = 'gpu'
@@ -57,7 +125,7 @@ if __name__ == "__main__":
         synthesizer = synth_standard.SpatialFieldSynthesizerBlock(data.wl, grid, precision)
         synthesizer.set_timer(timer, "Standard ")
 
-    print("grid has type", type(grid), " and shape ", grid.shape)
+    #print("grid has type", type(grid), " and shape ", grid.shape)
 
 
     # iterate though timesteps; increase the range to run through more calls
@@ -65,54 +133,120 @@ if __name__ == "__main__":
     stats_combined = None
     stats_normcombined = None
 
-    for t in range(0, 10):
+    # NCPUS: size of pool of workers
+    # Watch out potential conflit with backgroud blas multi-threading
+    # (e.g. you might need to export OPENBLAS_NUM_THREADS=1)
+    NCPUS = len(os.sched_getaffinity(0))
+    print("NCPUS = len(os.sched_getaffinity(0) = ", NCPUS)
+    print("OPENBLAS_NUM_THREADS =", os.environ.get('OPENBLAS_NUM_THREADS'))
+    
 
-        print("t = {0}".format(t))
+    ### Serial
+    """
+    tic = time.perf_counter()
+    with nvtx.annotate("Main loop", color="purple"):
 
-        (V, XYZ, W, D) = data.getVXYZWD(t)
+        with cp.cuda.profile():
 
-        D_r = D.reshape(-1, 1, 1)
+            for t in range(0, t_range):
+                
+                with nvtx.annotate("Time it.", color="green"):
+                    #print("t = {0}".format(t))
+                    with nvtx.annotate("Get data", color="blue"):
+                        (V, XYZ, W, D) = data.getVXYZWD(t)
 
-        if isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix):
-            W = W.toarray()
+                    D_r = D.reshape(-1, 1, 1)
 
-        if args.gpu:
-            XYZ_gpu = cp.asarray(XYZ)
-            W_gpu   = cp.asarray(W)
-            V_gpu   = cp.asarray(V)
-            stats   = synthesizer(V_gpu, XYZ_gpu, W_gpu)
-            stats   = stats.get()
-        else:
-            stats   = synthesizer(V, XYZ, W)
+                    if isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix):
+                        with nvtx.annotate("sparse", color="lime"):
+                            W = W.toarray()
 
-        stats_norm = stats * D_r
+                    if args.gpu:
+                        with nvtx.annotate("asarray", color="lime"):
+                            XYZ_gpu = cp.asarray(XYZ)
+                            W_gpu   = cp.asarray(W)
+                            V_gpu   = cp.asarray(V)
+                        with nvtx.annotate("Synthesizer", color="red"):
+                            stats   = synthesizer(V_gpu, XYZ_gpu, W_gpu)
+                        stats   = stats.get()
+                    else:
+                        with nvtx.annotate("Synthesizer", color="red"):
+                            stats   = synthesizer(V, XYZ, W)
+                    
+                    stats_norm = stats * D_r
 
-        if args.periodic:    # transform the periodic field statistics to periodic eigenimages
-            stats      = synthesizer.synthesize(stats)
-            stats_norm = synthesizer.synthesize(stats_norm)
+                    if args.periodic:    # transform the periodic field statistics to periodic eigenimages
+                        stats      = synthesizer.synthesize(stats)
+                        stats_norm = synthesizer.synthesize(stats_norm)
 
-        try:    stats_combined += stats
-        except: stats_combined  = stats
+                    try:    stats_combined += stats
+                    except: stats_combined  = stats
 
-        try:    stats_normcombined += stats_norm
-        except: stats_normcombined  = stats_norm
+                    try:    stats_normcombined += stats_norm
+                    except: stats_normcombined  = stats_norm
+            
+            # Dump if requested (--outdir set)
+            dump_data(stats_combined, 'stats_combined')
+            dump_data(stats_normcombined, 'stats_normcombined')
+            dump_data(grid, 'grid')
+
+    toc = time.perf_counter()
+    print(f"Serial {toc-tic:12.6f} sec;")
+    """
+
+    tic = time.perf_counter()
+    with nvtx.annotate("Main loop", color="purple"):
+        stats_combined_ = None
+        stats_normcombined_ = None
+        with cp.cuda.profile():
+            for t in range(0, t_range):
+                (stats_, stats_norm_) = t_stats(t, data, args, synthesizer)
+                try:    stats_combined += stats_
+                except: stats_combined  = stats_
+                try:    stats_normcombined += stats_norm_
+                except: stats_normcombined  = stats_norm_
+
+        s_equal  = np.array_equal(stats_combined_, stats_combined)
+        sn_equal = np.array_equal(stats_normcombined_, stats_normcombined)
+    toc = time.perf_counter()
+    #print(f"Serial {toc-tic:12.6f} sec; calling function; equal? {s_equal}/{sn_equal}")
+    print(f"Serial {toc-tic:12.6f} sec")
+    dump_data(stats_combined_, 'stats_combined')
 
 
-    # Dump combined stats if --outdir was passed
-    if args.outdir:
-        outname = ''
-        #outname = '_' + algo + '_' + arch
-        outcomb = os.path.join(args.outdir, 'stats_combined' + outname + '.npy')
-        outnormcomb = os.path.join(args.outdir, 'stats_normcombined' + outname + '.npy')
-        outgrid = os.path.join(args.outdir, 'grid' + outname + '.npy')
-        with open(outcomb, 'wb') as f:
-            np.save(f, stats_combined)
-            print("Wrote ", outcomb)
-        with open(outnormcomb, 'wb') as f:
-            np.save(f, stats_normcombined)
-            print("Wrote ", outnormcomb)
-        with open(outgrid, 'wb') as f:
-            np.save(f, grid)
-            print("Wrote ", outgrid)
+    ### Multiprocessing
+
+    if args.bench:
+
+        ncpus = 2
+
+        while ncpus <= NCPUS:
+
+            tic = time.perf_counter()
+
+            with mp.Pool(ncpus) as pool:
+                t_stats_partial = partial(t_stats, data=data, args=args, synthesizer=synthesizer)
+                all_stats = pool.map(t_stats_partial, range(0,t_range))
+                #pool.map(worker_info, range(0,t_range))
+
+            toc = time.perf_counter()
+
+            stats_ = None
+            stats_norm_ = None
+            for stats_tup in all_stats:
+                try:    stats_ = np.add(stats_, stats_tup[0])
+                except: stats_ = stats_tup[0]
+                try:    stats_norm_ = np.add(stats_norm_, stats_tup[1])
+                except: stats_norm_ = stats_tup[1]
+            
+            s_equal  = np.array_equal(stats_, stats_combined)
+            sn_equal = np.array_equal(stats_norm_, stats_normcombined)
+            s_close  = np.allclose(stats_, stats_combined, atol=1e-06)
+
+            print(f'M-P {ncpus:2d} {toc-tic:12.6f} sec; Stats equal? {s_equal}/{sn_equal}')
+
+            dump_data(stats_, 'stats_combined_mp' + f'{ncpus:02d}' )
+
+            ncpus *= 2
 
     print(timer.summary())
