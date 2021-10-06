@@ -5,18 +5,20 @@
 #SBATCH --qos gpu
 #SBATCH --gres gpu:1
 #SBATCH --mem 40G
-#SBATCH --cpus-per-task 4
+#SBATCH --cpus-per-task 1
 
 set -e
 
 module load gcc/8.4.0-cuda
-module load cuda/10.2.89
+#module load cuda/10.2.89
+module load cuda/11.1.1
 module load intel-vtune
 module list
 
 #source pypeline.sh --no_shell
 eval "$(conda shell.bash hook)"
-conda activate new_pypeline
+conda activate new_pype           # watch out !!
+conda env list
 
 which python
 python -V
@@ -26,19 +28,38 @@ pwd
 hostname
 echo
 
-env | grep SLURM
 
-#EO: numexpr: check env and tidy up this
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-export OPENBLAS_NUM_THREADS=$SLURM_CPUS_PER_TASK
-export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK
-export VECLIB_MAXIMUM_THREADS=$SLURM_CPUS_PER_TASK
-export NUMEXPR_NUM_THREADS=$SLURM_CPUS_PER_TASK
+# nsys requires full path to Python interpreter
+PYTHON=`which python`
+echo PYTHON = $PYTHON
+
+# To avoid conflicts with M-P
+if [ 1 == 1 ]; then 
+    export OMP_NUM_THREADS=1
+    export OPENBLAS_NUM_THREADS=1
+    export MKL_NUM_THREADS=1
+    export VECLIB_MAXIMUM_THREADS=1
+    export NUMEXPR_NUM_THREADS=1
+fi
+
+# || true to avoid failure when grep returns nothing under set -e
+echo; echo
+env | grep UM_THREADS || true
+echo
+env | grep SLURM || true
+echo; echo
+
+# Cupy
+export CUPY_CACHE_SAVE_CUDA_SOURCE=1
+export CUPY_CUDA_COMPILE_WITH_DEBUG=1
 
 # List of environment variables set via Jenkins
-echo TEST_ARCH = ${TEST_ARCH}
-echo TEST_ALGO = ${TEST_ALGO}
-echo TEST_DIR  = ${TEST_DIR}
+echo "TEST_ARCH   = ${TEST_ARCH}"
+echo "TEST_ALGO   = ${TEST_ALGO}"
+echo "TEST_BENCH  = ${TEST_BENCH}" 
+echo "TEST_DIR    = ${TEST_DIR}"
+echo "TEST_TRANGE = ${TEST_TRANGE}"
+[ ! -z $TEST_TRANGE ] && TEST_TRANGE="--t_range ${TEST_TRANGE}"
 OUTPUT_DIR=${TEST_DIR:-.}     # default to cwd when ENV[TEST_DIR] not set
 echo OUTPUT_DIR = $OUTPUT_DIR
 
@@ -48,20 +69,27 @@ echo "PY_SCRIPT = $PY_SCRIPT"
 
 # Note: --outdir is omitted, no output is written on disk
 
-# Timing
 echo "Timing"
-time python $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO} --outdir $OUTPUT_DIR
+time python $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO} ${TEST_BENCH} ${TEST_TRANGE} --outdir $OUTPUT_DIR
+ls -rtl $OUTPUT_DIR
 echo; echo
 
-# cProfile
+#exit 0
+
+echo "Nsight"
+nsys --version
+nsys profile -t cuda,nvtx,osrt,cublas --sample=cpu --cudabacktrace=true --force-overwrite=true --stats=true --output=nsys_out $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
+echo; echo
+
+#exit 0
+
 echo "cProfile"
 python -m cProfile -o $OUTPUT_DIR/cProfile.out $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
 echo; echo
 
-# Nvprof
-echo "nvprof"
-nvprof -o $OUTPUT_DIR/nvvp.out python $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
-echo; echo
+#echo "nvprof"
+#nvprof -o $OUTPUT_DIR/nvvp.out python $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
+#echo; echo
 
 # Intel VTune Amplifier (CPU only, don't have permissions for GPU)
 if [ ! $TEST_ARCH == '--gpu' ]; then
