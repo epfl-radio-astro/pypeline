@@ -78,6 +78,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--outdir",   help="Path to dumping location (no dumps if not set)")
+    parser.add_argument("--cpu",      help="Use CPU only (default)", action="store_true")
     parser.add_argument("--gpu",      help="Use GPU (default is CPU only)", action="store_true")
     parser.add_argument("--periodic", help="Use periodic algorithm (default is standard one)", action="store_true")
     parser.add_argument("--bench",    help="Run a multi-processing benchmark", action="store_true")
