@@ -11,27 +11,22 @@
 # `conda_requirements.txt`.
 
 astropy == 4.0.*
-black == 19.3b0
 healpy == 1.12.*
 ImoT-tools == 1.1.*
 ipython == 7.5.*
-#matplotlib == 3.1.*
 matplotlib == 3.3.*
 numexpr == 2.6.*
-numpy == 1.16.*
-#pandas == 0.24.*
+numpy == 1.19.5
 pandas >= 1.0.5
 plotly == 3.5.*
-pyFFS == 1.0.*
+pycsou == 1.0.6
+pyFFS == 2.1.1
 pyproj == 1.9.*
 pytest == 4.5.*
 python-casacore == 2.2.*
 scikit-learn == 0.21.*
-#scipy == 1.2.*
 scipy == 1.5.*
-#sphinx == 1.8.*
 sphinx == 2.1.*
 sphinx_rtd_theme == 0.4.*
 tqdm == 4.29.*
-pycsou == 1.0.5
-#cupy-cuda102
+cupy-cuda102
