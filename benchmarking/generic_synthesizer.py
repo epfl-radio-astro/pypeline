@@ -56,7 +56,8 @@ def t_stats(t, data, args, synthesizer):
             
         stats_norm = stats * D_r
 
-        if args.periodic:    # transform the periodic field statistics to periodic eigenimages
+        if args.periodic:
+            # transform the periodic field statistics to periodic eigenimages
             stats      = synthesizer.synthesize(stats)
             stats_norm = synthesizer.synthesize(stats_norm)
 
@@ -127,20 +128,9 @@ if __name__ == "__main__":
         synthesizer.set_timer(timer, "Standard ")
 
     #print("grid has type", type(grid), " and shape ", grid.shape)
-
-
-    # iterate though timesteps; increase the range to run through more calls
-
-    stats_combined = None
-    stats_normcombined = None
-
-    # NCPUS: size of pool of workers
-    # Watch out potential conflit with backgroud blas multi-threading
-    # (e.g. you might need to export OPENBLAS_NUM_THREADS=1)
-    NCPUS = len(os.sched_getaffinity(0))
-    print("NCPUS = len(os.sched_getaffinity(0) = ", NCPUS)
-    print("OPENBLAS_NUM_THREADS =", os.environ.get('OPENBLAS_NUM_THREADS'))
     
+    print("OPENBLAS_NUM_THREADS =", os.environ.get('OPENBLAS_NUM_THREADS'))
+
 
     ### Serial
 
@@ -150,11 +140,11 @@ if __name__ == "__main__":
         stats_normcombined = None
         with cp.cuda.profile():
             for t in range(0, t_range):
-                (stats_, stats_norm_) = t_stats(t, data, args, synthesizer)
-                try:    stats_combined += stats_
-                except: stats_combined  = stats_
-                try:    stats_normcombined += stats_norm_
-                except: stats_normcombined  = stats_norm_
+                (stats, stats_norm) = t_stats(t, data, args, synthesizer)
+                try:    stats_combined += stats
+                except: stats_combined  = stats
+                try:    stats_normcombined += stats_norm
+                except: stats_normcombined  = stats_norm
 
     dump_data(stats_combined, 'stats_combined')
     dump_data(stats_normcombined, 'stats_normcombined')
@@ -166,6 +156,12 @@ if __name__ == "__main__":
     ### Multi-processing
 
     if args.bench:
+
+        # NCPUS: size of pool of workers
+        # Watch out potential conflit with backgroud blas multi-threading
+        # (e.g. you might need to export OPENBLAS_NUM_THREADS=1)
+        NCPUS = len(os.sched_getaffinity(0))
+        print("NCPUS = len(os.sched_getaffinity(0) = ", NCPUS)
 
         ncpus = 2
 

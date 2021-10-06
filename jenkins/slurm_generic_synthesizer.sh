@@ -97,7 +97,7 @@ echo; echo
 # Intel VTune Amplifier (CPU only, don't have permissions for GPU)
 if [ $TEST_ARCH != '--gpu' ]; then
     echo "Intel VTune Amplifier"
-    amplxe-cl -collect hotspots -strategy ldconfig:notrace:notrace -result-dir=$OUTPUT_DIR -- ~/miniconda3/envs/pypeline/bin/python $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
+    amplxe-cl -collect hotspots -strategy ldconfig:notrace:notrace -result-dir=$OUTPUT_DIR -- $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
 else
     echo "Lack of permissions to run Intel VTune Amplifier on GPU hardware. To be investigated."
 fi

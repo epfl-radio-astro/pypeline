@@ -323,8 +323,8 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         self.unmark(self.timer_tag + "Synthesizer call")
         return I_Ny
 
-    @chk.check("stat", chk.has_reals)
     @nvtx.annotate(message="f_d/synthesize", color="blue")
+    @chk.check("stat", chk.has_reals)
     def synthesize(self, stat):
         """
         Compute field values from statistics.
