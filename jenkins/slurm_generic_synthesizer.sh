@@ -59,7 +59,10 @@ echo "TEST_ALGO   = ${TEST_ALGO}"
 echo "TEST_BENCH  = ${TEST_BENCH}" 
 echo "TEST_DIR    = ${TEST_DIR}"
 echo "TEST_TRANGE = ${TEST_TRANGE}"
+[ -z $TEST_ARCH ] && TEST_ARCH="--cpu" #avoids no def
+echo "TEST_ARCH   = ${TEST_ARCH}"
 [ ! -z $TEST_TRANGE ] && TEST_TRANGE="--t_range ${TEST_TRANGE}"
+echo "TEST_TRANGE = ${TEST_TRANGE}"
 OUTPUT_DIR=${TEST_DIR:-.}     # default to cwd when ENV[TEST_DIR] not set
 echo OUTPUT_DIR = $OUTPUT_DIR
 
@@ -92,7 +95,7 @@ echo; echo
 #echo; echo
 
 # Intel VTune Amplifier (CPU only, don't have permissions for GPU)
-if [ ! $TEST_ARCH == '--gpu' ]; then
+if [ $TEST_ARCH != '--gpu' ]; then
     echo "Intel VTune Amplifier"
     amplxe-cl -collect hotspots -strategy ldconfig:notrace:notrace -result-dir=$OUTPUT_DIR -- ~/miniconda3/envs/pypeline/bin/python $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
 else

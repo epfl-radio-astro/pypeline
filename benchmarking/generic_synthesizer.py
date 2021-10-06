@@ -142,62 +142,11 @@ if __name__ == "__main__":
     
 
     ### Serial
-    """
-    tic = time.perf_counter()
-    with nvtx.annotate("Main loop", color="purple"):
-
-        with cp.cuda.profile():
-
-            for t in range(0, t_range):
-                
-                with nvtx.annotate("Time it.", color="green"):
-                    #print("t = {0}".format(t))
-                    with nvtx.annotate("Get data", color="blue"):
-                        (V, XYZ, W, D) = data.getVXYZWD(t)
-
-                    D_r = D.reshape(-1, 1, 1)
-
-                    if isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix):
-                        with nvtx.annotate("sparse", color="lime"):
-                            W = W.toarray()
-
-                    if args.gpu:
-                        with nvtx.annotate("asarray", color="lime"):
-                            XYZ_gpu = cp.asarray(XYZ)
-                            W_gpu   = cp.asarray(W)
-                            V_gpu   = cp.asarray(V)
-                        with nvtx.annotate("Synthesizer", color="red"):
-                            stats   = synthesizer(V_gpu, XYZ_gpu, W_gpu)
-                        stats   = stats.get()
-                    else:
-                        with nvtx.annotate("Synthesizer", color="red"):
-                            stats   = synthesizer(V, XYZ, W)
-                    
-                    stats_norm = stats * D_r
-
-                    if args.periodic:    # transform the periodic field statistics to periodic eigenimages
-                        stats      = synthesizer.synthesize(stats)
-                        stats_norm = synthesizer.synthesize(stats_norm)
-
-                    try:    stats_combined += stats
-                    except: stats_combined  = stats
-
-                    try:    stats_normcombined += stats_norm
-                    except: stats_normcombined  = stats_norm
-            
-            # Dump if requested (--outdir set)
-            dump_data(stats_combined, 'stats_combined')
-            dump_data(stats_normcombined, 'stats_normcombined')
-            dump_data(grid, 'grid')
-
-    toc = time.perf_counter()
-    print(f"Serial {toc-tic:12.6f} sec;")
-    """
 
     tic = time.perf_counter()
     with nvtx.annotate("Main loop", color="purple"):
-        stats_combined_ = None
-        stats_normcombined_ = None
+        stats_combined = None
+        stats_normcombined = None
         with cp.cuda.profile():
             for t in range(0, t_range):
                 (stats_, stats_norm_) = t_stats(t, data, args, synthesizer)
@@ -206,15 +155,14 @@ if __name__ == "__main__":
                 try:    stats_normcombined += stats_norm_
                 except: stats_normcombined  = stats_norm_
 
-        s_equal  = np.array_equal(stats_combined_, stats_combined)
-        sn_equal = np.array_equal(stats_normcombined_, stats_normcombined)
+    dump_data(stats_combined, 'stats_combined')
+    dump_data(stats_normcombined, 'stats_normcombined')
+    dump_data(grid, 'grid')
     toc = time.perf_counter()
-    #print(f"Serial {toc-tic:12.6f} sec; calling function; equal? {s_equal}/{sn_equal}")
     print(f"Serial {toc-tic:12.6f} sec")
-    dump_data(stats_combined_, 'stats_combined')
 
 
-    ### Multiprocessing
+    ### Multi-processing
 
     if args.bench:
 
