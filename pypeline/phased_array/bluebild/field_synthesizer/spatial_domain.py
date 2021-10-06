@@ -8,11 +8,13 @@
 Field synthesizers that work in the spatial domain.
 """
 
-import numexpr as ne
+#import numexpr as ne
 import numpy as np
 import cupy as cp
 import scipy.linalg as linalg
 import scipy.sparse as sparse
+import nvtx
+import sys
 
 import pypeline.phased_array.bluebild.field_synthesizer as synth
 import imot_tools.util.argcheck as chk
@@ -157,6 +159,7 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             raise ValueError("Parameter[pix_grid] must have dimensions (3, N_height, N_width).")
         self._grid = pix_grid / linalg.norm(pix_grid, axis=0)
 
+
     # needed to remove this check for GPU/CPU flexibility
     # TODO: add back in...
     '''@chk.check(
@@ -187,7 +190,8 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         """
 
         # for CPU/GPU agnostic code
-        xp = cp.get_array_module(V)  # not using 'xp' instead of cp or np
+        with nvtx.annotate(message="s_d/(cu|num)py", color="lime"):
+            xp = cp.get_array_module(V)  # not using 'xp' instead of cp or np
         #print("Using:", xp.__name__)
 
         if not _have_matching_shapes(V, XYZ, W):
@@ -205,20 +209,36 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
 
         XYZ = XYZ - XYZ.mean(axis=0)
         #P = xp.zeros((N_antenna, N_height, N_width), dtype=self._cp)
-        E = xp.zeros((N_eig, N_height, N_width), dtype=self._cp)
 
         a = 1j * 2 * np.pi / self._wl
+
+        #print("self._cp ", self._cp)
+        with nvtx.annotate(message="s_d/E alloc", color="fuchsia"):
+            E = xp.zeros((N_eig, N_height, N_width), dtype=self._cp)
+
+        #print("### grid:", self._grid.shape, type(self._grid), self._grid.dtype, sys.getsizeof(self._grid))
+        #print("###    E:", E.shape, type(E), E.dtype, sys.getsizeof(E))
+        #print("###  XYZ:", XYZ.shape, type(XYZ), XYZ.dtype, sys.getsizeof(XYZ))
 
         self.mark(self.timer_tag + "Synthesizer matmuls")
 
         for i in range(N_width):
-          b = xp.matmul(XYZ,  grid_gpu[:,:,i])
-          P = xp.exp(a*b)
-          if xp == np and (isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix)):   
-            PW = W.T @ P
-          else:
-            PW = xp.matmul(W.T,P)
-          E[:,:,i]  = xp.matmul(V.T, PW)
+            with nvtx.annotate(message="s_d/pix", color="grey"):
+                pix_gpu = xp.asarray(self._grid[:,:,i])
+            with nvtx.annotate(message="s_d/b", color="green"):
+                b  = xp.matmul(XYZ, pix_gpu)
+            with nvtx.annotate(message="s_d/P", color="yellow"):
+                P  = xp.exp(a*b)
+            with nvtx.annotate(message="s_d/PW", color="cyan"):
+                if xp == np and (isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix)):
+                    PW = W.T @ P
+                else:
+                    PW = xp.matmul(W.T, P)
+            with nvtx.annotate(message="s_d/E", color="chocolate"):
+                E[:,:,i]  = xp.matmul(V.T, PW)
+
+        with nvtx.annotate(message="s_d/I", color="lavender"):
+            I = E.real ** 2 + E.imag ** 2
 
         self.unmark(self.timer_tag + "Synthesizer matmuls")
 

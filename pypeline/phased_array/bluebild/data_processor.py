@@ -11,6 +11,7 @@ Data processors.
 import imot_tools.math.linalg as pylinalg
 import imot_tools.util.argcheck as chk
 import numpy as np
+import nvtx
 
 import pypeline.core as core
 import pypeline.phased_array.data_gen.statistics as vis
@@ -158,10 +159,11 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
         S, G = S.data[idx], G.data[idx]
 
         # Functional PCA
-        if not np.allclose(S, 0):
-            D, V = pylinalg.eigh(S, G, tau=1, N=self._N_eig)
-        else:  # S is broken beyond use
-            D, V = np.zeros(self._N_eig), 0
+        with nvtx.annotate("fPCA", color="pink"):
+            if not np.allclose(S, 0):
+                D, V = pylinalg.eigh(S, G, tau=1, N=self._N_eig)
+            else:  # S is broken beyond use
+                D, V = np.zeros(self._N_eig), 0
 
         # Add broken BEAM_IDs
         V_aligned = np.zeros((N_beam, self._N_eig), dtype=np.complex)

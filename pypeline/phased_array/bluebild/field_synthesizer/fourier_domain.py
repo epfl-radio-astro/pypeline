@@ -19,6 +19,7 @@ import pyffs
 import scipy.fftpack as fftpack
 import scipy.linalg as linalg
 import scipy.sparse as sparse
+import nvtx
 
 import pypeline.phased_array.bluebild.field_synthesizer as synth
 import pypeline.phased_array.bluebild.field_synthesizer.spatial_domain as fsd
@@ -323,6 +324,7 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         return I_Ny
 
     @chk.check("stat", chk.has_reals)
+    @nvtx.annotate(message="f_d/synthesize", color="blue")
     def synthesize(self, stat):
         """
         Compute field values from statistics.
