@@ -83,7 +83,7 @@ if __name__ == "__main__":
     parser.add_argument("--gpu",      help="Use GPU (default is CPU only)", action="store_true")
     parser.add_argument("--periodic", help="Use periodic algorithm (default is standard one)", action="store_true")
     parser.add_argument("--bench",    help="Run a multi-processing benchmark", action="store_true")
-    parser.add_argument("--t_range",  help="Number of time steps to consider", type=int, default=10)
+    parser.add_argument("--t_range",  help="Number of time steps to consider", type=int, default=20)
 
     args = parser.parse_args()
 
