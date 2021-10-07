@@ -4,9 +4,9 @@
 
 set -e
 
-ENV_NAME=new_pype
+ENV_NAME=new_pype_intel
 
-conda create --name=$ENV_NAME --channel=defaults --channel=conda-forge --file=new_conda_requirements.txt --yes
+conda create --name=$ENV_NAME --channel=intel --channel=defaults --channel=conda-forge --file=new_conda_requirements_intel.txt --yes
 
 conda env list 
 

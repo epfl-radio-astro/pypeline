@@ -1,3 +1,4 @@
+intelpython
 astropy
 dask[complete]
 healpy
