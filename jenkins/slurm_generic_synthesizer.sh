@@ -19,9 +19,10 @@ module list
 #new_pype_intel + source /work/scitas-ge/richart/test_stacks/syrah/v1/opt/spack/linux-rhel7-skylake_avx512/gcc-8.4.0/intel-oneapi-vtune-2021.6.0-34ym22fgautykbgmg5hhgkiwrvbwfvko/setvars.sh  => SUCCESS
 
 
-#source pypeline.sh --no_shell
 eval "$(conda shell.bash hook)"
-conda activate new_pype_intel   # watch out (Intel Python 3.7)
+CONDA_ENV=new_pype_intel
+CONDA_ENV_INTEL=new_pype_intel
+conda activate $CONDA_ENV
 conda env list
 
 which python
@@ -37,14 +38,14 @@ echo
 PYTHON=`which python`
 echo PYTHON = $PYTHON
 
-# To avoid conflicts with M-P
-if [ 1 == 1 ]; then 
-    export OMP_NUM_THREADS=1
-    export OPENBLAS_NUM_THREADS=1
-    export MKL_NUM_THREADS=1
-    export VECLIB_MAXIMUM_THREADS=1
-    export NUMEXPR_NUM_THREADS=1
-fi
+#EO: OMP_NUM_THREADS set to 1 for M-P
+
+# Should be safe (checked with threadpoolctl via slurm)
+#export OMP_NUM_THREADS=1
+#export OPENBLAS_NUM_THREADS=1
+#export MKL_NUM_THREADS=1
+#export VECLIB_MAXIMUM_THREADS=1
+#export NUMEXPR_NUM_THREADS=1
 
 # || true to avoid failure when grep returns nothing under set -e
 echo; echo
@@ -101,6 +102,16 @@ echo; echo
 # Intel VTune Amplifier (CPU only, don't have permissions for GPU)
 if [ $TEST_ARCH != '--gpu' ]; then
     echo "Intel VTune Amplifier"
+
+    # Warning: for running vtune we need intel environment!
+    if [ $CONDA_ENV != $CONDA_ENV_INTEL ]; then 
+        conda deactivate
+        conda activate $CONDA_ENV_INTEL
+        PYTHON=`which python`
+    fi
+    echo PYTHON = $PYTHON
+    $PYTHON -V
+
     ##which amplxe-cl
     ##amplxe-cl -collect hotspots -strategy ldconfig:notrace:notrace -result-dir=$OUTPUT_DIR -- $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
     source /work/scitas-ge/richart/test_stacks/syrah/v1/opt/spack/linux-rhel7-skylake_avx512/gcc-8.4.0/intel-oneapi-vtune-2021.6.0-34ym22fgautykbgmg5hhgkiwrvbwfvko/setvars.sh || echo "ignoring warning"
