@@ -10,7 +10,7 @@
 set -e
 
 module load gcc/8.4.0-cuda
-module load cuda/11.1.1
+module load cuda/10.2.89
 module list
 
 #new_pype       + module load intel-vtune (Intel(R) VTune(TM) Amplifier 2019 Update 6 (build 602217) Command Line Tool) => FAILURE
@@ -20,8 +20,8 @@ module list
 
 
 eval "$(conda shell.bash hook)"
-CONDA_ENV=new_pype
-CONDA_ENV_INTEL=new_pype_intel
+CONDA_ENV=pype102
+CONDA_ENV_INTEL=pype102_intel
 conda activate $CONDA_ENV
 conda env list
 

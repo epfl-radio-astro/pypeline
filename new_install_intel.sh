@@ -4,7 +4,7 @@
 
 set -e
 
-ENV_NAME=new_pype_intel
+ENV_NAME=pype102_intel
 
 conda create --name=$ENV_NAME --channel=intel --channel=defaults --channel=conda-forge --file=new_conda_requirements_intel.txt --yes
 
@@ -20,8 +20,7 @@ which python
 python -V
 
 # Install non-conda packages
-#pip install cupy-cuda102
-pip install cupy-cuda111
+pip install cupy-cuda102
 pip install pycsou --no-deps
 pip install pyFFS --no-deps
 
