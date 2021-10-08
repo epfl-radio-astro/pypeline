@@ -20,7 +20,7 @@ module list
 
 
 eval "$(conda shell.bash hook)"
-CONDA_ENV=new_pype_intel
+CONDA_ENV=new_pype
 CONDA_ENV_INTEL=new_pype_intel
 conda activate $CONDA_ENV
 conda env list
