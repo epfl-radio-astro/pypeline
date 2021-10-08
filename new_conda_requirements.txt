@@ -1,4 +1,5 @@
 astropy
+#cupy-cuda102               #no conda
 dask[complete]
 healpy
 #ImoT-tools == 1.1.*        #no conda
@@ -22,5 +23,5 @@ scikit-learn
 scipy
 sphinx
 sphinx_rtd_theme
+threadpoolctl
 tqdm
-#cupy-cuda102               #no conda
