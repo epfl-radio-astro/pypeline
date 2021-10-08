@@ -20,40 +20,51 @@ pipeline {
             }
         }
 
-        stage('Standard CPU') {
-            environment {
-                TEST_DIR  = "${env.OUT_DIR}/test_standard_cpu"
-            }
+        stage('Parallel Stage') {
 
-            steps {
-                sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition gpu --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
-            }
-        }
+            parallel {
 
-        stage('Standard GPU') {
-            environment {
-                TEST_DIR  = "${env.OUT_DIR}/test_standard_gpu"
-                TEST_ARCH = '--gpu'
-            }
-            steps {
-                sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition gpu --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
-            }
-        }
+                stage('Standard CPU') {
+
+                    environment {
+                        TEST_DIR  = "${env.OUT_DIR}/test_standard_cpu"
+                    }
+
+                    steps {
+                        sh "mkdir -pv ${env.TEST_DIR}"
+                        sh "srun --partition gpu --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
+                    }
+                }
+
+                stage('Standard GPU') {
+
+                    environment {
+                        TEST_DIR  = "${env.OUT_DIR}/test_standard_gpu"
+                        TEST_ARCH = '--gpu'
+                    }
+
+                    steps {
+                        sh "mkdir -pv ${env.TEST_DIR}"
+                        sh "srun --partition gpu --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
+                   }
+                }
                 
-        stage('Periodic CPU') {
-            environment {
-                TEST_DIR  = "${env.OUT_DIR}/test_periodic_cpu"
-                TEST_ALGO = '--periodic'
-            }
-            steps {
-                sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition gpu --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
+                stage('Periodic CPU') {
+
+                    environment {
+                        TEST_DIR  = "${env.OUT_DIR}/test_periodic_cpu"
+                        TEST_ALGO = '--periodic'
+                    }
+
+                    steps {
+                        sh "mkdir -pv ${env.TEST_DIR}"
+                        sh "srun --partition gpu --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
+                    }
+                }
             }
         }
     }
-
+        
     post {
         success {
             slackSend color:'good', message:"Build succeeded  - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
