@@ -86,7 +86,7 @@ echo; echo
 
 echo "Nsight"
 nsys --version
-nsys profile -t cuda,nvtx,osrt,cublas --sample=cpu --cudabacktrace=true --force-overwrite=true --stats=true --output=nsys_out $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
+nsys profile -t cuda,nvtx,osrt,cublas --sample=cpu --cudabacktrace=true --force-overwrite=true --stats=true --output=$OUTPUT_DIR/nsys_out $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
 echo; echo
 
 #exit 0
