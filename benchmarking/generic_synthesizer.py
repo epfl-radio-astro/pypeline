@@ -3,7 +3,6 @@ import numpy as np
 import cupy as cp
 import scipy.sparse as sparse
 import nvtx
-import multiprocessing as mp
 import time
 from functools import partial
 
@@ -74,8 +73,6 @@ def dump_data(stats, filename):
 
 
 if __name__ == "__main__":
-
-    mp.set_start_method('spawn')
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--outdir",   help="Path to dumping location (no dumps if not set)")
@@ -157,9 +154,14 @@ if __name__ == "__main__":
 
     if args.bench:
 
-        # NCPUS: size of pool of workers
+        import multiprocessing as mp
+        mp.set_start_method('spawn')
+
         # Watch out potential conflit with backgroud blas multi-threading
-        # (e.g. you might need to export OPENBLAS_NUM_THREADS=1)
+        os.environ['OPENBLAS_NUM_THREADS'] = 1
+        print("OPENBLAS_NUM_THREADS =", os.environ.get('OPENBLAS_NUM_THREADS'))
+    
+        # NCPUS: size of pool of workers
         NCPUS = len(os.sched_getaffinity(0))
         print("NCPUS = len(os.sched_getaffinity(0) = ", NCPUS)
 
