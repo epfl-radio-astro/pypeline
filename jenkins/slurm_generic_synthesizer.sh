@@ -49,9 +49,9 @@ echo PYTHON = $PYTHON
 
 # || true to avoid failure when grep returns nothing under set -e
 echo; echo
-env | grep UM_THREADS || true
+#env | grep UM_THREADS || true
 echo
-env | grep SLURM || true
+#env | grep SLURM || true
 echo; echo
 
 # Cupy

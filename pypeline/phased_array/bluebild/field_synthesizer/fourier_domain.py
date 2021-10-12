@@ -7,7 +7,7 @@
 """
 Field synthesizers that work in Fourier Series domain.
 """
-
+import sys
 import imot_tools.math.func as func
 import imot_tools.math.linalg as pylinalg
 import imot_tools.math.sphere.transform as transform
@@ -15,8 +15,10 @@ import imot_tools.util.argcheck as chk
 import numexpr as ne
 import numpy as np
 import cupy as cp
+import cupyx.scipy.fft as cpfft
 import pyffs
-import scipy.fftpack as fftpack
+#import scipy.fftpack as fftpack # considered legacy
+import scipy.fft as fft
 import scipy.linalg as linalg
 import scipy.sparse as sparse
 import nvtx
@@ -29,6 +31,33 @@ import warnings
 import finufft
 import astropy.coordinates as aspy
 
+
+def print_info(x, name):
+    try:
+        print(f"info on {name:12s}: {type(x)}, {x.dtype}, {x.shape}") #mean = {np.mean(x):.12f}")
+    except:
+        print(f"info on {name:12s}: {type(x)}")
+
+def are_close(a, b, label):
+    try:
+        print(f"are all_close {label}?", np.allclose(a, b, atol=1e-12))
+    except:
+        print(f"are all_close {label}? WENT WRONG - Check input")
+
+def check_allclose(a_, b_, label):
+    a = a_
+    b = b_
+    if cp.get_array_module(a) == cp:
+        a = a_.get()
+    if cp.get_array_module(b) == cp:
+        b = b_.get()
+    mean_diff = np.mean(np.abs(a - b))
+    print(f"INFO: {label} allclose? mean abs diff = {mean_diff:.12f}")
+
+    if not np.allclose(a, b, atol=1e-12):
+        mean_diff = np.mean(np.abs(a - b))
+        print(f"FATAL: {label} not allclose! mean abs diff = {mean_diff}")
+        sys.exit(1)
 
 class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
     """
@@ -172,6 +201,8 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         """
         super().__init__()
 
+        print("???????? precision = ", precision)
+
         if precision == 32:
             self._fp = np.float32
             self._cp = np.complex64
@@ -201,11 +232,14 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             T_start, T_end = lon_end + T * np.r_[0.5 * aw - 1, 0.5 * aw]
             self._Tc = (T_start + T_end) / 2
             self._mps = lon_start - (T_start + 0.5 * T * aw)  # max_phase_shift
+            print(f"_mps = {self._mps:.12f}")
 
             N_FS_trunc = N_FS / (2 * np.pi) * T
             N_FS_trunc = int(np.ceil(N_FS_trunc))
             N_FS_trunc += 1 if chk.is_even(N_FS_trunc) else 0
             self._NFS = N_FS_trunc
+            print(f"_NFS = {self._NFS:.12f}")
+
         else:  # No PeriodicSynthesis, but set params to still work.
             self._alpha_window = 0
             self._T = 2 * np.pi
@@ -221,6 +255,8 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         self._FSk = None  # (N_antenna, N_height, N_FS+Q) FS coefficients
         self._XYZk = None  # (N_antenna, 3) BFSF coordinates
 
+    #EO: I disable this for now as cupy objects fail the check
+    """
     @chk.check(
         dict(
             V=chk.has_complex,
@@ -228,6 +264,7 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             W=chk.is_instance(np.ndarray, sparse.csr_matrix, sparse.csc_matrix),
         )
     )
+    """
     def __call__(self, V, XYZ, W):
         """
         Compute instantaneous field statistics.
@@ -248,23 +285,43 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         stat : :py:class:`~numpy.ndarray`
             (N_eig, N_height, N_FS + Q) field statistics.
         """
+
+        # for CPU/GPU agnostic code
+        with nvtx.annotate(message="f_d/(cu|num)py", color="lime"):
+            xp = cp.get_array_module(V)
+        print("Using:", xp.__name__)
+
         self.mark(self.timer_tag + "Synthesizer call")
         if not fsd._have_matching_shapes(V, XYZ, W):
             raise ValueError("Parameters[V, XYZ, W] are inconsistent.")
 
+        print("checking types: target =", self._cp)
+
         self.mark(self.timer_tag + "Synthesizer: astype casts")
-        V = V.astype(self._cp, copy=False)
-        XYZ = XYZ.astype(self._fp, copy=False)
-        W = W.astype(self._cp, copy=False)
+
+        # TODO: move precision control outside of the call
+        #V = V.astype(self._cp, copy=False)
+        #print("#V.dtype =", V.dtype, self._cp)
+        #XYZ = XYZ.astype(self._fp, copy=False)
+        #W = W.astype(self._cp, copy=False)
+        
         # need to convert array type to run on gpu
-        if isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix):
-          W = W.toarray()
+        #if xp == np and (isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix)):
+        #    W = W.toarray()
 
         self.unmark(self.timer_tag + "Synthesizer: astype casts")
 
+        print_info(V, 'V')
+        print_info(XYZ, 'XYZ')
+        print_info(self._R, 'self._R')
+
         self.mark(self.timer_tag + "Synthesizer: matmul 1")
-        bfsf_XYZ = XYZ @ self._R.T
+        if xp == np:
+            bfsf_XYZ = XYZ @ self._R.T
+        else:
+            bfsf_XYZ = xp.matmul(XYZ, cp.asarray(self._R.T))
         self.unmark(self.timer_tag + "Synthesizer: matmul 1")
+        print_info(bfsf_XYZ, 'bfsf_XYZ')
 
         self.mark(self.timer_tag + "Synthesizer: calc phase shift")
         if self._XYZk is None:
@@ -272,8 +329,7 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         else:
             phase_shift = self._phase_shift(bfsf_XYZ)
         self.unmark(self.timer_tag + "Synthesizer: calc phase shift")
-
-
+        
         if self._regen_required(phase_shift):
             self.mark(self.timer_tag + "Synthesizer: regenerate kernel")
             self._regen_kernel(bfsf_XYZ)
@@ -285,43 +341,67 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         Q = _2N1Q - self._NFS
         N_beam = W.shape[1]
 
-        self.mark(self.timer_tag + "Synthesizer: GPU array allocation")
-        WT_gpu = cp.asarray(W.T)
-        VT_gpu = cp.asarray(V.T) # TODO: buffer matrices on gpu to avoid slow allocation time, or directly compute on gpu
-        FSk_gpu = cp.asarray(self._FSk.reshape(N_antenna, N_height * _2N1Q))
-        self.unmark(self.timer_tag + "Synthesizer: GPU array allocation")
-
-        self.mark(self.timer_tag + "Synthesizer: GPU matmuls 2 & 3")
-        PW_FS = cp.matmul(WT_gpu, FSk_gpu)
-        E_FS = cp.matmul(VT_gpu, PW_FS)
-        E_FS = E_FS.reshape(E_FS.shape[0], N_height, _2N1Q)
-        self.unmark(self.timer_tag + "Synthesizer: GPU matmuls 2 & 3")
-
-        self.mark(self.timer_tag + "Synthesizer: apply phase shift")
         mod_phase = -1j * 2 * np.pi * phase_shift / self._T
 
         s = np.r_[-N : N + 1, np.zeros(Q)]
-        mod_phase_gpu = cp.asarray( np.exp(mod_phase) ** s)
 
-        E_FS *= mod_phase_gpu
-        self.unmark(self.timer_tag + "Synthesizer: apply phase shift")
+        print_info(V, 'V')
+        print_info(W, 'W')
+        print_info(mod_phase, 'mod_phase')
+        print_info(s, 's')
 
+        if xp == np: ### CPU
 
-        self.mark(self.timer_tag + "Synthesizer: IFFS")
+            FSk   = self._FSk.reshape(N_antenna, N_height * _2N1Q)
 
-        """
-        print("type E_FS =", type(E_FS))
-        print("type self._T", type(self._T))
-        print("type self._Tc", type(self._Tc))
-        print("type self._NFS", type(self._NFS))
-        """
+            self.mark(self.timer_tag + "Synthesizer: CPU matmuls 2 & 3")
+            PW_FS = W.T @ FSk
+            E_FS  = V.T @ PW_FS
+            E_FS  = E_FS.reshape(E_FS.shape[0], N_height, _2N1Q)
+            self.unmark(self.timer_tag + "Synthesizer: CPU matmuls 2 & 3")
 
-        E_Ny = pyffs.iffs(cp.asnumpy(E_FS), self._T, self._Tc, self._NFS, axis=2) # TODO: send on GPU
-        self.unmark(self.timer_tag + "Synthesizer: IFFS")
-        I_Ny = E_Ny.real ** 2 + E_Ny.imag ** 2
-        #I_Ny = I_Ny.get()
-        self.unmark(self.timer_tag + "Synthesizer call")
-        return I_Ny
+            self.mark(self.timer_tag + "Synthesizer: apply phase shift")
+            mod_phase = mod_phase * s
+            E_FS *= np.exp(mod_phase)
+            self.unmark(self.timer_tag + "Synthesizer: apply phase shift")
+
+            self.mark(self.timer_tag + "Synthesizer: IFFS")
+            E_Ny = pyffs.iffs(E_FS, self._T, self._Tc, self._NFS, axis=2)
+            print_info(E_Ny, 'E_Ny')
+            I_Ny = E_Ny.real ** 2 + E_Ny.imag ** 2
+            print_info(I_Ny, 'I_Ny')
+            self.unmark(self.timer_tag + "Synthesizer: IFFS")
+
+            return I_Ny
+
+        else: ### GPU
+
+            self.mark(self.timer_tag + "Synthesizer: GPU array allocation")
+            FSk = cp.asarray(self._FSk.reshape(N_antenna, N_height * _2N1Q))
+            self.unmark(self.timer_tag + "Synthesizer: GPU array allocation")
+
+            self.mark(self.timer_tag + "Synthesizer: GPU matmuls 2 & 3")
+            PW_FS = cp.matmul(W.T, FSk)
+            E_FS  = cp.matmul(V.T, PW_FS)
+            E_FS  = E_FS.reshape(E_FS.shape[0], N_height, _2N1Q)
+            self.unmark(self.timer_tag + "Synthesizer: GPU matmuls 2 & 3")
+
+            self.mark(self.timer_tag + "Synthesizer: apply phase shift")
+            mod_phase = cp.asarray(mod_phase * s)
+            #print_info(mod_phase, 'mod_phase')
+            E_FS *= cp.exp(mod_phase)
+            self.unmark(self.timer_tag + "Synthesizer: apply phase shift")
+            
+            self.mark(self.timer_tag + "Synthesizer: IFFS")
+            E_Ny = pyffs.iffs(E_FS, self._T, self._Tc, self._NFS, axis=2) # TODO: send on GPU
+            print_info(E_Ny, 'E_Ny')
+            self.unmark(self.timer_tag + "Synthesizer: IFFS")
+            I_Ny = E_Ny.real ** 2 + E_Ny.imag ** 2
+            print_info(I_Ny, 'I_Ny')
+            I_Ny = I_Ny.get()
+            self.unmark(self.timer_tag + "Synthesizer call")
+
+            return I_Ny
 
     @nvtx.annotate(message="f_d/synthesize", color="blue")
     @chk.check("stat", chk.has_reals)
@@ -378,7 +458,12 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         theta : float
             Angular shift (radians) such that ``dot(_XYZk, R(theta).T) == XYZ``.
         """
-        R_T, *_ = linalg.lstsq(self._XYZk[:, :2], XYZ[:, :2])
+        print_info(self._XYZk, 'self._XYZk @@')
+        print_info(XYZ,  'XYZ @@')
+        if cp.get_array_module(XYZ) == cp:
+            R_T, *_ = linalg.lstsq(self._XYZk[:, :2].get(), XYZ[:, :2].get())
+        else:
+            R_T, *_ = linalg.lstsq(self._XYZk[:, :2], XYZ[:, :2])
 
         R = np.eye(3)
         R[:2, :2] = R_T.T
@@ -404,35 +489,86 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             `XYZ` must be given in BFSF.
         """
 
+        if cp.get_array_module(XYZ) == cp:
+            N_samples = cpfft.next_fast_len(self._NFS)
+            lon_smpl = pyffs.ffs_sample(self._T, self._NFS, self._Tc, N_samples, mod=cp)[0].get() #EO
+        else:
+            N_samples = fft.next_fast_len(self._NFS)
+            print_info(self._T, 'self._T')
+            print_info(self._Tc, 'self._Tc')
+            print_info(self._NFS, 'self._NFS')
+            lon_smpl = pyffs.ffs_sample(self._T, self._NFS, self._Tc, N_samples, mod=np)[0]
 
-        N_samples = fftpack.next_fast_len(self._NFS) # TODO: need to also cupy this (if possible)
-        lon_smpl = pyffs.ffs_sample(self._T, self._NFS, self._Tc, N_samples)[0] # TODO: need to take first element instead of two DONE
-        print("DEBUG lon_smpl: ", type(lon_smpl))
-        lon_smpl = lon_smpl.get()
+        print(f"N_samples = {N_samples}")
+        print_info(self._T, 'self._T')
+        print_info(self._Tc, 'self._Tc')
+        print_info(self._NFS, 'self._NFS')
+        print_info(lon_smpl, 'lon_smpl')
+
         pix_smpl = transform.pol2cart(1, self._grid_colat, lon_smpl.reshape(1, -1))
+        print_info(pix_smpl, 'pix_smpl')
 
         N_antenna = len(XYZ)
-        N_height = len(self._grid_colat)
+        N_height  = len(self._grid_colat)
+        print(f"N_antenna = {N_antenna}, N_height = {N_height}")
 
         # TODO: fix memory problems with DASK array => but can DASK work with gpu?
         #       or break up by blocks of antenna stations?
-        #       
+        
         # `self._NFS` assumes imaging is performed with `XYZ` centered at the origin.
+        print_info(XYZ, 'XYZ')
         XYZ_c = XYZ - XYZ.mean(axis=0)
-        window = func.Tukey(self._T, self._Tc, self._alpha_window)
-        k_smpl = np.zeros((N_antenna, N_height, N_samples), dtype=self._cp) # allocate on gpu
-        ne.evaluate(
-            "exp(A * B) * C",
-            dict(
-                A=1j * 2 * np.pi / self._wl,
-                B=np.tensordot(XYZ_c, pix_smpl, axes=1),
-                C=window(lon_smpl),
-            ),
-            out=k_smpl,
-            casting="same_kind",
-        )  # Due to limitations of NumExpr2
+        """
+        if cp.get_array_module(XYZ) == cp:
+            XYZ_c = XYZ.get() - XYZ.get().mean(axis=0)
+        else:
+            XYZ_c = XYZ - XYZ.mean(axis=0)
+        print_info(XYZ_c, 'XYZ_c')
+        #return XYZ_c
+        """
 
-        self._FSk = pyffs.ffs(k_smpl, self._T, self._Tc, self._NFS, axis=2) #TODO:  convert to run on GPU
+        window = func.Tukey(self._T, self._Tc, self._alpha_window)
+        
+        a = 1j * 2 * np.pi / self._wl
+
+        w = window(lon_smpl)
+        print_info(w, 'w')
+
+        if cp.get_array_module(XYZ) == cp:
+            b = cp.tensordot(cp.asarray(XYZ_c), cp.asarray(pix_smpl), axes=1)
+            print_info(b, 'b')
+            print_info(a, 'a')
+            k_smpl = cp.dot(cp.asarray(a), b)
+            print_info(k_smpl, 'k_smpl ab')
+            k_smpl = cp.exp(k_smpl)
+            print_info(k_smpl, 'k_smpl exp(ab)')
+
+            #k_smpl = cp.matmul(k_smpl, cp.asarray(window(lon_smpl)), axes=2,)
+            #print_info(k_smpl, 'k_smpl')
+            
+            for i in range(len(lon_smpl)):
+                k_smpl[:,:,i] *= w[i] 
+
+            self._FSk = pyffs.ffs(k_smpl.get(), self._T, self._Tc, self._NFS, axis=2) #TODO:  convert to run on GPU
+ 
+        else:
+            k_smpl = np.zeros((N_antenna, N_height, N_samples), dtype=self._cp) # allocate on gpu
+            ne.evaluate(
+                "exp(A * B) * C",
+                dict(
+                    A=a,
+                    B=np.tensordot(XYZ_c, pix_smpl, axes=1),
+                    C=window(lon_smpl),
+                ),
+                out=k_smpl,
+                casting="same_kind",
+            )  # Due to limitations of NumExpr2
+            self._FSk = pyffs.ffs(k_smpl, self._T, self._Tc, self._NFS, axis=2) #TODO:  convert to run on GPU
+                
+        print_info(self._FSk, 'self._FSk')
+
+        return k_smpl
+
         self._XYZk = XYZ
 
 

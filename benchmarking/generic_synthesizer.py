@@ -13,6 +13,8 @@ import dummy_synthesis
 from dummy_synthesis import synthesize, synthesize_stack
 from data_gen_utils import RandomDataGen, SimulatedDataGen, RealDataGen
 
+import imot_tools.util.argcheck as chk
+
 #EO: make it a cl arg
 np.random.seed(1234)
 
@@ -25,6 +27,11 @@ def worker_info(wid):
     print('process id:', os.getpid())
     time.sleep(10)
 
+def print_info(x, name):
+    try:
+        print(f"info on {name:12s}: {type(x)}, {x.dtype}, {x.shape}")
+    except:
+        print(f"info on {name:12s}: {type(x)}")
 
 @nvtx.annotate(color="yellow")
 def t_stats(t, data, args, synthesizer):
@@ -34,6 +41,9 @@ def t_stats(t, data, args, synthesizer):
         
         with nvtx.annotate("Get data", color="blue"):
             (V, XYZ, W, D) = data.getVXYZWD(t)
+        print_info(V, 'V')
+        print("V has_complex?", chk.has_complex(V))
+        #print(V)
 
         D_r = D.reshape(-1, 1, 1)
     
@@ -43,16 +53,14 @@ def t_stats(t, data, args, synthesizer):
 
         if args.gpu:
             with nvtx.annotate("XYZ,W,V asarray", color="green"):
-                XYZ_gpu = cp.asarray(XYZ)
-                W_gpu   = cp.asarray(W)
-                V_gpu   = cp.asarray(V)
-            with nvtx.annotate("Synthesizer", color="red"):
-                stats   = synthesizer(V_gpu, XYZ_gpu, W_gpu)
-                stats   = stats.get()
-        else:
-            with nvtx.annotate("Synthesizer", color="red"):
-                stats   = synthesizer(V, XYZ, W)
-            
+                XYZ = cp.asarray(XYZ)
+                W   = cp.asarray(W)
+                V   = cp.asarray(V)
+
+        with nvtx.annotate("Synthesizer", color="red"):
+            stats   = synthesizer(V, XYZ, W)
+
+        print_info(stats, 'stats')
         stats_norm = stats * D_r
 
         if args.periodic:
