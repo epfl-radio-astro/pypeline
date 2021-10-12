@@ -494,9 +494,6 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             lon_smpl = pyffs.ffs_sample(self._T, self._NFS, self._Tc, N_samples, mod=cp)[0].get() #EO
         else:
             N_samples = fft.next_fast_len(self._NFS)
-            print_info(self._T, 'self._T')
-            print_info(self._Tc, 'self._Tc')
-            print_info(self._NFS, 'self._NFS')
             lon_smpl = pyffs.ffs_sample(self._T, self._NFS, self._Tc, N_samples, mod=np)[0]
 
         print(f"N_samples = {N_samples}")
@@ -566,8 +563,6 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             self._FSk = pyffs.ffs(k_smpl, self._T, self._Tc, self._NFS, axis=2) #TODO:  convert to run on GPU
                 
         print_info(self._FSk, 'self._FSk')
-
-        return k_smpl
 
         self._XYZk = XYZ
 
