@@ -134,6 +134,7 @@ class SimulatedDataGen():
 
     def getPixGrid(self):
         return self.pix_grid
+
     def getVXYZWD(self, i):
         try:
             t = self.time[i]
