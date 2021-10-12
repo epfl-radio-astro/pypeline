@@ -58,7 +58,7 @@ def t_stats(t, data, args, synthesizer):
                 V   = cp.asarray(V)
 
         with nvtx.annotate("Synthesizer", color="red"):
-            stats   = synthesizer(V, XYZ, W)
+            stats = synthesizer(V, XYZ, W)
 
         print_info(stats, 'stats')
         stats_norm = stats * D_r

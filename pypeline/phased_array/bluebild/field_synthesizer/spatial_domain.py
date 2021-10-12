@@ -191,7 +191,7 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
 
         # for CPU/GPU agnostic code
         with nvtx.annotate(message="s_d/(cu|num)py", color="lime"):
-            xp = cp.get_array_module(V)  # not using 'xp' instead of cp or np
+            xp = cp.get_array_module(V)  # now using 'xp' instead of cp or np
         #print("Using:", xp.__name__)
 
         if not _have_matching_shapes(V, XYZ, W):
@@ -245,6 +245,9 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         I = E.real ** 2 + E.imag ** 2
 
         self.unmark(self.timer_tag + "Synthesizer call")
+
+        if xp == cp:
+            return I.get()
 
         return I
     
