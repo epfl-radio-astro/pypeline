@@ -10,22 +10,13 @@
 set -e
 
 module load gcc/8.4.0-cuda
-#module load cuda/10.2.89
 module load cuda/11.1.1
+CONDA_ENV=pype111
 module list
 
 eval "$(conda shell.bash hook)"
-#CONDA_ENV=pype102
-#CONDA_ENV_INTEL=pype102_intel
-CONDA_ENV=pype111
-CONDA_ENV_INTEL=pype111_intel
 conda activate $CONDA_ENV
 conda env list
-
-#new_pype       + module load intel-vtune (Intel(R) VTune(TM) Amplifier 2019 Update 6 (build 602217) Command Line Tool) => FAILURE
-#new_pype       + source /work/scitas-ge/richart/test_stacks/syrah/v1/opt/spack/linux-rhel7-skylake_avx512/gcc-8.4.0/intel-oneapi-vtune-2021.6.0-34ym22fgautykbgmg5hhgkiwrvbwfvko/setvars.sh  => FAILURE
-#new_pype_intel + module load intel-vtune (Intel(R) VTune(TM) Amplifier 2019 Update 6 (build 602217) Command Line Tool) => FAILURE
-#new_pype_intel + source /work/scitas-ge/richart/test_stacks/syrah/v1/opt/spack/linux-rhel7-skylake_avx512/gcc-8.4.0/intel-oneapi-vtune-2021.6.0-34ym22fgautykbgmg5hhgkiwrvbwfvko/setvars.sh  => SUCCESS
 
 which python
 python -V
@@ -35,12 +26,11 @@ pwd
 hostname
 echo
 
-
 # nsys requires full path to Python interpreter
 PYTHON=`which python`
 echo PYTHON = $PYTHON
 
-#EO: OMP_NUM_THREADS set to 1 for M-P
+#EO: OMP_NUM_THREADS forced to 1 for M-P
 
 # Should be safe (checked with threadpoolctl via slurm)
 #export OMP_NUM_THREADS=1
@@ -107,12 +97,13 @@ echo; echo
 if [ $TEST_ARCH != '--gpu' ]; then
     echo "Intel VTune Amplifier"
 
-    # Warning: for running vtune we need intel environment!
-    if [ $CONDA_ENV != $CONDA_ENV_INTEL ]; then 
-        conda deactivate
-        conda activate $CONDA_ENV_INTEL
-        PYTHON=`which python`
-    fi
+    module load cuda/10.2.89
+    CONDA_ENV=pype102
+    conda deactivate
+    conda activate $CONDA_ENV
+    conda env list
+
+    PYTHON=`which python`
     echo PYTHON = $PYTHON
     $PYTHON -V
 
@@ -120,7 +111,9 @@ if [ $TEST_ARCH != '--gpu' ]; then
     ##amplxe-cl -collect hotspots -strategy ldconfig:notrace:notrace -result-dir=$OUTPUT_DIR -- $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
     source /work/scitas-ge/richart/test_stacks/syrah/v1/opt/spack/linux-rhel7-skylake_avx512/gcc-8.4.0/intel-oneapi-vtune-2021.6.0-34ym22fgautykbgmg5hhgkiwrvbwfvko/setvars.sh || echo "ignoring warning"
     which vtune
-    vtune -collect hotspots -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -search-dir=. -result-dir=$OUTPUT_DIR -- $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
+    echo listing of $OUTPUT_DIR
+    ls -rtl $OUTPUT_DIR
+    vtune -collect hotspots -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -search-dir=. -result-dir=$OUTPUT_DIR/vtune -- $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
 else
     echo "Lack of permissions to run Intel VTune Amplifier on GPU hardware. To be investigated."
 fi
