@@ -86,10 +86,12 @@ echo; echo
 
 #exit 0
 
-echo "Nsight"
-nsys --version
-nsys profile -t cuda,nvtx,osrt,cublas --sample=cpu --cudabacktrace=true --force-overwrite=true --stats=true --output=$OUTPUT_DIR/nsys_out $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
-echo; echo
+if [ $TEST_ARCH == '--gpu' ]; then
+    echo "Nsight"
+    nsys --version
+    nsys profile -t cuda,nvtx,osrt,cublas --sample=cpu --cudabacktrace=true --force-overwrite=true --stats=true --output=$OUTPUT_DIR/nsys_out $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
+    echo; echo
+fi
 
 #exit 0
 
