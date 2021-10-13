@@ -10,20 +10,22 @@
 set -e
 
 module load gcc/8.4.0-cuda
-module load cuda/10.2.89
+#module load cuda/10.2.89
+module load cuda/11.1.1
 module list
+
+eval "$(conda shell.bash hook)"
+#CONDA_ENV=pype102
+#CONDA_ENV_INTEL=pype102_intel
+CONDA_ENV=pype111
+CONDA_ENV_INTEL=pype111_intel
+conda activate $CONDA_ENV
+conda env list
 
 #new_pype       + module load intel-vtune (Intel(R) VTune(TM) Amplifier 2019 Update 6 (build 602217) Command Line Tool) => FAILURE
 #new_pype       + source /work/scitas-ge/richart/test_stacks/syrah/v1/opt/spack/linux-rhel7-skylake_avx512/gcc-8.4.0/intel-oneapi-vtune-2021.6.0-34ym22fgautykbgmg5hhgkiwrvbwfvko/setvars.sh  => FAILURE
 #new_pype_intel + module load intel-vtune (Intel(R) VTune(TM) Amplifier 2019 Update 6 (build 602217) Command Line Tool) => FAILURE
 #new_pype_intel + source /work/scitas-ge/richart/test_stacks/syrah/v1/opt/spack/linux-rhel7-skylake_avx512/gcc-8.4.0/intel-oneapi-vtune-2021.6.0-34ym22fgautykbgmg5hhgkiwrvbwfvko/setvars.sh  => SUCCESS
-
-
-eval "$(conda shell.bash hook)"
-CONDA_ENV=pype102
-CONDA_ENV_INTEL=pype102_intel
-conda activate $CONDA_ENV
-conda env list
 
 which python
 python -V
@@ -49,9 +51,9 @@ echo PYTHON = $PYTHON
 
 # || true to avoid failure when grep returns nothing under set -e
 echo; echo
-#env | grep UM_THREADS || true
+env | grep UM_THREADS || true
 echo
-#env | grep SLURM || true
+env | grep SLURM || true
 echo; echo
 
 # Cupy
