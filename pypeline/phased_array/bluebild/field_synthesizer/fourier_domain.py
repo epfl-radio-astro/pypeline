@@ -316,24 +316,27 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         print_info(self._R, 'self._R')
 
         self.mark(self.timer_tag + "Synthesizer: matmul 1")
-        if xp == np:
-            bfsf_XYZ = XYZ @ self._R.T
-        else:
-            bfsf_XYZ = xp.matmul(XYZ, cp.asarray(self._R.T))
+        with nvtx.annotate(message="matmul11", color="grey"):
+            if xp == np:
+                bfsf_XYZ = XYZ @ self._R.T
+            else:
+                bfsf_XYZ = xp.matmul(XYZ, cp.asarray(self._R.T))
         self.unmark(self.timer_tag + "Synthesizer: matmul 1")
         print_info(bfsf_XYZ, 'bfsf_XYZ')
 
         self.mark(self.timer_tag + "Synthesizer: calc phase shift")
-        if self._XYZk is None:
-            phase_shift = np.inf
-        else:
-            phase_shift = self._phase_shift(bfsf_XYZ)
+        with nvtx.annotate(message="synth: phase_shift", color="green"):
+            if self._XYZk is None:
+                phase_shift = np.inf
+            else:
+                phase_shift = self._phase_shift(bfsf_XYZ)
         self.unmark(self.timer_tag + "Synthesizer: calc phase shift")
-        
+                
         if self._regen_required(phase_shift):
             self.mark(self.timer_tag + "Synthesizer: regenerate kernel")
-            self._regen_kernel(bfsf_XYZ)
-            phase_shift = 0
+            with nvtx.annotate(message="synth: regen_kernel", color="yellow"):
+                self._regen_kernel(bfsf_XYZ)
+                phase_shift = 0
             self.unmark(self.timer_tag + "Synthesizer: regenerate kernel")
 
         N_antenna, N_height, _2N1Q = self._FSk.shape
@@ -355,21 +358,24 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             FSk   = self._FSk.reshape(N_antenna, N_height * _2N1Q)
 
             self.mark(self.timer_tag + "Synthesizer: CPU matmuls 2 & 3")
-            PW_FS = W.T @ FSk
-            E_FS  = V.T @ PW_FS
-            E_FS  = E_FS.reshape(E_FS.shape[0], N_height, _2N1Q)
+            with nvtx.annotate(message="synth: CPU matmuls 2 & 3", color="chocolate"):
+                PW_FS = W.T @ FSk
+                E_FS  = V.T @ PW_FS
+                E_FS  = E_FS.reshape(E_FS.shape[0], N_height, _2N1Q)
             self.unmark(self.timer_tag + "Synthesizer: CPU matmuls 2 & 3")
 
             self.mark(self.timer_tag + "Synthesizer: apply phase shift")
-            mod_phase = mod_phase * s
-            E_FS *= np.exp(mod_phase)
+            with nvtx.annotate(message="synth: apply phase shift", color="lavender"):
+                mod_phase = mod_phase * s
+                E_FS *= np.exp(mod_phase)
             self.unmark(self.timer_tag + "Synthesizer: apply phase shift")
 
             self.mark(self.timer_tag + "Synthesizer: IFFS")
-            E_Ny = pyffs.iffs(E_FS, self._T, self._Tc, self._NFS, axis=2)
-            print_info(E_Ny, 'E_Ny')
-            I_Ny = E_Ny.real ** 2 + E_Ny.imag ** 2
-            print_info(I_Ny, 'I_Ny')
+            with nvtx.annotate(message="synth: IFFS", color="red"):
+                E_Ny = pyffs.iffs(E_FS, self._T, self._Tc, self._NFS, axis=2)
+                print_info(E_Ny, 'E_Ny')
+                I_Ny = E_Ny.real ** 2 + E_Ny.imag ** 2
+                print_info(I_Ny, 'I_Ny')
             self.unmark(self.timer_tag + "Synthesizer: IFFS")
 
             return I_Ny
@@ -377,28 +383,33 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         else: ### GPU
 
             self.mark(self.timer_tag + "Synthesizer: GPU array allocation")
-            FSk = cp.asarray(self._FSk.reshape(N_antenna, N_height * _2N1Q))
+            with nvtx.annotate(message="synth: GPU alloc", color="pink"):
+                FSk = cp.asarray(self._FSk.reshape(N_antenna, N_height * _2N1Q))
             self.unmark(self.timer_tag + "Synthesizer: GPU array allocation")
 
             self.mark(self.timer_tag + "Synthesizer: GPU matmuls 2 & 3")
-            PW_FS = cp.matmul(W.T, FSk)
-            E_FS  = cp.matmul(V.T, PW_FS)
-            E_FS  = E_FS.reshape(E_FS.shape[0], N_height, _2N1Q)
+            with nvtx.annotate(message="synth: CPU matmuls 2 & 3", color="chocolate"):
+                PW_FS = cp.matmul(W.T, FSk)
+                E_FS  = cp.matmul(V.T, PW_FS)
+                E_FS  = E_FS.reshape(E_FS.shape[0], N_height, _2N1Q)
             self.unmark(self.timer_tag + "Synthesizer: GPU matmuls 2 & 3")
 
             self.mark(self.timer_tag + "Synthesizer: apply phase shift")
-            mod_phase = cp.asarray(mod_phase * s)
-            #print_info(mod_phase, 'mod_phase')
-            E_FS *= cp.exp(mod_phase)
+            with nvtx.annotate(message="synth: apply phase shift", color="lavender"):
+                mod_phase = cp.asarray(mod_phase * s)
+                #print_info(mod_phase, 'mod_phase')
+                E_FS *= cp.exp(mod_phase)
             self.unmark(self.timer_tag + "Synthesizer: apply phase shift")
             
             self.mark(self.timer_tag + "Synthesizer: IFFS")
-            E_Ny = pyffs.iffs(E_FS, self._T, self._Tc, self._NFS, axis=2) # TODO: send on GPU
-            print_info(E_Ny, 'E_Ny')
+            with nvtx.annotate(message="synth: IFFS", color="red"):
+                E_Ny = pyffs.iffs(E_FS, self._T, self._Tc, self._NFS, axis=2) # TODO: send on GPU
+                print_info(E_Ny, 'E_Ny')
+                I_Ny = E_Ny.real ** 2 + E_Ny.imag ** 2
+                print_info(I_Ny, 'I_Ny')
+                I_Ny = I_Ny.get()
             self.unmark(self.timer_tag + "Synthesizer: IFFS")
-            I_Ny = E_Ny.real ** 2 + E_Ny.imag ** 2
-            print_info(I_Ny, 'I_Ny')
-            I_Ny = I_Ny.get()
+
             self.unmark(self.timer_tag + "Synthesizer call")
 
             return I_Ny
