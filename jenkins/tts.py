@@ -8,15 +8,6 @@ import matplotlib.font_manager as font_manager
 import getopt
 import math
 
-"""
- Two args required:
-   1. Jenkins base output directory
-   2. Output directory where to dump plots and statistics
- Example:
-   python tts.py /work/scitas-share/SKA/jenkins/izar-orliac/eo_jenkins/ .
-"""
-
-
 def scan(dir):
     builds = {}
     with os.scandir(dir) as it:
@@ -110,12 +101,12 @@ def stats_n_plots(dir, builds, lastb, fstat):
             if lastb > 0:
                 lastb_sol = builds.get(lastb)[3].get(sol)
                 if lastb_sol == None:
-                    msg += f"  _WARNING_  build {lastb} missing for {sols.get(sol).label} solution ({sols.get(sol).directory})"
+                    msg += f"  _WARNING_  last build ({lastb}) missing!"
                 else:
                     lastb_rt = float(builds.get(lastb)[3].get(sol))
                     threshold = mean_sw + 3.0 * std_sw
-                    if lastb_rt > 0:#threshold:
-                        msg += f"  _WARNING_  build {lastb} for {sols.get(sol).label} solution significantly slower than average {lastb_rt:.2f} > {threshold:.2f} ({mean_sw:.3f} + 3 x {std_sw:.3f})"
+                    if lastb_rt > threshold:
+                        msg += f"  _WARNING_  last build ({lastb}) significantly slower: {lastb_rt:.2f} > {threshold:.2f} ({mean_sw:.3f} + 3 x {std_sw:.3f})"
 
         fstats.write(msg + "\n")
         print(msg)

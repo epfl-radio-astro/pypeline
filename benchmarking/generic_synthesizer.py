@@ -41,9 +41,7 @@ def t_stats(t, data, args, synthesizer):
         
         with nvtx.annotate("Get data", color="blue"):
             (V, XYZ, W, D) = data.getVXYZWD(t)
-        print_info(V, 'V')
-        print("V has_complex?", chk.has_complex(V))
-        #print(V)
+        #print_info(V, 'V')
 
         D_r = D.reshape(-1, 1, 1)
     
@@ -59,8 +57,8 @@ def t_stats(t, data, args, synthesizer):
 
         with nvtx.annotate("Synthesizer", color="red"):
             stats = synthesizer(V, XYZ, W)
+        #print_info(stats, 'stats')
 
-        print_info(stats, 'stats')
         stats_norm = stats * D_r
 
         if args.periodic:
@@ -154,6 +152,8 @@ if __name__ == "__main__":
     dump_data(stats_combined, 'stats_combined')
     dump_data(stats_normcombined, 'stats_normcombined')
     dump_data(grid, 'grid')
+    #print("WARNING: putting a sleep to test the monitoring tool!!!")
+    #time.sleep(5)
     toc = time.perf_counter()
     print(f"Serial {toc-tic:12.6f} sec")
 
