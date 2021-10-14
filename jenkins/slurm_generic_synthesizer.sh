@@ -74,7 +74,8 @@ time python $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO} ${TEST_BENCH} ${TEST_TRANGE} --
 ls -rtl $OUTPUT_DIR
 echo; echo
 
-#exit 0
+echo "EARLY EXIT for faster tests"
+exit 0
 
 if [ $TEST_ARCH == '--gpu' ]; then
     echo "Nsight"
