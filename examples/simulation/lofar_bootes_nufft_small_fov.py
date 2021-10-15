@@ -35,6 +35,9 @@ from mpl_toolkits.mplot3d import Axes3D
 import imot_tools.io.s2image as im
 import time as tt
 
+
+jkt0_s = tt.time()
+
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
 field_center = coord.SkyCoord(ra=218 * u.deg, dec=34.5 * u.deg, frame="icrs")
@@ -125,6 +128,9 @@ for t in ProgressBar(time[::200]):
 N_eig, c_centroid = I_est.infer_parameters()
 
 # Imaging
+
+jkt1_s = tt.time()
+
 I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
 UVW_baselines = []
 ICRS_baselines = []
@@ -158,8 +164,6 @@ gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=0).resh
 #     plt.plot(UVW_baselines[:,i, 0] * 2 * lim / N_pix, UVW_baselines[:,i, 1] * 2 * lim / N_pix, color=colors[0], linewidth=0.01)
 # plt.xlim(-np.pi, np.pi)
 # plt.ylim(-np.pi, np.pi)
-
-
 # fig = plt.figure()
 # # ax = Axes3D(fig)
 # # ax.scatter3D(UVW_baselines[::N_station, 0], UVW_baselines[::N_station, 1], UVW_baselines[::N_station, -1], s=.01)
@@ -184,6 +188,9 @@ bb_image = finufft.nufft2d1(x=scalingx * UVW_baselines[:, 1],
 bb_image = np.real(bb_image)
 
 print(bb_image.shape,bb_image[0,0])
+
+jkt1_e = tt.time()
+print(f"#@#JKT1 {jkt1_e-jkt1_s:.3f} sec")
 
 ### Sensitivity Field =========================================================
 # Parameter Estimation
@@ -239,3 +246,5 @@ gridded_visibilities[int(gridded_visibilities.shape[0]/2)-2:int(gridded_visibili
 plt.figure()
 plt.imshow(np.flipud(gridded_visibilities), cmap='cubehelix')
 
+jkt0_e = tt.time()
+print(f"#@#JKT0 {jkt0_e-jkt0_s:.3f} sec")

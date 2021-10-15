@@ -25,6 +25,7 @@ def collect_runtimes(dir, builds):
     for build in sorted(builds.keys()):
         for sol in sorted(sols.keys()):
             soldir = os.path.join(dir, builds.get(build)[2], sols.get(sol).directory)
+            pattern = sols.get(sol).pattern
             #print(f">Scanning solution {sol} in build {build:4d}: {soldir}")
             if os.path.isdir(soldir):
                 with os.scandir(soldir) as it:
@@ -34,7 +35,7 @@ def collect_runtimes(dir, builds):
                             print(f"slurm {slurm}")
                             with open(slurm, "r") as file:
                                 for line in file:
-                                    if re.search('Serial', line):
+                                    if re.search(pattern, line):
                                         info = re.split('\s+', line)
                                         builds.get(build)[3][sol] = info[1]
                                         break
@@ -123,7 +124,7 @@ def stats_n_plots(dir, builds, lastb, fstat):
     png = os.path.join(dir, 'runtimes_all.png')
     plt.savefig(png)
     print(f"Saved plot {png}")
-    #plt.show()
+    plt.show()
 
 
 def main(argv):
@@ -174,14 +175,18 @@ if __name__ == "__main__":
 
     tts = {}
 
-    Solution = collections.namedtuple('Solution', ['directory', 'label', 'marker', 'color'])
-    SC = Solution(directory='test_standard_cpu', label='Std CPU', marker='o', color='blue')
-    SG = Solution(directory='test_standard_gpu', label='Std GPU', marker='o', color='red')
+    Solution = collections.namedtuple('Solution', ['directory', 'label', 'marker', 'color', 'pattern'])
+    SC  = Solution(directory='test_standard_cpu', label='Std CPU', marker='o', color='blue', pattern='Serial')
+    SG  = Solution(directory='test_standard_gpu', label='Std GPU', marker='o', color='red', pattern='Serial')
+    LBNi = Solution(directory='lofar_bootes_nufft_small_fov', label='Lofar Bootes nufft - intensity field', marker='o', color='green', pattern='#@#JKT1')
+    LBNf = Solution(directory='lofar_bootes_nufft_small_fov', label='Lofar Bootes nufft - full', marker='o', color='cyan', pattern='#@#JKT0')
 
     # Solutions to plot
     sols = {
         'SC': SC,
-        'SG': SG
+        'SG': SG,
+        'LBNi': LBNi,
+        'LBNf': LBNf
     }
     for sol in sorted(sols.keys()):
         print(sols.get(sol))

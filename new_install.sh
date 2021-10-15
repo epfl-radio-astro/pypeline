@@ -4,11 +4,11 @@
 
 set -e
 
-ENV_NAME=pype102
+ENV_NAME=pynuf102-dbg
 
 conda create --name=$ENV_NAME --channel=defaults --channel=conda-forge --file=new_conda_requirements.txt --yes
 
-conda env list 
+conda env list
 
 eval "$(conda shell.bash hook)"
 conda activate $ENV_NAME
@@ -39,6 +39,26 @@ else
 fi
 pip install --no-deps .
 cd ..
+
+
+# Install FINUFTT (CPU) from source
+# !!! GCC 8 not recommended !!! but fftw not available for GCC 9...
+module load gcc fftw
+if [ -d finufft ]; then
+    echo "A finufft directory already exits. Will not do anything."
+    #git pull + recomp?
+    #rm -rf?
+else
+    git clone https://github.com/flatironinstitute/finufft.git
+    cd finufft
+    # Only if you want to have debug symbol/info included in bin
+    echo "CXXFLAGS += -g -DFFTW_PLAN_SAFE" > make.inc
+    make test -j
+    ###make perftest
+    make python
+    cd ..
+fi
+
 
 # Install pypeline locally in editable mode
 pip install --no-deps -e .

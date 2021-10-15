@@ -42,6 +42,16 @@ pipeline {
             }
         }
 
+        stage('lofar_bootes_nufft_small_fov') {
+            environment {
+                TEST_DIR  = "${env.OUT_DIR}/lofar_bootes_nufft_small_fov"
+            }
+            steps {
+                sh "mkdir -pv ${env.TEST_DIR}"
+                sh "srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft_small_fov.sh"
+            }
+        }
+
         stage('Monitoring') {
             environment {
                 TEST_DIR   = "${env.OUT_DIR}/monitoring"

@@ -16,6 +16,7 @@ settings.json
 ### Manually-installed Python Packages ========================================
 pyFFS/
 ImoT_tools/
+finufft
 
 ### Pbr template ==============================================================
 AUTHORS
