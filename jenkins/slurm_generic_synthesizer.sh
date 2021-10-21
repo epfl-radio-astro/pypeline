@@ -33,7 +33,7 @@ echo PYTHON = $PYTHON
 #EO: OMP_NUM_THREADS forced to 1 for M-P
 
 # Should be safe (checked with threadpoolctl via slurm)
-#export OMP_NUM_THREADS=1
+export OMP_NUM_THREADS=1
 #export OPENBLAS_NUM_THREADS=1
 #export MKL_NUM_THREADS=1
 #export VECLIB_MAXIMUM_THREADS=1
