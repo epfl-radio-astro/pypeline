@@ -62,6 +62,8 @@ def stats_n_plots(dir, builds, lastb, fstat):
     fstats = open(fstat, 'w')
     print(f"Writing statistics to file {fstat}")
 
+    plt.subplots(figsize=(11.7, 8.3))
+
     for sol in sorted(sols.keys()):
         print(f"sol = {sol}")
         x = []
@@ -175,18 +177,24 @@ if __name__ == "__main__":
 
     tts = {}
 
+    # Define an entry for each labelled timing to be monitored
+    # Important thing is to set the pattern as defined in the python script
     Solution = collections.namedtuple('Solution', ['directory', 'label', 'marker', 'color', 'pattern'])
     SC  = Solution(directory='test_standard_cpu', label='Std CPU', marker='o', color='blue', pattern='Serial')
     SG  = Solution(directory='test_standard_gpu', label='Std GPU', marker='o', color='red', pattern='Serial')
-    LBNi = Solution(directory='lofar_bootes_nufft_small_fov', label='Lofar Bootes nufft - intensity field', marker='o', color='green', pattern='#@#JKT1')
-    LBNf = Solution(directory='lofar_bootes_nufft_small_fov', label='Lofar Bootes nufft - full', marker='o', color='cyan', pattern='#@#JKT0')
+    LBNi = Solution(directory='lofar_bootes_nufft_small_fov', label='Lofar Bootes nufft - intensity field imaging', marker='o', color='lightgreen', pattern='#@#IFIM')
+    LBNt = Solution(directory='lofar_bootes_nufft_small_fov', label='Lofar Bootes nufft - total', marker='o', color='green', pattern='#@#TOT')
+    LBN3i = Solution(directory='lofar_bootes_nufft3', label='Lofar Bootes nufft3 - intensity field imaging', marker='o', color='violet', pattern='#@#IFIM')
+    LBN3t = Solution(directory='lofar_bootes_nufft3', label='Lofar Bootes nufft3 - total', marker='o', color='blueviolet', pattern='#@#TOT')
 
     # Solutions to plot
     sols = {
         'SC': SC,
         'SG': SG,
         'LBNi': LBNi,
-        'LBNf': LBNf
+        'LBNt': LBNt,
+        'LBN3i': LBN3i,
+        'LBN3t': LBN3t
     }
     for sol in sorted(sols.keys()):
         print(sols.get(sol))
