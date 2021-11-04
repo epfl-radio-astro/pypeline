@@ -50,7 +50,7 @@ OUTPUT_DIR=${TEST_DIR:-.}     # default to cwd when ENV[TEST_DIR] not set
 echo OUTPUT_DIR = $OUTPUT_DIR
 
 # Script to be run
-PY_SCRIPT="./examples/simulation/lofar_bootes_nufft_small_fov.py"
+PY_SCRIPT="./examples/simulation/lofar_bootes_nufft3.py"
 echo "PY_SCRIPT = $PY_SCRIPT"; echo
 
 

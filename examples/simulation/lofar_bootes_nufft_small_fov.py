@@ -8,7 +8,8 @@
 Simulation LOFAR imaging with Bluebild (NUFFT).
 """
 
-from tqdm import tqdm as ProgressBar
+import os, sys, argparse
+#from tqdm import tqdm as ProgressBar
 import astropy.units as u
 import astropy.coordinates as coord
 import astropy.time as atime
@@ -23,7 +24,7 @@ from imot_tools.io.plot import cmap
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.bluebild.gram as bb_gr
-import pypeline.phased_array.bluebild.imager.fourier_domain as bb_fd
+#import pypeline.phased_array.bluebild.imager.fourier_domain as bb_fd
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.data_gen.source as source
 import pypeline.phased_array.instrument as instrument
@@ -36,7 +37,27 @@ import imot_tools.io.s2image as im
 import time as tt
 
 
+# Dump data to args.outdir if defined
+def dump_data(stats, filename):
+    if args.outdir:
+        fp = os.path.join(args.outdir, filename + '.npy')
+        with open(fp, 'wb') as f:
+            np.save(f, stats)
+            print("Wrote ", fp)
+
 jkt0_s = tt.time()
+
+# Check arguments
+parser = argparse.ArgumentParser()
+parser.add_argument("--outdir",   help="Path to dumping location (no dumps if not set)")
+args = parser.parse_args()
+if args.outdir:
+    if not os.path.exists(args.outdir):
+        print('fatal: --outdir ('+args.outdir+') must exists if defined.')
+        sys.exit(1)
+    print("Dumping directory: ", args.outdir)        
+else:
+    print("Will not dump anything, --outdir not set.")
 
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
@@ -53,13 +74,12 @@ gram = bb_gr.GramBlock()
 
 # Data generation
 T_integration = 8
-sky_model = source.from_tgss_catalog(field_center, FoV, N_src=30)
+sky_model = source.from_tgss_catalog(field_center, FoV, N_src=40)
 vis = statistics.VisibilityGeneratorBlock(sky_model, T_integration, fs=196000, SNR=30)
 time = obs_start + (T_integration * u.s) * np.arange(3595)
 obs_end = time[-1]
 
 # Field center coordinates
-
 field_center_lon, field_center_lat = field_center.data.lon.rad, field_center.data.lat.rad
 field_center_xyz = field_center.cartesian.xyz.value
 
@@ -87,15 +107,29 @@ uvw_frame = np.stack((u_dir, v_dir, w_dir), axis=-1)
 # ax.plot3D([0, w_dir[0]], [0, w_dir[1]], [0, w_dir[-1]], '-sr', linewidth=2)
 # ax.text3D(w_dir[0], w_dir[1], w_dir[-1], 'w', fontsize='large')
 
+# Imaging Parameters
+N_pix = 512
+N_level = 3
+N_bits = 32
+time_slice = 36
+eps = 1e-3
+print("\nImaging Parameters")
+print(f'N_pix {N_pix}\nN_level {N_level}\nN_bits {N_bits}')
+print(f'time_slice {time_slice}\neps {eps}\n')
+
+t1 = tt.time()
+
 # Imaging grid
+ig_s = tt.time()
 lim = np.sin(FoV / 2)
-N_pix = 256
 pix_slice = np.linspace(-lim, lim, N_pix)
 Lpix, Mpix = np.meshgrid(pix_slice, pix_slice)
 Jpix = np.sqrt(1 - Lpix ** 2 - Mpix ** 2)  # No -1 if r on the sphere !
 lmn_grid = np.stack((Lpix, Mpix, Jpix), axis=0)
 pix_xyz = np.tensordot(uvw_frame, lmn_grid, axes=1)
 _, pix_lat, pix_lon = transform.cart2eq(*pix_xyz)
+ig_e = tt.time()
+print(f"#@#IG {ig_e-ig_s:.3f} sec")
 
 # ax.scatter3D(pix_xyz[0].flatten(), pix_xyz[1].flatten(), pix_xyz[-1].flatten())
 
@@ -109,16 +143,13 @@ _, pix_lat, pix_lon = transform.cart2eq(*pix_xyz)
 # plt.xlabel('RA')
 # plt.ylabel('DEC')
 
-# Imaging Parameters
-t1 = tt.time()
-N_level = 4
-N_bits = 32
-time_slice = 200
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
+ifpe_s = tt.time()
 I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=0.95)
-for t in ProgressBar(time[::200]):
+#for t in ProgressBar(time[::200]):
+for t in time[::200]:
     XYZ = dev(t)
     W = mb(XYZ, wl)
     G = gram(XYZ, W, wl)
@@ -126,18 +157,19 @@ for t in ProgressBar(time[::200]):
     I_est.collect(S, G)
 
 N_eig, c_centroid = I_est.infer_parameters()
+ifpe_e = tt.time()
+print(f"#@#IFPE {ifpe_e-ifpe_s:.3f} sec")
 
 # Imaging
-
-jkt1_s = tt.time()
-
+ifim_s = tt.time()
 I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
 UVW_baselines = []
 ICRS_baselines = []
 gram_corrected_visibilities = []
 baseline_rescaling = 2 * np.pi / wl
 
-for t in ProgressBar(time[0:25]):
+#for t in ProgressBar(time[0:25]):
+for t in time[0:time_slice]:
     XYZ = dev(t)
     UVW = (uvw_frame.transpose() @ XYZ.data.transpose()).transpose()
     UVW_baselines_t = (UVW[:, None, :] - UVW[None, ...])
@@ -183,30 +215,36 @@ scalingy = 2 * lim / N_pix
 bb_image = finufft.nufft2d1(x=scalingx * UVW_baselines[:, 1],
                             y=scalingy * UVW_baselines[:, 0],
                             c=gram_corrected_visibilities,
-                            n_modes=N_pix, eps=1e-4)
+                            n_modes=N_pix, eps=eps)
 
 bb_image = np.real(bb_image)
 
-print(bb_image.shape,bb_image[0,0])
+ifim_e = tt.time()
+print(f"#@#IFIM {ifim_e-ifim_s:.3f} sec")
 
-jkt1_e = tt.time()
-print(f"#@#JKT1 {jkt1_e-jkt1_s:.3f} sec")
 
 ### Sensitivity Field =========================================================
 # Parameter Estimation
+sfpe_s = tt.time()
 S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=0.95)
-for t in ProgressBar(time[::200]):
+#for t in ProgressBar(time[::200]):
+for t in time[::200]:
     XYZ = dev(t)
     W = mb(XYZ, wl)
     G = gram(XYZ, W, wl)
-
     S_est.collect(G)
+
 N_eig = S_est.infer_parameters()
 
+sfpe_e = tt.time()
+print(f"#@#SFPE {sfpe_e-sfpe_s:.3f} sec")
+
 # Imaging
+sfim_s = tt.time()
 S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
 sensitivity_coeffs = []
-for t in ProgressBar(time[0:25]):
+#for t in ProgressBar(time[0:25]):
+for t in time[0:time_slice]:
     XYZ = dev(t)
     W = mb(XYZ, wl)
     G = gram(XYZ, W, wl)
@@ -224,21 +262,30 @@ sensitivity_image = finufft.nufft2d1(x=scalingx * UVW_baselines[:, 1],
 
 sensitivity_image = np.real(sensitivity_image)
 
-print(sensitivity_image.shape,sensitivity_image[0,0])
-
 I_lsq_eq = s2image.Image(bb_image / sensitivity_image, pix_xyz)
+dump_data(I_lsq_eq, 'I_lsq_eq')
+sfim_e = tt.time()
+print(f"#@#SFIM {sfim_e-sfim_s:.3f} sec")
+
 t2 = tt.time()
 print(f'Elapsed time: {t2 - t1} seconds.')
 
+jkt0_e = tt.time()
+print(f"#@#TOT {jkt0_e-jkt0_s:.3f} sec\n")
+
+
+### Plotting section
 plt.figure()
 ax = plt.gca()
-I_lsq_eq.draw(catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'), show_gridlines=False)
-ax.set_title(f'Bluebild Least-squares, sensitivity-corrected image (NUFFT)\n'
+I_lsq_eq.draw(catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'), show_gridlines=False, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5))
+ax.set_title(f'Bluebild least-squares, sensitivity-corrected image (NUFFT)\n'
              f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180/np.pi)} degrees.\n'
              f'Run time {np.floor(t2 - t1)} seconds.')
 
-plt.savefig("test_nufft")
-
+fp = "test_nufft"
+if args.outdir:
+    fp = os.path.join(args.outdir, fp)
+plt.savefig(fp)
 
 gaussian=np.exp(-(Lpix ** 2 + Mpix ** 2)/(4*lim))
 gridded_visibilities=np.sqrt(np.abs(np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(gaussian*bb_image)))))
@@ -246,5 +293,3 @@ gridded_visibilities[int(gridded_visibilities.shape[0]/2)-2:int(gridded_visibili
 plt.figure()
 plt.imshow(np.flipud(gridded_visibilities), cmap='cubehelix')
 
-jkt0_e = tt.time()
-print(f"#@#JKT0 {jkt0_e-jkt0_s:.3f} sec")
