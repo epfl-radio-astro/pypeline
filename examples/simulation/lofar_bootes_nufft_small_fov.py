@@ -263,7 +263,9 @@ sensitivity_image = finufft.nufft2d1(x=scalingx * UVW_baselines[:, 1],
 sensitivity_image = np.real(sensitivity_image)
 
 I_lsq_eq = s2image.Image(bb_image / sensitivity_image, pix_xyz)
-dump_data(I_lsq_eq, 'I_lsq_eq')
+dump_data(I_lsq_eq.data, 'I_lsq_eq_data')
+dump_data(I_lsq_eq.grid, 'I_lsq_eq_grid')
+
 sfim_e = tt.time()
 print(f"#@#SFIM {sfim_e-sfim_s:.3f} sec")
 
