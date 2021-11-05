@@ -74,8 +74,8 @@ time python $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO} ${TEST_BENCH} ${TEST_TRANGE} --
 ls -rtl $OUTPUT_DIR
 echo; echo
 
-echo "EARLY EXIT for faster tests"
-exit 0
+#echo "EARLY EXIT for faster tests"
+#exit 0
 
 if [ $TEST_ARCH == '--gpu' ]; then
     echo "Nsight"
@@ -114,7 +114,8 @@ if [ $TEST_ARCH != '--gpu' ]; then
     which vtune
     echo listing of $OUTPUT_DIR
     ls -rtl $OUTPUT_DIR
-    vtune -collect hotspots -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -search-dir=. -result-dir=$OUTPUT_DIR/vtune -- $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
+    vtune -collect hotspots           -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -search-dir=. -result-dir=$OUTPUT_DIR/vtune_hs -- $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
+    vtune -collect memory-consumption -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -search-dir=. -result-dir=$OUTPUT_DIR/vtune_mem -- $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
 else
     echo "Lack of permissions to run Intel VTune Amplifier on GPU hardware. To be investigated."
 fi
