@@ -82,39 +82,47 @@ def main(argv):
 
         print(f"\n##### {sol}")
 
-        # Reference image and grid
+        # Reference image and grid (if any)
         file_iref = os.path.join(refdir, sols.get(sol).directory, sols.get(sol).refname)
+        print(f"image reference: {file_iref}")
         if not os.path.isfile(file_iref):
             print(f"Fatal. Reference solution {file_iref} not found!")
             sys.exit(1)
+        with open(file_iref, 'rb') as f:
+            iref = np.load(f, allow_pickle=True)
+                    
         file_gref = os.path.join(refdir, sols.get(sol).directory, sols.get(sol).refgrid)
         if not os.path.isfile(file_gref):
             print(f"Fatal. Reference grid {file_gref} not found!")
             sys.exit(1)
-            
+        with open(file_gref, 'rb') as f:
+            gref = np.load(f, allow_pickle=True)
+
+
         # Solution image and grid
         file_isol = os.path.join(indir, builds.get(lastb)[2], sols.get(sol).directory, sols.get(sol).filename)
+        print(f"image solution: {file_isol}")
         if not os.path.isfile(file_isol):
             msg = f"{sol} solution map {file_isol} not found. _WARNING_"
             fstats.write(msg + "\n")
             print(msg)
             continue
+        with open(file_isol, 'rb') as f:
+            isol = np.load(f, allow_pickle=True)
+
         file_gsol = os.path.join(indir, builds.get(lastb)[2], sols.get(sol).directory, sols.get(sol).gridname)
         if not os.path.isfile(file_gsol):
             msg = f"{sol} solution grid {file_gsol} not found. _WARNING_"
             fstats.write(msg + "\n")
             print(msg)
             continue
-
-        with open(file_iref, 'rb') as f: iref = np.load(f)
-        with open(file_gref, 'rb') as f: gref = np.load(f)
-        with open(file_isol, 'rb') as f: isol = np.load(f)
-        with open(file_gsol, 'rb') as f: gsol = np.load(f)
-
-        print("Shape of iref = ", np.shape(iref))
-        print("Shape of isol = ", np.shape(isol))
-        print("Shape of gref = ", np.shape(gref))
-        print("Shape of gsol = ", np.shape(gsol))
+        with open(file_gsol, 'rb') as f:
+            gsol = np.load(f, allow_pickle=True)
+        
+        print("Shape of iref = ", iref.shape)
+        print("Shape of isol = ", isol.shape)
+        print("Shape of gref = ", gref.shape)
+        print("Shape of gsol = ", gsol.shape)
 
         if np.shape(iref) != np.shape(isol):
             print(f"Fatal. Similar i shapes expected iref is {np.shape(iref)} whereas isol is {np.shape(isol)}.")
@@ -140,44 +148,57 @@ def main(argv):
         fstats.write(msg + "\n")
 
         # Produce a plot img ref diff
-        fig, ax = plt.subplots(ncols=3, nrows = 1)
-        fig.tight_layout(pad = 2.0)
+        fig, ax = plt.subplots(1, 3, figsize=(11.7, 8.3))
+        fig.tight_layout(rect=(0,0,0.95,0.95))
         grid_kwargs = {"ticks": False}
         color_diff = "RdBu"
-        img_sol.draw(ax=ax[0], data_kwargs = {"cmap": "GnBu_r"}, grid_kwargs = grid_kwargs)
+        show_gridlines = True
+        if sols.get(sol).show_gridlines == 0:
+            show_gridlines = False
+        img_sol.draw(ax=ax[0], data_kwargs = {"cmap": "GnBu_r"}, show_gridlines=show_gridlines, grid_kwargs = grid_kwargs)
         ax[0].set_title("build " + str(lastb))
-        img_ref.draw(ax=ax[1], data_kwargs = {"cmap": "GnBu_r"}, grid_kwargs = grid_kwargs)
+        img_ref.draw(ax=ax[1], data_kwargs = {"cmap": "GnBu_r"}, show_gridlines=show_gridlines, grid_kwargs = grid_kwargs)
         ax[1].set_title("Reference")
-        img_diff.draw(ax=ax[2], data_kwargs =  {"cmap": color_diff},grid_kwargs = grid_kwargs)
+        img_diff.draw(ax=ax[2], data_kwargs = {"cmap": color_diff}, show_gridlines=show_gridlines, grid_kwargs = grid_kwargs)
         ax[2].set_title("Difference")
+        fig.suptitle(sols.get(sol).label + "\n\n" + sols.get(sol).directory, fontsize=20, y=0.9)
         plt.show()
         fig.savefig(os.path.join(outdir, sol + ".png"))
 
     fstats.close()
+
 
 if __name__ == "__main__":
 
     tts = {}
 
     # Define matrix of solutions to monitor for image differences
-    Solution = collections.namedtuple('Solution', ['directory', 'label', 'marker', 'color', 'filename', 'refname',
-                                                   'gridname', 'refgrid'])
+    #TODO@EO: should be defined separatly to be shared with tts.py
+    Solution = collections.namedtuple('Solution', ['directory', 'label', 'filename', 'refname',
+                                                   'gridname', 'refgrid', 'show_gridlines'])
 
-    SC  = Solution(directory='test_standard_cpu', label='Std CPU', marker='o', color='blue',
-                   filename='stats_combined.npy', gridname='grid.npy', refname='ref_combined.npy', refgrid='ref_grid.npy')
+    SC  = Solution(directory='test_standard_cpu', label='Standard Synthesizer - CPU',
+                   filename='stats_combined.npy', gridname='grid.npy', refname='ref_combined.npy', refgrid='ref_grid.npy',
+                   show_gridlines=1)
 
-    SG  = Solution(directory='test_standard_gpu', label='Std GPU', marker='o', color='red',
-                   filename='stats_combined.npy', gridname='grid.npy', refname='ref_combined.npy', refgrid='ref_grid.npy')
+    SG  = Solution(directory='test_standard_gpu', label='Standard Synthesizer - GPU', 
+                   filename='stats_combined.npy', gridname='grid.npy', refname='ref_combined.npy', refgrid='ref_grid.npy',
+                   show_gridlines=1)
 
-    #LBNi = Solution(directory='lofar_bootes_nufft_small_fov', label='Lofar Bootes nufft - intensity field', marker='o', color='green', pattern='#@#JKT1')
-    #LBNf = Solution(directory='lofar_bootes_nufft_small_fov', label='Lofar Bootes nufft - full', marker='o', color='cyan', pattern='#@#JKT0')
+    LBN = Solution(directory='lofar_bootes_nufft_small_fov', label='Bluebild least-squares, sensitivity-corrected image (NUFFT)',
+                   filename='I_lsq_eq_data.npy', gridname='I_lsq_eq_grid.npy', refname='ref_I_lsq_eq_data.npy', refgrid='ref_I_lsq_eq_grid.npy',
+                   show_gridlines=0)
+
+    LBN3 = Solution(directory='lofar_bootes_nufft3', label='Bluebild least-squares, sensitivity-corrected image (NUFFT3)',
+                   filename='I_lsq_eq_data.npy', gridname='I_lsq_eq_grid.npy', refname='ref_I_lsq_eq_data.npy', refgrid='ref_I_lsq_eq_grid.npy',
+                   show_gridlines=0)
 
     # Solutions to plot
     sols = {
         'SC': SC,
-        'SG': SG#,
-        #'LBNi': LBNi,
-        #'LBNf': LBNf
+        'SG': SG,
+        'LBN': LBN,
+        'LBN3': LBN3
     }
     for sol in sorted(sols.keys()):
         print(sols.get(sol))
