@@ -188,8 +188,10 @@ print(nufft_imager._synthesizer._inner_fft_sizes)
 sensitivity_image = nufft_imager(sensitivity_coeffs)
 
 I_lsq_eq = s2image.Image(lsq_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
+dump_data(I_lsq_eq.data, 'I_lsq_eq_data')
+dump_data(I_lsq_eq.grid, 'I_lsq_eq_grid')
+
 I_sqrt_eq = s2image.Image(sqrt_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
-dump_data(I_lsq_eq, 'I_lsq_eq')
 
 sfim_e = tt.time()
 print(f"#@#SFIM {sfim_e-sfim_s:.3f} sec")
