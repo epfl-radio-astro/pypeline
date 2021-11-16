@@ -8,11 +8,12 @@
 Field synthesizers that work in the spatial domain.
 """
 
-#import numexpr as ne
+import numexpr as ne
 import numpy as np
-import cupy as cp
 import scipy.linalg as linalg
 import scipy.sparse as sparse
+from numpy.ctypeslib import ndpointer
+from ctypes import *
 import nvtx
 import sys
 
@@ -29,6 +30,60 @@ def _have_matching_shapes(V, XYZ, W):
         return True
 
     return False
+
+
+def dgemm_(A, B, a = 1, b = 0):
+
+    so_file = "./src/xgemm-ref.so"
+    custom_functions = CDLL(so_file)
+    custom_functions.dgemm_.argtypes=[c_int, c_int, c_int,
+                                      c_double, #alpha
+                                      ndpointer(dtype=np.double, ndim=2, flags='F'), c_int,
+                                      ndpointer(dtype=np.double, ndim=2, flags='F'), c_int,
+                                      c_double, #beta
+                                      ndpointer(dtype=np.double, ndim=2, flags='F'), c_int]
+    (M, K) = A.shape
+    (K, N) = B.shape
+    A = A.astype(np.double, order = 'F')
+    B = B.astype(np.double, order = 'F')
+    ldA = M
+    ldB = K
+    C = np.zeros((M,N), dtype=np.double, order='F')
+    ldC = M
+
+    custom_functions.dgemm_(M, N, K,
+                            a,
+                            A, ldA,
+                            B, ldB,
+                            b,
+                            C, ldC)
+
+    return C
+
+
+def dgemmexp(A, B, a = 1):
+    # setting up C function
+    so_file = "./src/dgemm-simple.so"
+    custom_functions = CDLL(so_file)
+    custom_functions.dgemmexp.argtypes=[c_int, c_int, c_int,
+                                        c_double, #alpha
+                                        ndpointer(dtype=np.float64,ndim=2,flags='F'), c_int,
+                                        ndpointer(dtype=np.float64,ndim=2,flags='F'), c_int,
+                                        ndpointer(dtype=np.complex128,ndim=2,flags='F'), c_int]
+
+    (M, K) = A.shape
+    (K, N) = B.shape
+    A = np.asfortranarray(A)
+    B = np.asfortranarray(B)
+    ldA = M
+    ldB = K
+    C = np.zeros((M,N), dtype=np.complex128, order='F')
+    ldC = M
+
+    # function call
+    custom_functions.dgemmexp(M, N, K, a, A, ldA, B, ldB, C, ldC)
+
+    return C
 
 
 class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
@@ -171,6 +226,7 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
     )'''
     
     def __call__(self, V, XYZ, W):
+
         """
         Compute instantaneous field statistics.
         Parameters
@@ -190,12 +246,23 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         """
 
         # for CPU/GPU agnostic code
-        with nvtx.annotate(message="s_d/(cu|num)py", color="lime"):
-            xp = cp.get_array_module(V)  # now using 'xp' instead of cp or np
+
+        # Commented out solution forces to load Cupy which is not possible on CPU clusters
+        #with nvtx.annotate(message="s_d/(cu|num)py", color="lime"):
+        #    xp = get_array_module(V)  # now using 'xp' instead of cp or np
+        if (type(V) == np.ndarray):
+            xp = np
+        else:
+            import cupy as cp
+            if (cp.get_array_module(V) != cp):
+                print("Error. V was not recognized correctly as either Cupy or Numpy.")
+                sys.exit(1)
+            xp = cp
         #print("Using:", xp.__name__)
 
         if not _have_matching_shapes(V, XYZ, W):
             raise ValueError("Parameters[V, XYZ, W] are inconsistent.")
+
         # TODO: move precision control outside of the call
         #V = V.astype(self._cp, copy=False)
         #XYZ = XYZ.astype(self._fp, copy=False)
@@ -205,12 +272,14 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
 
         N_antenna, N_beam = W.shape
         N_height, N_width = self._grid.shape[1:]
+        #print(f"N_height = {N_height} N_width = {N_width}")
         N_eig = V.shape[1]
 
         XYZ = XYZ - XYZ.mean(axis=0)
         #P = xp.zeros((N_antenna, N_height, N_width), dtype=self._cp)
 
-        a = 1j * 2 * np.pi / self._wl
+        a  = 1j * 2 * np.pi / self._wl
+        a_ = 2 * np.pi / self._wl
 
         #print("self._cp ", self._cp)
         with nvtx.annotate(message="s_d/E alloc", color="fuchsia"):
@@ -222,31 +291,48 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
 
         self.mark(self.timer_tag + "Synthesizer matmuls")
 
-        for i in range(N_width):
-            with nvtx.annotate(message="s_d/pix", color="grey"):
-                pix_gpu = xp.asarray(self._grid[:,:,i])
-            with nvtx.annotate(message="s_d/b", color="green"):
-                b  = xp.matmul(XYZ, pix_gpu)
-            with nvtx.annotate(message="s_d/P", color="yellow"):
-                P  = xp.exp(a*b)
-            with nvtx.annotate(message="s_d/PW", color="cyan"):
-                if xp == np and (isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix)):
-                    PW = W.T @ P
-                else:
-                    PW = xp.matmul(W.T, P)
-            with nvtx.annotate(message="s_d/E", color="chocolate"):
-                E[:,:,i]  = xp.matmul(V.T, PW)
 
-        with nvtx.annotate(message="s_d/I", color="lavender"):
-            I = E.real ** 2 + E.imag ** 2
+        if 1 == 1:
+            for i in range(N_width):
+                with nvtx.annotate(message="s_d/pix", color="grey"):
+                    pix_gpu = xp.asarray(self._grid[:,:,i])
+                with nvtx.annotate(message="s_d/b", color="green"):
+                    b  = xp.matmul(XYZ, pix_gpu)
+                with nvtx.annotate(message="s_d/P", color="yellow"):
+                    P  = xp.exp(a*b)
+                with nvtx.annotate(message="s_d/PW", color="cyan"):
+                    if xp == np and (isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix)):
+                        PW = W.T @ P
+                    else:
+                        PW = xp.matmul(W.T, P)
+                with nvtx.annotate(message="s_d/E", color="chocolate"):
+                    E[:,:,i]  = xp.matmul(V.T, PW)
+            with nvtx.annotate(message="s_d/I", color="lavender"):
+                I = E.real ** 2 + E.imag ** 2
+
+        else:
+            pixGrid = self._grid
+            pixGrid = pixGrid.reshape(pixGrid.shape[0], N_height * N_width)
+            if 1 == 1:
+                P = dgemmexp(XYZ, pixGrid, a_)
+            else:
+                #B  = dgemm_(XYZ, pixGrid)
+                B = xp.matmul(XYZ, pixGrid)
+                P = np.zeros(B.shape, dtype=np.complex128)
+                ne.evaluate("exp(A * B)", dict(A=a, B=B), out=P, casting="same_kind")
+            if xp == np and (isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix)):
+                PW = W.T @ P
+            else:
+                PW = xp.matmul(W.T, P)
+            E  = V.T @ PW
+            I  = E.real ** 2 + E.imag ** 2
+            I  = I.reshape(I.shape[0],N_height, N_width)
 
         self.unmark(self.timer_tag + "Synthesizer matmuls")
 
-        I = E.real ** 2 + E.imag ** 2
-
         self.unmark(self.timer_tag + "Synthesizer call")
 
-        if xp == cp:
+        if xp != np:
             return I.get()
 
         return I

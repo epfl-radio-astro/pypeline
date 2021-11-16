@@ -21,11 +21,25 @@ pipeline {
             }
         }
 
+        stage('Seff') {
+            environment {
+                TEST_DIR  = "${env.OUT_DIR}/seff"
+                TEST_SEFF = "1"
+            }
+            steps {
+                sh "mkdir -pv ${env.TEST_DIR}"
+                JOBID = sh (
+                    script: 'sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh',
+                    returnStdout: true
+                ).trim()
+                echo "Seff JOBID: ${JOBID}"
+            }
+        }
+
         stage('Standard CPU') {
             environment {
                 TEST_DIR  = "${env.OUT_DIR}/test_standard_cpu"
             }
-
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"
                 sh "srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"

@@ -1,14 +1,11 @@
 import os, sys, timing, argparse
 import numpy as np
-import cupy as cp
 import scipy.sparse as sparse
 import nvtx
 import time
 from functools import partial
 
 import imot_tools.math.sphere.transform as transform
-import pypeline.phased_array.bluebild.field_synthesizer.fourier_domain as synth_periodic
-import pypeline.phased_array.bluebild.field_synthesizer.spatial_domain as synth_standard
 import dummy_synthesis 
 from dummy_synthesis import synthesize, synthesize_stack
 from data_gen_utils import RandomDataGen, SimulatedDataGen, RealDataGen
@@ -27,44 +24,43 @@ def worker_info(wid):
     print('process id:', os.getpid())
     time.sleep(10)
 
+
 def print_info(x, name):
     try:
         print(f"info on {name:12s}: {type(x)}, {x.dtype}, {x.shape}")
     except:
         print(f"info on {name:12s}: {type(x)}")
 
+
 @nvtx.annotate(color="yellow")
 def t_stats(t, data, args, synthesizer):
 
-    with cp.cuda.profile():
-        #pass
-        
-        with nvtx.annotate("Get data", color="blue"):
-            (V, XYZ, W, D) = data.getVXYZWD(t)
-        #print_info(V, 'V')
+    with nvtx.annotate("Get data", color="blue"):
+        (V, XYZ, W, D) = data.getVXYZWD(t)
+    #print_info(V, 'V')
 
-        D_r = D.reshape(-1, 1, 1)
+    D_r = D.reshape(-1, 1, 1)
     
-        if isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix):
-            with nvtx.annotate("sparse", color="aqua"):
-                W = W.toarray()
+    if isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix):
+        with nvtx.annotate("sparse", color="aqua"):
+            W = W.toarray()
 
-        if args.gpu:
-            with nvtx.annotate("XYZ,W,V asarray", color="green"):
-                XYZ = cp.asarray(XYZ)
-                W   = cp.asarray(W)
-                V   = cp.asarray(V)
+    if args.gpu:
+        with nvtx.annotate("XYZ,W,V asarray", color="green"):
+            XYZ = cp.asarray(XYZ)
+            W   = cp.asarray(W)
+            V   = cp.asarray(V)
 
-        with nvtx.annotate("Synthesizer", color="red"):
-            stats = synthesizer(V, XYZ, W)
-        #print_info(stats, 'stats')
+    with nvtx.annotate("Synthesizer", color="red"):
+        stats = synthesizer(V, XYZ, W)
+    #print_info(stats, 'stats')
 
-        stats_norm = stats * D_r
+    stats_norm = stats * D_r
 
-        if args.periodic:
-            # transform the periodic field statistics to periodic eigenimages
-            stats      = synthesizer.synthesize(stats)
-            stats_norm = synthesizer.synthesize(stats_norm)
+    if args.periodic:
+        # transform the periodic field statistics to periodic eigenimages
+        stats      = synthesizer.synthesize(stats)
+        stats_norm = synthesizer.synthesize(stats_norm)
 
     return (stats, stats_norm)
 
@@ -93,6 +89,7 @@ if __name__ == "__main__":
     t_range = args.t_range
     print("t_range =", t_range)
 
+    # Defaults
     arch = 'cpu'
     algo = 'standard'
 
@@ -102,13 +99,19 @@ if __name__ == "__main__":
             sys.exit(1)
         print("Dumping directory: ", args.outdir)        
     else:
-        print("Will not dump anything, --outdir not set.")
+        print("Warning: will not dump anything, --outdir not set.")
+
     if args.gpu:
         print("Will use GPU")
         arch = 'gpu'
+        import cupy as cp
+
     if args.periodic:
         print("Will use periodic algorithm")
         algo = 'periodic'
+        import pypeline.phased_array.bluebild.field_synthesizer.fourier_domain as synth_periodic
+    else:
+        import pypeline.phased_array.bluebild.field_synthesizer.spatial_domain as synth_standard
 
     precision = 32 # 32 or 64
 
@@ -136,18 +139,17 @@ if __name__ == "__main__":
 
 
     ### Serial
-
     tic = time.perf_counter()
     with nvtx.annotate("Main loop", color="purple"):
         stats_combined = None
         stats_normcombined = None
-        with cp.cuda.profile():
-            for t in range(0, t_range):
-                (stats, stats_norm) = t_stats(t, data, args, synthesizer)
-                try:    stats_combined += stats
-                except: stats_combined  = stats
-                try:    stats_normcombined += stats_norm
-                except: stats_normcombined  = stats_norm
+        #with cp.cuda.profile():
+        for t in range(0, t_range):
+            (stats, stats_norm) = t_stats(t, data, args, synthesizer)
+            try:    stats_combined += stats
+            except: stats_combined  = stats
+            try:    stats_normcombined += stats_norm
+            except: stats_normcombined  = stats_norm
 
     dump_data(stats_combined, 'stats_combined')
     dump_data(stats_normcombined, 'stats_normcombined')
@@ -159,14 +161,13 @@ if __name__ == "__main__":
 
 
     ### Multi-processing
-
     if args.bench:
 
         import multiprocessing as mp
         mp.set_start_method('spawn')
 
         # Watch out potential conflit with backgroud blas multi-threading
-        os.environ['OPENBLAS_NUM_THREADS'] = 1
+        os.environ['OPENBLAS_NUM_THREADS'] = "1"
         print("OPENBLAS_NUM_THREADS =", os.environ.get('OPENBLAS_NUM_THREADS'))
     
         # NCPUS: size of pool of workers
