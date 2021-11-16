@@ -1,13 +1,15 @@
 pipeline {
 
+    def AGENT_LABEL = "izar-ska"
+
     agent {
-        label 'izar-orliac'
+        label ${AGENT_LABEL}
     }
 
     environment {
         UTC_TAG  = "${sh(script:'date -u +"%Y-%m-%dT%H-%M-%SZ"', returnStdout: true).trim()}"
-        WORK_DIR = "/work/scitas-share/SKA/jenkins/izar-orliac"
-        REF_DIR  = "/work/scitas-share/SKA/jenkins/references"
+        WORK_DIR = "/work/backup/ska/ci-jenkins/${AGENT_LABEL}"
+        REF_DIR  = "/work/backup/ska/ci-jenkins/references"
         OUT_DIR  = "${env.WORK_DIR}/${env.GIT_BRANCH}/${env.UTC_TAG}_${env.BUILD_ID}"
     }
 
@@ -38,6 +40,9 @@ pipeline {
                  echo "Seff JOBID (bis): ${JOBID}"
             }
         }
+
+        //EO, the time to test and transfer to izar-ska
+        return
 
         stage('Standard CPU') {
             environment {
