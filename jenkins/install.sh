@@ -9,6 +9,8 @@ pwd
 #bash ./Miniconda3-latest-Linux-x86_64.sh -b
 #source ~/miniconda3/bin/activate
 #conda init
+echo "export PATH=\"~/miniconda3/bin:\$PATH\"" >> ~/.bashrc
+source ~/.bashrc
 
 which conda
 
