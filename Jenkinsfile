@@ -1,7 +1,7 @@
 pipeline {
 
     agent {
-        label 'izar-orliac'
+        label 'izar-ska'
     }
 
     environment {
