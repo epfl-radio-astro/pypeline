@@ -7,6 +7,8 @@ pwd
 # Install Miniconda in batch mode the first time
 # (step only required once)
 #bash ./Miniconda3-latest-Linux-x86_64.sh -b
+source ~/miniconda3/bin/activate
+conda init
 
 which conda
 
