@@ -9,14 +9,16 @@ pwd
 #bash ./Miniconda3-latest-Linux-x86_64.sh -b
 #source ~/miniconda3/bin/activate
 #conda init
-echo "export PATH=\"~/miniconda3/bin:\$PATH\"" >> ~/.bashrc
-source ~/.bashrc
+#echo "export PATH=\"~/miniconda3/bin:\$PATH\"" >> ~/.bashrc
+#source ~/.bashrc
 
 which conda
 
 ENV_NAME=pype-111
 
-conda env create -f ./conda_environments/pype-111.yml
+# Create conda environment
+# (step only required to create the environment)
+#conda env create -f ./conda_environments/pype-111.yml
 
 conda env list
 
