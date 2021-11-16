@@ -3,7 +3,7 @@ def AGENT_LABEL = "izar-ska"
 pipeline {
 
     agent {
-        label ${AGENT_LABEL}
+        label "${AGENT_LABEL}"
     }
 
     environment {
