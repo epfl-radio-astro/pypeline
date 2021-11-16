@@ -25,7 +25,7 @@ module load gcc
 if [ $ARCH == "GPU" ]; then
     module load cuda/11.1.1;
 fi
-CONDA_ENV=pype111
+CONDA_ENV=pype-111
 module list
 
 eval "$(conda shell.bash hook)"

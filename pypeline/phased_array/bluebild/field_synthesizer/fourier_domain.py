@@ -14,8 +14,8 @@ import imot_tools.math.sphere.transform as transform
 import imot_tools.util.argcheck as chk
 import numexpr as ne
 import numpy as np
-import cupy as cp
-import cupyx.scipy.fft as cpfft
+#import cupy as cp
+#import cupyx.scipy.fft as cpfft
 import pyffs
 #import scipy.fftpack as fftpack # considered legacy
 import scipy.fft as fft
@@ -201,8 +201,6 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         """
         super().__init__()
 
-        print("???????? precision = ", precision)
-
         if precision == 32:
             self._fp = np.float32
             self._cp = np.complex64
@@ -287,8 +285,20 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         """
 
         # for CPU/GPU agnostic code
-        with nvtx.annotate(message="f_d/(cu|num)py", color="lime"):
-            xp = cp.get_array_module(V)
+        # Commented out solution forces to load Cupy which is not possible on CPU clusters
+        #with nvtx.annotate(message="s_d/(cu|num)py", color="lime"):
+        #    xp = get_array_module(V)  # now using 'xp' instead of cp or np
+        if (type(V) == np.ndarray):
+            xp = np
+        else:
+            import cupy as cp
+            if (cp.get_array_module(V) != cp):
+                print("Error. V was not recognized correctly as either Cupy or Numpy.")
+                sys.exit(1)            
+            xp = cp
+            import cupyx.scipy.fft as cpfft
+        #print("Using:", xp.__name__)
+
         print("Using:", xp.__name__)
 
         self.mark(self.timer_tag + "Synthesizer call")

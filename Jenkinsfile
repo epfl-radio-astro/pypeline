@@ -19,7 +19,7 @@ pipeline {
             steps {
                 slackSend color: 'good', message:"Build Started - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
                 //sh 'echo !! install.sh disabled !!'
-                sh 'sh ./new_install.sh'
+                sh 'sh ./jenkins/install.sh'
             }
         }
 
@@ -74,7 +74,8 @@ pipeline {
 
         stage('lofar_bootes_nufft3') {
             environment {
-                TEST_DIR  = "${env.OUT_DIR}/lofar_bootes_nufft3"
+                TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_nufft3"
+                CUPY_PYFFS = "0"
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"

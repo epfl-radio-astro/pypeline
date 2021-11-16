@@ -9,10 +9,11 @@
 
 set -e
 
-module load gcc/8.4.0-cuda
-module load cuda/10
+module load gcc
+#module load cuda/10
 module load fftw
-CONDA_ENV=pynuf102-dbg
+#CONDA_ENV=pynuf102-dbg
+CONDA_ENV=pype-111
 module list
 
 eval "$(conda shell.bash hook)"
@@ -30,6 +31,13 @@ echo
 # nsys requires full path to Python interpreter
 PYTHON=`which python`
 echo PYTHON = $PYTHON
+
+#FINUFFT=./finufft
+#cd $FINUFFT
+#FINUFFT_DIR=`pwd` python -m pip install -e ./python
+$PYTHON -c "import finufft as _; print(_.__path__)" # Print path to finufft
+#cd ..
+#exit 0
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export OPENBLAS_NUM_THREADS=1
@@ -60,8 +68,8 @@ time python $PY_SCRIPT --outdir $OUTPUT_DIR
 ls -rtl $OUTPUT_DIR
 echo; echo
 
-#echo "EARLY EXIT for faster tests"
-#exit 0
+echo "EARLY EXIT for faster tests"
+exit 0
 
 # Intel VTune Amplifier (CPU only, don't have permissions for GPU)
 if [ 1 == 1 ]; then
