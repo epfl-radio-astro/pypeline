@@ -5,8 +5,10 @@ set -e
 pwd
 
 # Install Miniconda in batch mode the first time
-bash ./Miniconda3-latest-Linux-x86_64.sh -b
+# (step only required once)
+#bash ./Miniconda3-latest-Linux-x86_64.sh -b
 
+which conda
 
 ENV_NAME=pype-111
 
