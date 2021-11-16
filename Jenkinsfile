@@ -1,6 +1,6 @@
-pipeline {
+def AGENT_LABEL = "izar-ska"
 
-    def AGENT_LABEL = "izar-ska"
+pipeline {
 
     agent {
         label ${AGENT_LABEL}
