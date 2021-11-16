@@ -1,4 +1,4 @@
-#!/bin/bash -l
+#!/bin/bash
 
 set -e
 
@@ -10,7 +10,7 @@ pwd
 #source ~/miniconda3/bin/activate
 #conda init
 #echo "export PATH=\"~/miniconda3/bin:\$PATH\"" >> ~/.bashrc
-#source ~/.bashrc
+source ~/.bashrc
 
 which conda
 
