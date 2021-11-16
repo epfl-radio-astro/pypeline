@@ -4,7 +4,7 @@
 
 set -e
 
-ENV_NAME=pynuf102-dbg
+ENV_NAME=pype-111
 
 conda create --name=$ENV_NAME --channel=defaults --channel=conda-forge --file=new_conda_requirements.txt --yes
 
@@ -20,7 +20,7 @@ which python
 python -V
 
 # Install non-conda packages
-pip install cupy-cuda102
+pip install cupy-cuda111
 pip install pycsou --no-deps
 pip install pyFFS --no-deps
 

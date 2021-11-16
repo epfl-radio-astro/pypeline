@@ -18,8 +18,8 @@ pipeline {
         stage('Build') {
             steps {
                 slackSend color: 'good', message:"Build Started - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
-                sh 'echo !! install.sh disabled !!'
-                //sh 'sh ./jenkins/install.sh'
+                //sh 'echo !! install.sh disabled !!'
+                sh 'sh ./new_install.sh'
             }
         }
 
@@ -37,12 +37,9 @@ pipeline {
                     ).trim()
                     echo "Seff JOBID: ${JOBID}"
                 }
-                 echo "Seff JOBID (bis): ${JOBID}"
+                echo "Seff JOBID (bis): ${JOBID}"
             }
         }
-
-        //EO, the time to test and transfer to izar-ska
-        return
 
         stage('Standard CPU') {
             environment {
