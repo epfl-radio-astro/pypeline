@@ -36,7 +36,7 @@ pipeline {
                 sh "mkdir -pv ${env.TEST_DIR}"
                 script {
                     JOBID = sh (
-                        script: 'sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh',
+                        script: 'sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-\%j.out ./jenkins/slurm_generic_synthesizer.sh',
                         returnStdout: true
                     ).trim()
                     echo "Seff JOBID: ${JOBID}"
