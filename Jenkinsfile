@@ -20,7 +20,7 @@ pipeline {
                 OMP_NUM_THREADS = "1"
             }
             steps {
-                slackSend color: 'good', message:"Build Started - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
+                //slackSend color: 'good', message:"Build Started - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
                 sh 'echo REMINDER: installation \\(./jenkins/install.sh\\) disabled'
                 //sh 'source ~/.bashrc'
                 //sh 'sh ./jenkins/install.sh'
@@ -36,7 +36,7 @@ pipeline {
                 sh "mkdir -pv ${env.TEST_DIR}"
                 script {
                     JOBID = sh (
-                        script: 'sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-\\%j.out ./jenkins/slurm_generic_synthesizer.sh',
+                        script: "sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh",
                         returnStdout: true
                     ).trim()
                     echo "Seff JOBID: ${JOBID}"
@@ -120,12 +120,12 @@ pipeline {
         }
     }
 
-    post {
-        success {
-            slackSend color:'good', message:"Build succeeded  - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
-        }
-        failure {
-            slackSend color:'danger', message:"Build failed  - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
-        }
-    }
+    //post {
+    //    success {
+    //        slackSend color:'good', message:"Build succeeded  - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
+    //    }
+    //    failure {
+    //        slackSend color:'danger', message:"Build failed  - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
+    //    }
+    //}
 }
