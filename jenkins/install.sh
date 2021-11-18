@@ -26,11 +26,10 @@ ENV_NAME=pype-111
 # Create conda environment
 # (step only required to create the environment)
 #conda remove --name $ENV_NAME --all --yes
-conda env create -f ./conda_environments/pype-111.yml
+#conda env create -f ./conda_environments/pype-111.yml
 
 #eval "$(conda shell.bash hook)"
-#source ~/miniconda3/etc/profile.d/conda.sh
-#conda activate ~/miniconda3/envs/$ENV_NAME
+source ~/miniconda3/etc/profile.d/conda.sh
 conda activate $ENV_NAME
 conda env list
 
