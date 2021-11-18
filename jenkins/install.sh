@@ -16,19 +16,19 @@ fi
 
 conda config --set auto_activate_base false
 
-which conda
+which conda -a
 conda env list
 
 ENV_NAME=pype-111
 # Create conda environment
 # (step only required to create the environment)
-#conda remove --name $ENV_NAME --all --yes
-#conda env create -f ./conda_environments/pype-111.yml
+conda remove --name $ENV_NAME --all --yes
+conda env create -f ./conda_environments/pype-111.yml
 
-#eval "$(conda shell.bash hook)"
-source ~/miniconda3/etc/profile.d/conda.sh
-#conda activate $ENV_NAME
-conda activate ~/miniconda3/envs/$ENV_NAME
+eval "$(conda shell.bash hook)"
+#source ~/miniconda3/etc/profile.d/conda.sh
+conda activate $ENV_NAME
+#conda activate ~/miniconda3/envs/$ENV_NAME
 conda env list
 
 which pip
