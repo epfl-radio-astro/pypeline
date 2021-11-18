@@ -6,7 +6,7 @@ pwd
 
 # Install Miniconda in batch mode the first time
 # (step only required once)
-if [ 1 == 1 ]; then
+if [ 1 == 0 ]; then
     rm -rf ~/miniconda3
     bash ./Miniconda3-latest-Linux-x86_64.sh -b
     #source ~/miniconda3/bin/activate
@@ -17,24 +17,21 @@ if [ 1 == 1 ]; then
     #source ~/.bashrc
 fi
 
+#conda config --set auto_activate_base false
+
 which conda -a
-
-conda config --set auto_activate_base false
-
 conda env list
-
-exit 1
 
 ENV_NAME=pype-111
 # Create conda environment
 # (step only required to create the environment)
-conda remove --name $ENV_NAME --all --yes
+#conda remove --name $ENV_NAME --all --yes
 conda env create -f ./conda_environments/pype-111.yml
 
-eval "$(conda shell.bash hook)"
+#eval "$(conda shell.bash hook)"
 #source ~/miniconda3/etc/profile.d/conda.sh
-conda activate $ENV_NAME
 #conda activate ~/miniconda3/envs/$ENV_NAME
+conda activate $ENV_NAME
 conda env list
 
 which pip
