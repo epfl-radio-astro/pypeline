@@ -43,6 +43,7 @@ pipeline {
                     sh "echo Seff JOBID: ${JOBID}"
                     sh "seff ${JOBID} >> ${env.SEFFDIR_SSCPU}/slurm-${JOBID}.out"
                 }
+                sh "mkdir -pv ${env.SEFFDIR_SSGPU}"
                 script {
                     JOBID = sh (
                         script: "TEST_ARCH=--gpu TEST_DIR=${env.SEFFDIR_SSGPU} sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu_free --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.SEFFDIR_SSGPU}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh",
