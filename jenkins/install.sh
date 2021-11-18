@@ -17,15 +17,12 @@ fi
 which conda
 
 ENV_NAME=pype-111
-
 # Create conda environment
 # (step only required to create the environment)
 #conda env create -f ./conda_environments/pype-111.yml
-
-conda env list
-
 eval "$(conda shell.bash hook)"
 conda activate $ENV_NAME
+conda env list
 
 which pip
 pip --version
@@ -77,6 +74,7 @@ fi
 
 # Install pypeline locally in editable mode
 #pip install --no-deps -e .
+pwd
 pip install --no-deps .
 
 
