@@ -30,6 +30,8 @@ ENV_NAME=pype-111
 
 #eval "$(conda shell.bash hook)"
 source ~/miniconda3/etc/profile.d/conda.sh
+conda deactivate
+conda env list
 conda activate $ENV_NAME
 conda env list
 
