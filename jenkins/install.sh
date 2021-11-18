@@ -19,7 +19,8 @@ which conda
 ENV_NAME=pype-111
 # Create conda environment
 # (step only required to create the environment)
-#conda env create -f ./conda_environments/pype-111.yml
+conda remove --name $ENV_NAME --all --yes
+conda env create -f ./conda_environments/pype-111.yml
 eval "$(conda shell.bash hook)"
 conda activate $ENV_NAME
 conda env list
@@ -30,47 +31,47 @@ pip --version
 which python
 python -V
 
-if [ 1 == 0 ]; then
-    # Install non-conda packages
-    pip install cupy-cuda111
-    pip install pycsou --no-deps
-    pip install pyFFS --no-deps
+exit 1
 
-    # Install dev branch of ImoT_tools
-    IMOT_TOOLS=ImoT_tools
-    if [ -d $IMOT_TOOLS ]; then
-        cd $IMOT_TOOLS
-        if [ `git symbolic-ref --short HEAD` != 'dev' ]; then
-            echo "Fatal: $IMOT_TOOLS already existing but not on dev branch. Exit."
-            exit 1
-        fi
-    else
-        git clone https://github.com/imagingofthings/ImoT_tools.git
-        cd $IMOT_TOOLS
-        git checkout dev
-    fi
-    pip install --no-deps .
-    cd ..
+# Install non-conda packages
+pip install cupy-cuda111
+pip install pycsou --no-deps
+pip install pyFFS --no-deps
 
-    # Install FINUFTT (CPU) from source
-    # !!! GCC 8 not recommended !!! but fftw not available for GCC 9...
-    module load gcc fftw
-    if [ -d finufft ]; then
-        echo "A finufft directory already exits. Will clean, pull, and recompile."
-        cd finufft
-        make clean
-        git pull
-    else
-        git clone https://github.com/flatironinstitute/finufft.git
-        cd finufft
+# Install dev branch of ImoT_tools
+IMOT_TOOLS=ImoT_tools
+if [ -d $IMOT_TOOLS ]; then
+    cd $IMOT_TOOLS
+    if [ `git symbolic-ref --short HEAD` != 'dev' ]; then
+        echo "Fatal: $IMOT_TOOLS already existing but not on dev branch. Exit."
+        exit 1
     fi
-    # Only if you want to have debug symbol/info included in bin
-    echo "CXXFLAGS += -g -DFFTW_PLAN_SAFE" > make.inc
-    make test -j
-    ###make perftest
-    make python
-    cd ..
+else
+    git clone https://github.com/imagingofthings/ImoT_tools.git
+    cd $IMOT_TOOLS
+    git checkout dev
 fi
+pip install --no-deps .
+cd ..
+
+# Install FINUFTT (CPU) from source
+# !!! GCC 8 not recommended !!! but fftw not available for GCC 9...
+module load gcc fftw
+if [ -d finufft ]; then
+    echo "A finufft directory already exits. Will clean, pull, and recompile."
+    cd finufft
+    make clean
+    git pull
+else
+    git clone https://github.com/flatironinstitute/finufft.git
+    cd finufft
+fi
+# Only if you want to have debug symbol/info included in bin
+echo "CXXFLAGS += -g -DFFTW_PLAN_SAFE" > make.inc
+make test -j
+###make perftest
+make python
+cd ..
 
 # Install pypeline locally in editable mode
 #pip install --no-deps -e .
