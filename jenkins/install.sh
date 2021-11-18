@@ -23,8 +23,10 @@ ENV_NAME=pype-111
 #conda remove --name $ENV_NAME --all --yes
 #conda env create -f ./conda_environments/pype-111.yml
 
-eval "$(conda shell.bash hook)"
-conda activate $ENV_NAME
+#eval "$(conda shell.bash hook)"
+source ~/miniconda3/etc/profile.d/conda.sh
+#conda activate $ENV_NAME
+conda activate ~/miniconda3/envs/$ENV_NAME
 conda env list
 
 which pip
