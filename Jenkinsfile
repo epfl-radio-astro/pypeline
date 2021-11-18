@@ -28,26 +28,28 @@ pipeline {
 
         stage('Seff') {
             environment {
-                SEFF_DIR  = "${env.OUT_DIR}/seff"
+                TEST_DIR = "${env.OUT_DIR}/seff"
+                SEFFDIR_SSCPU = "${env.OUT_DIR}/seff/ss-cpu"
+                SEFFDIR_SSGPU = "${env.OUT_DIR}/seff/ss-gpu"
                 TEST_SEFF = "1"
             }
             steps {
-                sh "mkdir -pv ${env.SEFF_DIR}"
+                sh "mkdir -pv ${env.SEFFDIR_SSCPU}"
                 script {
                     JOBID = sh (
-                        script: "sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu_free --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.SEFF_DIR}/slurm-%j-SS_CPU.out ./jenkins/slurm_generic_synthesizer.sh",
+                        script: "TEST_DIR=${env.SEFFDIR_SSCPU} sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu_free --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.SEFF_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh",
                         returnStdout: true
                     ).trim()
                     sh "echo Seff JOBID: ${JOBID}"
-                    sh "seff ${JOBID} >> ${env.SEFF_DIR}/slurm-${JOBID}.out"
+                    sh "seff ${JOBID} >> ${env.SEFFDIR_SSCPU}/slurm-${JOBID}.out"
                 }
                 script {
                     JOBID = sh (
-                        script: "TEST_ARCH=--gpu sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu_free --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.SEFF_DIR}/slurm-%j-SS_GPU.out ./jenkins/slurm_generic_synthesizer.sh",
+                        script: "TEST_ARCH=--gpu TEST_DIR=${env.SEFFDIR_SSGPU} sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu_free --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh",
                         returnStdout: true
                     ).trim()
                     sh "echo Seff JOBID: ${JOBID}"
-                    sh "seff ${JOBID} >> ${env.SEFF_DIR}/slurm-${JOBID}.out"
+                    sh "seff ${JOBID} >> ${env.SEFFDIR_GPU}/slurm-${JOBID}.out"
                 }
             }
         }
