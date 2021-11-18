@@ -50,7 +50,7 @@ pipeline {
                         returnStdout: true
                     ).trim()
                     sh "echo Seff JOBID: ${JOBID}"
-                    sh "seff ${JOBID} >> ${env.SEFFDIR_GPU}/slurm-${JOBID}.out"
+                    sh "seff ${JOBID} >> ${env.SEFFDIR_SSGPU}/slurm-${JOBID}.out"
                 }
             }
         }
