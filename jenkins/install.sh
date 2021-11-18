@@ -14,6 +14,8 @@ if [ 0 == 1 ]; then
     source ~/.bashrc
 fi
 
+conda config --set auto_activate_base false
+
 which conda
 conda env list
 
