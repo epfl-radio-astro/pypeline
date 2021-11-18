@@ -39,7 +39,7 @@ pipeline {
                         script: "sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu_free --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh",
                         returnStdout: true
                     ).trim()
-                    echo "Seff JOBID: ${JOBID}"
+                    sh "echo Seff JOBID: ${JOBID}"
                     sh "seff ${JOBID} >> ${env.TEST_DIR}/slurm-${JOBID}.out"
                 }
             }
