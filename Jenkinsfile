@@ -37,7 +37,7 @@ pipeline {
                 sh "mkdir -pv ${env.SEFFDIR_SSCPU}"
                 script {
                     JOBID = sh (
-                        script: "TEST_DIR=${env.SEFFDIR_SSCPU} sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu_free --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.SEFF_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh",
+                        script: "TEST_DIR=${env.SEFFDIR_SSCPU} sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu_free --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.SEFFDIR_SSCPU}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh",
                         returnStdout: true
                     ).trim()
                     sh "echo Seff JOBID: ${JOBID}"
@@ -45,7 +45,7 @@ pipeline {
                 }
                 script {
                     JOBID = sh (
-                        script: "TEST_ARCH=--gpu TEST_DIR=${env.SEFFDIR_SSGPU} sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu_free --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh",
+                        script: "TEST_ARCH=--gpu TEST_DIR=${env.SEFFDIR_SSGPU} sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu_free --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.SEFFDIR_SSGPU}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh",
                         returnStdout: true
                     ).trim()
                     sh "echo Seff JOBID: ${JOBID}"
