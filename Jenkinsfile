@@ -40,8 +40,8 @@ pipeline {
                         returnStdout: true
                     ).trim()
                     echo "Seff JOBID: ${JOBID}"
+                    sh "seff ${JOBID} >> ${env.TEST_DIR}/slurm-${JOBID}.out"
                 }
-                echo "Seff JOBID (bis): ${JOBID}"
             }
         }
 
