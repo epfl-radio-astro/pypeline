@@ -21,26 +21,33 @@ pipeline {
             }
             steps {
                 //slackSend color: 'good', message:"Build Started - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
-                //sh 'echo REMINDER: installation \\(./jenkins/install.sh\\) disabled'
-                //sh 'source ~/.bashrc'
-                sh 'sh ./jenkins/install.sh'
+                sh 'echo REMINDER: installation \\(./jenkins/install.sh\\) disabled'
+                //sh 'sh ./jenkins/install.sh'
             }
         }
 
         stage('Seff') {
             environment {
-                TEST_DIR  = "${env.OUT_DIR}/seff"
+                SEFF_DIR  = "${env.OUT_DIR}/seff"
                 TEST_SEFF = "1"
             }
             steps {
-                sh "mkdir -pv ${env.TEST_DIR}"
+                sh "mkdir -pv ${env.SEFF_DIR}"
                 script {
                     JOBID = sh (
-                        script: "sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu_free --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh",
+                        script: "sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu_free --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.SEFF_DIR}/slurm-%j-SS_CPU.out ./jenkins/slurm_generic_synthesizer.sh",
                         returnStdout: true
                     ).trim()
                     sh "echo Seff JOBID: ${JOBID}"
-                    sh "seff ${JOBID} >> ${env.TEST_DIR}/slurm-${JOBID}.out"
+                    sh "seff ${JOBID} >> ${env.SEFF_DIR}/slurm-${JOBID}.out"
+                }
+                script {
+                    JOBID = sh (
+                        script: "TEST_ARCH=--gpu sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu_free --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.SEFF_DIR}/slurm-%j-SS_GPU.out ./jenkins/slurm_generic_synthesizer.sh",
+                        returnStdout: true
+                    ).trim()
+                    sh "echo Seff JOBID: ${JOBID}"
+                    sh "seff ${JOBID} >> ${env.SEFF_DIR}/slurm-${JOBID}.out"
                 }
             }
         }
