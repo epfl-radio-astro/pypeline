@@ -20,9 +20,10 @@ conda env list
 ENV_NAME=pype-111
 # Create conda environment
 # (step only required to create the environment)
-conda remove --name $ENV_NAME --all --yes
-conda env create -f ./conda_environments/pype-111.yml
-#eval "$(conda shell.bash hook)"
+#conda remove --name $ENV_NAME --all --yes
+#conda env create -f ./conda_environments/pype-111.yml
+
+eval "$(conda shell.bash hook)"
 conda activate $ENV_NAME
 conda env list
 
