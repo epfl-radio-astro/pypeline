@@ -12,7 +12,7 @@ if [ 1 == 1 ]; then
     #source ~/miniconda3/bin/activate
     #conda init
     #echo "export PATH=\"~/miniconda3/bin:\$PATH\"" >> ~/.bashrc
-    sed '28d' ~/.bashrc
+    sed -i.bak '/~\/miniconda3\/bin:/d' ~/.bashrc
     cat ~/.bashrc
     #source ~/.bashrc
 fi
