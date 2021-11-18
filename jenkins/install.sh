@@ -6,17 +6,19 @@ pwd
 
 # Install Miniconda in batch mode the first time
 # (step only required once)
-if [ 0 == 1 ]; then
+if [ 1 == 1 ]; then
+    rm -rf ~/miniconda3
     bash ./Miniconda3-latest-Linux-x86_64.sh -b
-    source ~/miniconda3/bin/activate
-    conda init
-    echo "export PATH=\"~/miniconda3/bin:\$PATH\"" >> ~/.bashrc
-    source ~/.bashrc
+    #source ~/miniconda3/bin/activate
+    #conda init
+    #echo "export PATH=\"~/miniconda3/bin:\$PATH\"" >> ~/.bashrc
+    #source ~/.bashrc
 fi
+
+which conda -a
 
 conda config --set auto_activate_base false
 
-which conda -a
 conda env list
 
 ENV_NAME=pype-111
