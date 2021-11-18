@@ -17,7 +17,7 @@ if [ 1 == 0 ]; then
     #source ~/.bashrc
 fi
 
-#conda config --set auto_activate_base false
+conda config --set auto_activate_base false
 
 which conda -a
 conda env list
@@ -40,8 +40,6 @@ pip --version
 
 which python
 python -V
-
-exit 1
 
 # Install non-conda packages
 pip install cupy-cuda111
