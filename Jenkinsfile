@@ -1,4 +1,5 @@
 def AGENT_LABEL = "izar-ska"
+def QOS = "gpu_free"
 
 pipeline {
 
@@ -37,7 +38,7 @@ pipeline {
                 sh "mkdir -pv ${env.SEFFDIR_SSCPU}"
                 script {
                     JOBID = sh (
-                        script: "TEST_DIR=${env.SEFFDIR_SSCPU} sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu_free --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.SEFFDIR_SSCPU}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh",
+                        script: "TEST_DIR=${env.SEFFDIR_SSCPU} sbatch --wait --parsable --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.SEFFDIR_SSCPU}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh",
                         returnStdout: true
                     ).trim()
                     sh "echo Seff JOBID: ${JOBID}"
@@ -46,7 +47,7 @@ pipeline {
                 sh "mkdir -pv ${env.SEFFDIR_SSGPU}"
                 script {
                     JOBID = sh (
-                        script: "TEST_ARCH=--gpu TEST_DIR=${env.SEFFDIR_SSGPU} sbatch --wait --parsable --partition build --time 00-00:15:00 --qos gpu_free --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.SEFFDIR_SSGPU}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh",
+                        script: "TEST_ARCH=--gpu TEST_DIR=${env.SEFFDIR_SSGPU} sbatch --wait --parsable --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.SEFFDIR_SSGPU}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh",
                         returnStdout: true
                     ).trim()
                     sh "echo Seff JOBID: ${JOBID}"
@@ -61,7 +62,7 @@ pipeline {
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
+                sh "srun --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
             }
         }
 
@@ -72,7 +73,7 @@ pipeline {
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
+                sh "srun --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
             }
         }
 
@@ -82,7 +83,7 @@ pipeline {
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft_small_fov.sh"
+                sh "srun --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft_small_fov.sh"
             }
         }
 
@@ -93,7 +94,7 @@ pipeline {
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft3.sh"
+                sh "srun --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft3.sh"
             }
         }
 
@@ -105,7 +106,7 @@ pipeline {
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_monitoring.sh"
+                sh "srun --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_monitoring.sh"
                 sh "cat ${env.TEST_FSTAT_RT}"
                 script {
                     def data = readFile("${env.TEST_FSTAT_RT}")
