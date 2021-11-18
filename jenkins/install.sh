@@ -15,7 +15,6 @@ if [ 0 == 1 ]; then
 fi
 
 which conda
-conda deactivate
 conda env list
 
 ENV_NAME=pype-111
