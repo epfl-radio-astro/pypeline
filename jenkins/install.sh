@@ -12,6 +12,8 @@ if [ 1 == 1 ]; then
     #source ~/miniconda3/bin/activate
     #conda init
     #echo "export PATH=\"~/miniconda3/bin:\$PATH\"" >> ~/.bashrc
+    sed '28d' ~/.bashrc
+    cat ~/.bashrc
     #source ~/.bashrc
 fi
 
@@ -20,6 +22,8 @@ which conda -a
 conda config --set auto_activate_base false
 
 conda env list
+
+exit 1
 
 ENV_NAME=pype-111
 # Create conda environment
