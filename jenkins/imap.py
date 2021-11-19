@@ -18,7 +18,7 @@ def scan(dir):
                 #print(entry.name)
                 info = re.split('T|Z_', entry.name)
                 build = int(info[2])
-                if build > 50:
+                if build > 160:
                     builds[build] = [info[0], info[1], entry.name, tts.copy()]
     return builds
 
