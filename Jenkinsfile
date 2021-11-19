@@ -30,10 +30,8 @@ pipeline {
 
                 // Cleanup of aborted runs
                 //
-                sh "rm -rv ${env.WORK_DIR}/${env.GIT_BRANCH}/2021-11-18T09*"
-                sh "rm -rv ${env.WORK_DIR}/${env.GIT_BRANCH}/2021-11-18T10*"
-                sh "rm -rv ${env.WORK_DIR}/${env.GIT_BRANCH}/2021-11-18T14*"
-                sh "rm -rv ${env.WORK_DIR}/${env.GIT_BRANCH}/2021-11-18T15-0[0-2]*"
+                #sh "rm -rv ${env.WORK_DIR}/${env.GIT_BRANCH}/2021-11-18T14*"
+                sh "rm -rv ${env.WORK_DIR}/${env.GIT_BRANCH}/2021-11-18T15-[0-2]*"
             }
         }
 

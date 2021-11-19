@@ -179,19 +179,19 @@ if __name__ == "__main__":
                                                    'gridname', 'refgrid', 'show_gridlines'])
 
     SC  = Solution(directory='test_standard_cpu', label='Standard Synthesizer - CPU',
-                   filename='stats_combined.npy', gridname='grid.npy', refname='ref_combined.npy', refgrid='ref_grid.npy',
+                   filename='stats_combined.npy', gridname='grid.npy', refname='combined.npy', refgrid='grid.npy',
                    show_gridlines=1)
 
     SG  = Solution(directory='test_standard_gpu', label='Standard Synthesizer - GPU', 
-                   filename='stats_combined.npy', gridname='grid.npy', refname='ref_combined.npy', refgrid='ref_grid.npy',
+                   filename='stats_combined.npy', gridname='grid.npy', refname='combined.npy', refgrid='grid.npy',
                    show_gridlines=1)
 
     LBN = Solution(directory='lofar_bootes_nufft_small_fov', label='Bluebild least-squares, sensitivity-corrected image (NUFFT)',
-                   filename='I_lsq_eq_data.npy', gridname='I_lsq_eq_grid.npy', refname='ref_I_lsq_eq_data.npy', refgrid='ref_I_lsq_eq_grid.npy',
+                   filename='I_lsq_eq_data.npy', gridname='I_lsq_eq_grid.npy', refname='I_lsq_eq_data.npy', refgrid='I_lsq_eq_grid.npy',
                    show_gridlines=0)
 
     LBN3 = Solution(directory='lofar_bootes_nufft3', label='Bluebild least-squares, sensitivity-corrected image (NUFFT3)',
-                   filename='I_lsq_eq_data.npy', gridname='I_lsq_eq_grid.npy', refname='ref_I_lsq_eq_data.npy', refgrid='ref_I_lsq_eq_grid.npy',
+                   filename='I_lsq_eq_data.npy', gridname='I_lsq_eq_grid.npy', refname='I_lsq_eq_data.npy', refgrid='I_lsq_eq_grid.npy',
                    show_gridlines=0)
 
     # Solutions to plot
