@@ -4,6 +4,15 @@ set -e
 
 pwd
 
+echo REF_DIR = $REF_DIR
+mkdir -pv $REF_DIR/lofar_bootes_nufft3
+mkdir -pv $REF_DIR/lofar_bootes_nufft_small_fov
+mkdir -pv $REF_DIR/test_standard_cpu
+mkdir -pv $REF_DIR/test_standard_gpu
+
+exit 1
+
+
 # Install Miniconda in batch mode the first time
 # (step only required once)
 if [ 1 == 0 ]; then
@@ -11,10 +20,8 @@ if [ 1 == 0 ]; then
     bash ./Miniconda3-latest-Linux-x86_64.sh -b
     #source ~/miniconda3/bin/activate
     #conda init
-    #echo "export PATH=\"~/miniconda3/bin:\$PATH\"" >> ~/.bashrc
-    sed -i.bak '/~\/miniconda3\/bin:/d' ~/.bashrc
-    cat ~/.bashrc
-    #source ~/.bashrc
+    #sed -i.bak '/~\/miniconda3\/bin:/d' ~/.bashrc
+    #cat ~/.bashrc
 fi
 
 conda config --set auto_activate_base false
