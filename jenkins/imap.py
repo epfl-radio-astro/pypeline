@@ -33,8 +33,9 @@ def main(argv):
 
     try:
         opts, args = getopt.getopt(argv[1:], "hi:o:b:f:r:")
-    except getopt.GetoptError:
-        print(f'{argv[0]} -i </path/to/input/directory><input> -r </path/to/reference/directory> -o </path/to/output/directory> [-b <last build id>]')
+    except getopt.GetoptError as e:
+        print('Error:', e)
+        print(f'{argv[0]} -i </path/to/input/directory> -r </path/to/reference/directory> -o </path/to/output/directory> [-b <last build id>]')
         sys.exit(1)
 
     for opt, arg in opts:

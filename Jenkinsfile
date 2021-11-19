@@ -24,6 +24,9 @@ pipeline {
                 //slackSend color: 'good', message:"Build Started - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
                 sh 'echo REMINDER: installation \\(./jenkins/install.sh\\) disabled'
                 //sh 'sh ./jenkins/install.sh'
+
+                // Cleanup of aborted runs
+                sh "rm -rv ${env.WORK_DIR}/${env.GIT_BRANCH}/2021-11-17T*"
             }
         }
 

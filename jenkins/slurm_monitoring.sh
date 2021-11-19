@@ -2,9 +2,9 @@
 
 set -e
 
-module load gcc/8.4.0-cuda
-module load cuda/11.1.1
-CONDA_ENV=pype111
+module load gcc
+#module load cuda/11.1.1
+CONDA_ENV=pype-111
 module list
 
 eval "$(conda shell.bash hook)"
