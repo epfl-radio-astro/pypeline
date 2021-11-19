@@ -138,12 +138,11 @@ def main(argv):
         img_sol  = image.Image(isol, gref)
         img_diff = image.Image(iref - isol, gref)
  
-        mean = np.mean(abs(img_diff.data))
-        std  = np.std(abs(img_diff.data))
-        msg = (f"{sol} abs diff {mean:.6f} +/- {std:.6f} {file_isol} - {file_iref} on {file_gref}")
-        sig_threshold = 0.001
-        if std > sig_threshold:
-            msg += f" _WARNING_ diff sigma > {sig_threshold}"
+        rmse = np.sqrt(((img_diff.data) ** 2).mean())
+        msg = (f"{sol} RMSE = {rmse:.6f} {file_isol} - {file_iref} on {file_gref}")
+        threshold = 0.001
+        if rmse > threshold:
+            msg += f" _WARNING_ RMSE > {threshold}"
         print(msg)
 
         fstats.write(msg + "\n")
