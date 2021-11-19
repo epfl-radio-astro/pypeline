@@ -179,11 +179,11 @@ if __name__ == "__main__":
                                                    'gridname', 'refgrid', 'show_gridlines'])
 
     SC  = Solution(directory='test_standard_cpu', label='Standard Synthesizer - CPU',
-                   filename='stats_combined.npy', gridname='grid.npy', refname='combined.npy', refgrid='grid.npy',
+                   filename='stats_combined.npy', gridname='grid.npy', refname='stats_combined.npy', refgrid='grid.npy',
                    show_gridlines=1)
 
     SG  = Solution(directory='test_standard_gpu', label='Standard Synthesizer - GPU', 
-                   filename='stats_combined.npy', gridname='grid.npy', refname='combined.npy', refgrid='grid.npy',
+                   filename='stats_combined.npy', gridname='grid.npy', refname='stats_combined.npy', refgrid='grid.npy',
                    show_gridlines=1)
 
     LBN = Solution(directory='lofar_bootes_nufft_small_fov', label='Bluebild least-squares, sensitivity-corrected image (NUFFT)',
