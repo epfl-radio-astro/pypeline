@@ -2,26 +2,26 @@
 
 set -e
 
-REF_SOL=${WORK_DIR}/${GIT_BRANCH}/2021-11-18T15-32-16Z_160
-[ -d $REF_SOL ] || (echo "Error: reference directory $REF_SOL not found." && exit 1)
-echo REF_SOL = $REF_SOL
-
-echo REF_DIR = $REF_DIR
-[ -d $REF_DIR ] || (echo "Error: reference directory $REF_DIR not found." && exit 1)
-
-rm -r $REF_DIR/test_standard_cpu
-rm -r $REF_DIR/test_standard_gpu
-rm -r $REF_DIR/lofar_bootes_nufft3
-rm -r $REF_DIR/lofar_bootes_nufft_small_fov
-
-ln -s $REF_SOL/test_standard_cpu            $REF_DIR/test_standard_cpu
-ln -s $REF_SOL/test_standard_gpu            $REF_DIR/test_standard_gpu
-ln -s $REF_SOL/lofar_bootes_nufft3          $REF_DIR/lofar_bootes_nufft3
-ln -s $REF_SOL/lofar_bootes_nufft_small_fov $REF_DIR/lofar_bootes_nufft_small_fov
-
-echo abc123
-
-exit 1
+# Set symbolic links to a solution that serves as a reference
+#
+if [ 1 == 0 ]; then
+    REF_SOL=${WORK_DIR}/${GIT_BRANCH}/2021-11-18T15-32-16Z_160
+    [ -d $REF_SOL ] || (echo "Error: reference directory $REF_SOL not found." && exit 1)
+    echo REF_SOL = $REF_SOL
+    
+    echo REF_DIR = $REF_DIR
+    [ -d $REF_DIR ] || (echo "Error: reference directory $REF_DIR not found." && exit 1)
+    
+    rm -r $REF_DIR/test_standard_cpu
+    rm -r $REF_DIR/test_standard_gpu
+    rm -r $REF_DIR/lofar_bootes_nufft3
+    rm -r $REF_DIR/lofar_bootes_nufft_small_fov
+    
+    ln -s $REF_SOL/test_standard_cpu            $REF_DIR/test_standard_cpu
+    ln -s $REF_SOL/test_standard_gpu            $REF_DIR/test_standard_gpu
+    ln -s $REF_SOL/lofar_bootes_nufft3          $REF_DIR/lofar_bootes_nufft3
+    ln -s $REF_SOL/lofar_bootes_nufft_small_fov $REF_DIR/lofar_bootes_nufft_small_fov
+fi
 
 
 # Install Miniconda in batch mode the first time
@@ -39,6 +39,7 @@ conda config --set auto_activate_base false
 
 which conda -a
 conda env list
+
 
 ENV_NAME=pype-111
 # Create conda environment

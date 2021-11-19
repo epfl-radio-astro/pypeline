@@ -23,10 +23,10 @@ pipeline {
             steps {
                 //slackSend color: 'good', message:"Build Started - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)"
 
-                // Run the installation script (conda + env + non-conda deps)
+                // Run the installation script (conda + env + non-conda deps + ref sol)
                 // 
-                //sh 'echo REMINDER: installation \\(./jenkins/install.sh\\) disabled'
-                sh 'sh ./jenkins/install.sh'
+                sh 'echo REMINDER: installation \\(./jenkins/install.sh\\) disabled'
+                //sh 'sh ./jenkins/install.sh'
 
                 // Cleanup of aborted runs
                 //
@@ -34,10 +34,6 @@ pipeline {
                 sh "rm -rv ${env.WORK_DIR}/${env.GIT_BRANCH}/2021-11-18T10*"
                 sh "rm -rv ${env.WORK_DIR}/${env.GIT_BRANCH}/2021-11-18T14*"
                 sh "rm -rv ${env.WORK_DIR}/${env.GIT_BRANCH}/2021-11-18T15-0[0-2]*"
-
-                // Setup references from an existing solution
-                //
-                
             }
         }
 
