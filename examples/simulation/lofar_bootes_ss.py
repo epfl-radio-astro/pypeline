@@ -8,6 +8,7 @@
 Simulated LOFAR imaging with Bluebild (StandardSynthesis).
 """
 
+import os, sys, argparse
 #from tqdm import tqdm as ProgressBar
 import astropy.coordinates as coord
 import astropy.time as atime
@@ -18,8 +19,6 @@ import imot_tools.math.sphere.transform as transform
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as constants
-import sys
-
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.bluebild.gram as bb_gr
@@ -28,6 +27,7 @@ import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.data_gen.source as source
 import pypeline.phased_array.data_gen.statistics as statistics
 import pypeline.phased_array.instrument as instrument
+import time as tt
 
 
 # Dump data to args.outdir if defined
