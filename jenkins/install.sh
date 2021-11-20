@@ -62,7 +62,6 @@ python -V
 
 pwd
 ls -l
-cd pypeline
 pip install --no-deps -e .
 
 exit 0
