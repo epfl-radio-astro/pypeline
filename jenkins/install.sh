@@ -60,13 +60,6 @@ pip --version
 which python
 python -V
 
-pwd
-ls -l
-pip install --no-deps -e .
-
-exit 0
-
-
 # Install non-conda packages
 pip install cupy-cuda111
 pip install pycsou --no-deps
