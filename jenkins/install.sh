@@ -2,6 +2,12 @@
 
 set -e
 
+pwd
+pip install --no-deps -e .
+
+exit 0
+
+
 # Set symbolic links to a solution that serves as a reference
 #
 if [ 1 == 0 ]; then
@@ -103,7 +109,7 @@ cd ..
 # Install pypeline locally in editable mode
 #pip install --no-deps -e .
 pwd
-pip install --no-deps .
+pip install --no-deps -e .
 
 
 # Export newly created environment (commenting out imot-tools)
