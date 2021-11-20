@@ -2,13 +2,6 @@
 
 set -e
 
-pwd
-cd pypeline
-pip install --no-deps -e .
-
-exit 0
-
-
 # Set symbolic links to a solution that serves as a reference
 #
 if [ 1 == 0 ]; then
@@ -66,6 +59,14 @@ pip --version
 
 which python
 python -V
+
+pwd
+ls -l
+cd pypeline
+pip install --no-deps -e .
+
+exit 0
+
 
 # Install non-conda packages
 pip install cupy-cuda111
