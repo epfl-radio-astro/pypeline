@@ -45,6 +45,7 @@ def dump_data(stats, filename):
 
 jkt0_s = tt.time()
 
+
 # Check arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("--outdir",   help="Path to dumping location (no dumps if not set)")
@@ -56,6 +57,7 @@ if args.outdir:
     print("Dumping directory: ", args.outdir)        
 else:
     print("Will not dump anything, --outdir not set.")
+
 
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
@@ -89,7 +91,6 @@ print(f'N_pix {N_pix}\nN_level {N_level}\nprecision {precision}')
 print(f'time_slice {time_slice}\neps {eps}\nw_term {w_term}\n')
 
 t1 = tt.time()
-
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
@@ -146,7 +147,6 @@ nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pi
                                       n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
 print(nufft_imager._synthesizer._inner_fft_sizes)
 lsq_image, sqrt_image = nufft_imager(gram_corrected_visibilities)
-
 ifim_e = tt.time()
 print(f"#@#IFIM {ifim_e-ifim_s:.3f} sec")
 
@@ -163,7 +163,6 @@ for t in time[::200]:
     S_est.collect(G)
 
 N_eig = S_est.infer_parameters()
-
 sfpe_e = tt.time()
 print(f"#@#SFPE {sfpe_e-sfpe_s:.3f} sec")
 

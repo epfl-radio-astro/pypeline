@@ -95,6 +95,17 @@ pipeline {
             }
         }
 
+        stage('lofar_bootes_ss') {
+            environment {
+                TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_ss"
+                CUPY_PYFFS = "0"
+            }
+            steps {
+                sh "mkdir -pv ${env.TEST_DIR}"
+                sh "srun --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_ss.sh"
+            }
+        }
+
         stage('lofar_bootes_nufft3') {
             environment {
                 TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_nufft3"
