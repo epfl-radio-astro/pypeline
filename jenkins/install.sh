@@ -3,6 +3,7 @@
 set -e
 
 pwd
+cd pypeline
 pip install --no-deps -e .
 
 exit 0
