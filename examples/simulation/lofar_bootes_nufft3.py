@@ -83,7 +83,7 @@ obs_end = time[-1]
 N_pix = 512
 N_level = 3
 precision = 'single'
-time_slice = 20 #36
+time_slice = 200
 eps = 1e-3
 w_term = True
 print("\nImaging Parameters")

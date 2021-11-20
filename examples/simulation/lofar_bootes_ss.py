@@ -9,7 +9,7 @@ Simulated LOFAR imaging with Bluebild (StandardSynthesis).
 """
 
 import os, sys, argparse
-#from tqdm import tqdm as ProgressBar
+from tqdm import tqdm as ProgressBar
 import astropy.coordinates as coord
 import astropy.time as atime
 import astropy.units as u
@@ -72,11 +72,12 @@ T_integration = 8
 sky_model = source.from_tgss_catalog(field_center, FoV, N_src=40)
 vis = statistics.VisibilityGeneratorBlock(sky_model, T_integration, fs=196000, SNR=30)
 time = obs_start + (T_integration * u.s) * np.arange(3595)
+print(time.size)
 
 # Imaging
 N_level = 3 #4
 N_bits = 32 # 32
-time_slice = 2 #36 #25
+time_slice = 200 #36 #25
 _, _, px_colat, px_lon = grid.equal_angle(
     N=dev.nyquist_rate(wl), direction=field_center.cartesian.xyz.value, FoV=FoV
 )
@@ -92,16 +93,19 @@ t1 = tt.time()
 # Parameter Estimation
 ifpe_s = tt.time()
 I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=0.95)
+idx = 0
 for t in time[::200]:  #ProgressBar(time[::200]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
     G = gram(XYZ, W, wl)
     I_est.collect(S, G)
+    idx += 1
 
 N_eig, c_centroid = I_est.infer_parameters()
 ifpe_e = tt.time()
 print(f"#@#IFPE {ifpe_e-ifpe_s:.3f} sec")
+
 
 # Imaging
 ifim_s = tt.time()

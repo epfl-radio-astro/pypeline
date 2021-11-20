@@ -169,7 +169,7 @@ gram_corrected_visibilities = []
 baseline_rescaling = 2 * np.pi / wl
 
 #for t in ProgressBar(time[0:25]):
-for t in time[0:time_slice]:
+for t in time[::time_slice]:
     XYZ = dev(t)
     UVW = (uvw_frame.transpose() @ XYZ.data.transpose()).transpose()
     UVW_baselines_t = (UVW[:, None, :] - UVW[None, ...])
@@ -244,7 +244,7 @@ sfim_s = tt.time()
 S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
 sensitivity_coeffs = []
 #for t in ProgressBar(time[0:25]):
-for t in time[0:time_slice]:
+for t in time[::time_slice]:
     XYZ = dev(t)
     W = mb(XYZ, wl)
     G = gram(XYZ, W, wl)
