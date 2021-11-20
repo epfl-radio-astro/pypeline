@@ -25,8 +25,8 @@ pipeline {
 
                 // Run the installation script (conda + env + non-conda deps + ref sol)
                 // 
-                //sh 'echo REMINDER: installation \\(./jenkins/install.sh\\) disabled'
-                sh 'sh ./jenkins/install.sh'
+                sh 'echo REMINDER: installation \\(./jenkins/install.sh\\) disabled'
+                //sh 'sh ./jenkins/install.sh'
 
                 // Cleanup of aborted runs
                 //
@@ -102,7 +102,7 @@ pipeline {
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_ss.sh"
+                sh "srun --partition build --time 00-01:00:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_ss.sh"
             }
         }
 
