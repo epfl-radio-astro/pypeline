@@ -76,7 +76,7 @@ time = obs_start + (T_integration * u.s) * np.arange(3595)
 # Imaging
 N_level = 3 #4
 N_bits = 32 # 32
-time_slice = 36 #25
+time_slice = 20 #36 #25
 _, _, px_colat, px_lon = grid.equal_angle(
     N=dev.nyquist_rate(wl), direction=field_center.cartesian.xyz.value, FoV=FoV
 )
