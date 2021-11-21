@@ -41,6 +41,8 @@ pipeline {
                 SEFFDIR_SSCPU = "${env.OUT_DIR}/seff/ss-cpu"
                 SEFFDIR_SSGPU = "${env.OUT_DIR}/seff/ss-gpu"
                 SEFFDIR_LBSS  = "${env.OUT_DIR}/seff/lb-ss"
+                SEFFDIR_LBN   = "${env.OUT_DIR}/seff/lb-n"
+                SEFFDIR_LBN3  = "${env.OUT_DIR}/seff/lb-n3"
                 TEST_SEFF = "1"
             }
             steps {
@@ -72,6 +74,26 @@ pipeline {
                     ).trim()
                     sh "echo Seff JOBID: ${JOBID}"
                     sh "seff ${JOBID} >> ${env.SEFFDIR_LBSS}/slurm-${JOBID}.out"
+                }
+
+                sh "mkdir -pv ${env.SEFFDIR_LBN}"
+                script {
+                    JOBID = sh (
+                        script: "TEST_DIR=${env.SEFFDIR_LBN} sbatch --wait --parsable --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.SEFFDIR_LBN}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft_small_fov.sh",
+                        returnStdout: true
+                    ).trim()
+                    sh "echo Seff JOBID: ${JOBID}"
+                    sh "seff ${JOBID} >> ${env.SEFFDIR_LBN}/slurm-${JOBID}.out"
+                }
+ 
+                sh "mkdir -pv ${env.SEFFDIR_LBN3}"
+                script {
+                    JOBID = sh (
+                        script: "TEST_DIR=${env.SEFFDIR_LBN3} sbatch --wait --parsable --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.SEFFDIR_LBN3}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft3.sh",
+                        returnStdout: true
+                    ).trim()
+                    sh "echo Seff JOBID: ${JOBID}"
+                    sh "seff ${JOBID} >> ${env.SEFFDIR_LBN3}/slurm-${JOBID}.out"
                 }
             }
         }
