@@ -40,6 +40,7 @@ pipeline {
                 TEST_DIR = "${env.OUT_DIR}/seff"
                 SEFFDIR_SSCPU = "${env.OUT_DIR}/seff/ss-cpu"
                 SEFFDIR_SSGPU = "${env.OUT_DIR}/seff/ss-gpu"
+                SEFFDIR_LBSS  = "${env.OUT_DIR}/seff/lb-ss"
                 TEST_SEFF = "1"
             }
             steps {
@@ -52,6 +53,7 @@ pipeline {
                     sh "echo Seff JOBID: ${JOBID}"
                     sh "seff ${JOBID} >> ${env.SEFFDIR_SSCPU}/slurm-${JOBID}.out"
                 }
+
                 sh "mkdir -pv ${env.SEFFDIR_SSGPU}"
                 script {
                     JOBID = sh (
@@ -60,6 +62,16 @@ pipeline {
                     ).trim()
                     sh "echo Seff JOBID: ${JOBID}"
                     sh "seff ${JOBID} >> ${env.SEFFDIR_SSGPU}/slurm-${JOBID}.out"
+                }
+
+                sh "mkdir -pv ${env.SEFFDIR_LBSS}"
+                script {
+                    JOBID = sh (
+                        script: "TEST_DIR=${env.SEFFDIR_LBSS} sbatch --wait --parsable --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.SEFFDIR_LBSS}/slurm-%j.out ./jenkins/slurm_lofar_bootes_ss.sh",
+                        returnStdout: true
+                    ).trim()
+                    sh "echo Seff JOBID: ${JOBID}"
+                    sh "seff ${JOBID} >> ${env.SEFFDIR_LBSS}/slurm-${JOBID}.out"
                 }
             }
         }
