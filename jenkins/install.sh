@@ -4,7 +4,7 @@ set -e
 
 # Set symbolic links to a solution that serves as a reference
 #
-if [ 1 == 1 ]; then
+if [ 1 == 0 ]; then
     REF_SOL=${WORK_DIR}/${GIT_BRANCH}/2021-11-20T23-14-37Z_180
     [ -d $REF_SOL ] || (echo "Error: reference directory $REF_SOL not found." && exit 1)
     echo REF_SOL = $REF_SOL

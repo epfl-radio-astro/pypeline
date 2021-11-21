@@ -18,7 +18,7 @@ def scan(dir):
                 #print(entry.name)
                 info = re.split('T|Z_', entry.name)
                 build = int(info[2])
-                if build > 160:
+                if build > 180:
                     builds[build] = [info[0], info[1], entry.name, tts.copy()]
     return builds
 
@@ -177,17 +177,21 @@ if __name__ == "__main__":
     Solution = collections.namedtuple('Solution', ['directory', 'label', 'filename', 'refname',
                                                    'gridname', 'refgrid', 'show_gridlines'])
 
-    SC  = Solution(directory='test_standard_cpu', label='Standard Synthesizer - CPU',
-                   filename='stats_combined.npy', gridname='grid.npy', refname='stats_combined.npy', refgrid='grid.npy',
-                   show_gridlines=1)
+    SC   = Solution(directory='test_standard_cpu', label='Standard Synthesizer - CPU',
+                    filename='stats_combined.npy', gridname='grid.npy', refname='stats_combined.npy', refgrid='grid.npy',
+                    show_gridlines=1)
+    
+    SG   = Solution(directory='test_standard_gpu', label='Standard Synthesizer - GPU', 
+                    filename='stats_combined.npy', gridname='grid.npy', refname='stats_combined.npy', refgrid='grid.npy',
+                    show_gridlines=1)
+    
+    LBSS = Solution(directory='lofar_bootes_ss', label='Lofar Bootes SS - intensity field imaging',
+                    filename='I_lsq_eq_data.npy', gridname='I_lsq_eq_grid.npy', refname='I_lsq_eq_data.npy', refgrid='I_lsq_eq_grid.npy',
+                    show_gridlines=0)
 
-    SG  = Solution(directory='test_standard_gpu', label='Standard Synthesizer - GPU', 
-                   filename='stats_combined.npy', gridname='grid.npy', refname='stats_combined.npy', refgrid='grid.npy',
-                   show_gridlines=1)
-
-    LBN = Solution(directory='lofar_bootes_nufft_small_fov', label='Bluebild least-squares, sensitivity-corrected image (NUFFT)',
-                   filename='I_lsq_eq_data.npy', gridname='I_lsq_eq_grid.npy', refname='I_lsq_eq_data.npy', refgrid='I_lsq_eq_grid.npy',
-                   show_gridlines=0)
+    LBN  = Solution(directory='lofar_bootes_nufft_small_fov', label='Bluebild least-squares, sensitivity-corrected image (NUFFT)',
+                    filename='I_lsq_eq_data.npy', gridname='I_lsq_eq_grid.npy', refname='I_lsq_eq_data.npy', refgrid='I_lsq_eq_grid.npy',
+                    show_gridlines=0)
 
     LBN3 = Solution(directory='lofar_bootes_nufft3', label='Bluebild least-squares, sensitivity-corrected image (NUFFT3)',
                    filename='I_lsq_eq_data.npy', gridname='I_lsq_eq_grid.npy', refname='I_lsq_eq_data.npy', refgrid='I_lsq_eq_grid.npy',
@@ -197,6 +201,7 @@ if __name__ == "__main__":
     sols = {
         'SC': SC,
         'SG': SG,
+        'LBSS': LBSS,
         'LBN': LBN,
         'LBN3': LBN3
     }

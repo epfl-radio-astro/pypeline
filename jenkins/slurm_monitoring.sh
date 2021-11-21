@@ -2,7 +2,7 @@
 
 set -e
 
-module load gcc
+#module load gcc
 #module load cuda/11.1.1
 CONDA_ENV=pype-111
 module list
@@ -24,7 +24,7 @@ echo OUTPUT_DIR = $OUTPUT_DIR
 echo 
 
 # fail fast with set -e, outdir must exist
-ls $OUTPUT_DIR 
+ls $OUTPUT_DIR
 
 python ./jenkins/tts.py -i ${WORK_DIR}/${GIT_BRANCH} -o $OUTPUT_DIR -f $TEST_FSTAT_RT  -b $BUILD_ID
 

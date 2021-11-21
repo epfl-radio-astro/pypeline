@@ -16,7 +16,7 @@ def scan(dir):
                 #print(entry.name)
                 info = re.split('T|Z_', entry.name)
                 build = int(info[2])
-                if build > 160:
+                if build > 180:
                     builds[build] = [info[0], info[1], entry.name, tts.copy()]
     return builds
 
@@ -185,6 +185,8 @@ if __name__ == "__main__":
     SG  = Solution(directory='test_standard_gpu', label='Std GPU', marker='o', color='red', pattern='Serial')
     LBNi = Solution(directory='lofar_bootes_nufft_small_fov', label='Lofar Bootes nufft - intensity field imaging', marker='o', color='lightgreen', pattern='#@#IFIM')
     LBNt = Solution(directory='lofar_bootes_nufft_small_fov', label='Lofar Bootes nufft - total', marker='o', color='green', pattern='#@#TOT')
+    LBSSi = Solution(directory='lofar_bootes_ss', label='Lofar Bootes SS - intensity field imaging', marker='o', color='gray', pattern='#@#IFIM')
+    LBSSt = Solution(directory='lofar_bootes_ss', label='Lofar Bootes SS - total', marker='o', color='black', pattern='#@#TOT')
     LBN3i = Solution(directory='lofar_bootes_nufft3', label='Lofar Bootes nufft3 - intensity field imaging', marker='o', color='violet', pattern='#@#IFIM')
     LBN3t = Solution(directory='lofar_bootes_nufft3', label='Lofar Bootes nufft3 - total', marker='o', color='blueviolet', pattern='#@#TOT')
 
@@ -192,6 +194,8 @@ if __name__ == "__main__":
     sols = {
         'SC': SC,
         'SG': SG,
+        'LBSSi': LBSSi,
+        'LBSSt': LBSSt,
         'LBNi': LBNi,
         'LBNt': LBNt,
         'LBN3i': LBN3i,

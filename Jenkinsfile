@@ -25,8 +25,8 @@ pipeline {
 
                 // Run the installation script (conda + env + non-conda deps + ref sol)
                 // 
-                //sh 'echo REMINDER: installation \\(./jenkins/install.sh\\) disabled'
-                sh 'sh ./jenkins/install.sh'
+                sh 'echo REMINDER: installation \\(./jenkins/install.sh\\) disabled'
+                //sh 'sh ./jenkins/install.sh'
 
                 // Cleanup of aborted runs
                 //
