@@ -111,7 +111,7 @@ uvw_frame = np.stack((u_dir, v_dir, w_dir), axis=-1)
 N_pix = 512
 N_level = 3
 N_bits = 32
-time_slice = 20 #36
+time_slice = 200 #36
 eps = 1e-3
 print("\nImaging Parameters")
 print(f'N_pix {N_pix}\nN_level {N_level}\nN_bits {N_bits}')
