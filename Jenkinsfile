@@ -44,6 +44,7 @@ pipeline {
                 SEFFDIR_LBN   = "${env.OUT_DIR}/seff/lb-n"
                 SEFFDIR_LBN3  = "${env.OUT_DIR}/seff/lb-n3"
                 TEST_SEFF = "1"
+                CUPY_PYFFS = "0"
             }
             steps {
                 sh "mkdir -pv ${env.SEFFDIR_SSCPU}"
