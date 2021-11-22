@@ -79,6 +79,8 @@ RUN_VTUNE="${PROFILE_VTUNE:-0}"
 RUN_CPROFILE="${PROFILE_CPROFILE:-0}"
 RUN_NSIGHT="${PROFILE_NSIGHT:-0}"
 
+echo $RUN_VTUNE $RUN_CPROFILE $RUN_NSIGHT
+
 
 # Output directory must be defined and existing
 if [[ -z "${TEST_DIR}" ]]; then
@@ -112,7 +114,7 @@ if [[ ! -z "${TEST_SEFF}" && ${TEST_SEFF} == "1" ]]; then
 fi
 
 
-if [ $ARCH == 'GPU' && $RUN_NSIGHT == "1" ]; then
+if [[ $ARCH == 'GPU' && $RUN_NSIGHT == "1" ]]; then
     echo "### Nsight"
     nsys --version
     nsys profile -t cuda,nvtx,osrt,cublas --sample=cpu --cudabacktrace=true --force-overwrite=true --stats=true --output=$TEST_DIR/nsys_out $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
@@ -124,7 +126,7 @@ if [ $RUN_CPROFILE == "1" ]; then
     echo "### cProfile"
     python -m cProfile -o $TEST_DIR/cProfile.out $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
     echo; echo
-if
+fi
 
 
 if [ $RUN_VTUNE == "1" ]; then
