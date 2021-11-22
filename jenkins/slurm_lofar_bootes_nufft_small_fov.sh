@@ -10,12 +10,10 @@
 set -e
 
 module load gcc
-#module load cuda/10
 module load fftw
-#CONDA_ENV=pynuf102-dbg
-CONDA_ENV=pype-111
 module list
 
+CONDA_ENV=pype-111
 eval "$(conda shell.bash hook)"
 conda activate $CONDA_ENV
 conda env list
@@ -42,6 +40,22 @@ echo
 env | grep SLURM || true
 echo; echo
 
+echo "TEST_SEFF   = ${TEST_SEFF}"
+echo
+echo "PROFILE_CPROFILE = ${PROFILE_CPROFILE}"
+echo "PROFILE_NSIGHT   = ${PROFILE_NSIGHT}"
+echo "PROFILE_VTUNE    = ${PROFILE_VTUNE}"
+echo "PROFILE_ADVISOR  = ${PROFILE_ADVISOR}"
+
+# Set early exit switch
+EARLY_EXIT="${TEST_SEFF:-0}"
+
+# Set profiling switches
+RUN_CPROFILE="${PROFILE_CPROFILE:-0}"
+RUN_NSIGHT="${PROFILE_NSIGHT:-0}"
+RUN_VTUNE="${PROFILE_VTUNE:-0}"
+RUN_ADVISOR="${PROFILE_ADVISOR:-0}"
+
 # List of environment variables set via Jenkins
 echo "TEST_DIR    = ${TEST_DIR}"
 OUTPUT_DIR=${TEST_DIR:-.}     # default to cwd when ENV[TEST_DIR] not set
@@ -53,35 +67,43 @@ echo "PY_SCRIPT = $PY_SCRIPT"; echo
 
 
 # Note: --outdir is omitted, no output is written on disk
-echo "Timing"
+echo "### Timing"
 time python $PY_SCRIPT --outdir $OUTPUT_DIR
 ls -rtl $OUTPUT_DIR
 echo; echo
 
-echo "EARLY EXIT for faster tests"
-exit 0
+# Running with TEST_SEFF=1 causes an early exit
+if [ $EARLY_EXIT == "1" ]; then
+    echo "TEST_SEFF set to 1 -> exit 0";
+    exit 0
+fi
 
-# Intel VTune Amplifier (CPU only, don't have permissions for GPU)
-if [ 1 == 1 ]; then
-    echo "Intel VTune Amplifier"
 
+if [ $RUN_CPROFILE == "1" ]; then
+    echo "### cProfile"
+    python -m cProfile -o $TEST_DIR/cProfile.out $PY_SCRIPT
+    echo; echo
+fi
+
+
+if [ $RUN_VTUNE == "1" ]; then
+    echo "### Intel VTune Amplifier"
     source /work/scitas-ge/richart/test_stacks/syrah/v1/opt/spack/linux-rhel7-skylake_avx512/gcc-8.4.0/intel-oneapi-vtune-2021.6.0-34ym22fgautykbgmg5hhgkiwrvbwfvko/setvars.sh || echo "ignoring warning"
     which vtune
     echo listing of $OUTPUT_DIR
     ls -rtl $OUTPUT_DIR
     vtune -collect hotspots -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -search-dir=. -result-dir=$OUTPUT_DIR/vtune -- $PYTHON $PY_SCRIPT
-#else
-#    echo "Lack of permissions to run Intel VTune Amplifier on GPU hardware. To be investigated."
 fi
 echo; echo
 
 
-# Disable Advisor as really slow (> 1 hour) and pointless if we do
-# not care about the CPU version of finufft
-if [ 1 == 0 ]; then
-    echo "Advisor"
+if [ $RUN_ADVISOR == "1" ]; then
+    echo "### Intel Advisor"
     source /work/scitas-ge/richart/test_stacks/syrah/v1/opt/spack/linux-rhel7-skylake_avx512/gcc-8.4.0/intel-oneapi-advisor-2021.4.0-any7cfov5s4ujprr7plf7ks7xzoyqljz/setvars.sh
     ADVIXE_RUNTOOL_OPTIONS=--no-altstack OMP_NUM_THREADS=1 advixe-cl -collect roofline --enable-cache-simulation --profile-python -project-dir $OUTPUT_DIR/advisor -search-dir src:=. -- $PYTHON $PY_SCRIPT
 fi
 
 ls -rtl $OUTPUT_DIR
+
+# To test from command line
+#export TMPOUT=/scratch/izar/orliac/test_pype-111a/; mkdir -pv $TMPOUT; PROFILE_NSIGHT=0 PROFILE_VTUNE=1 PROFILE_CPROFILE=1 TEST_TRANGE=5 TEST_SEFF=0 TEST_DIR=$TMPOUT srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1  ./jenkins/slurm_lofar_bootes_nufft_small_fov.sh

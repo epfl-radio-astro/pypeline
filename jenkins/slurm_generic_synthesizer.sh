@@ -25,9 +25,9 @@ module load gcc
 if [ $ARCH == "GPU" ]; then
     module load cuda/11.1.1;
 fi
-CONDA_ENV=pype-111
 module list
 
+CONDA_ENV=pype-111
 eval "$(conda shell.bash hook)"
 conda activate $CONDA_ENV
 conda env list
@@ -70,17 +70,19 @@ echo "TEST_TRANGE = ${TEST_TRANGE}"
 echo "TEST_TRANGE = ${TEST_TRANGE}"
 echo "TEST_SEFF   = ${TEST_SEFF}"
 echo
-echo "PROFILE_VTUNE    = ${PROFILE_VTUNE}"
 echo "PROFILE_CPROFILE = ${PROFILE_CPROFILE}"
 echo "PROFILE_NSIGHT   = ${PROFILE_NSIGHT}"
+echo "PROFILE_VTUNE    = ${PROFILE_VTUNE}"
+echo "PROFILE_ADVISOR  = ${PROFILE_ADVISOR}"
+
+# Set early exit switch
+EARLY_EXIT="${TEST_SEFF:-0}"
 
 # Set profiling switches
-RUN_VTUNE="${PROFILE_VTUNE:-0}"
 RUN_CPROFILE="${PROFILE_CPROFILE:-0}"
 RUN_NSIGHT="${PROFILE_NSIGHT:-0}"
-
-echo $RUN_VTUNE $RUN_CPROFILE $RUN_NSIGHT
-
+RUN_VTUNE="${PROFILE_VTUNE:-0}"
+RUN_ADVISOR="${PROFILE_ADVISOR:-0}"
 
 # Output directory must be defined and existing
 if [[ -z "${TEST_DIR}" ]]; then
@@ -106,9 +108,8 @@ time python $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO} ${TEST_BENCH} ${TEST_TRANGE} $A
 ls -rtl $TEST_DIR
 echo; echo
 
-
 # Running with TEST_SEFF=1 causes an early exit
-if [[ ! -z "${TEST_SEFF}" && ${TEST_SEFF} == "1" ]]; then
+if [ $EARLY_EXIT == "1" ]; then
     echo "TEST_SEFF set to 1 -> exit 0";
     exit 0
 fi
@@ -141,3 +142,7 @@ if [ $RUN_VTUNE == "1" ]; then
 fi
 
 ls -rtl $TEST_DIR
+
+
+# To test from command line
+#export TMPOUT=/scratch/izar/orliac/test_pype-111b/; mkdir -pv $TMPOUT; PROFILE_NSIGHT=1 PROFILE_VTUNE=1 PROFILE_CPROFILE=1 TEST_TRANGE=5 TEST_SEFF=0 TEST_DIR=$TMPOUT srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1  ./jenkins/slurm_generic_synthesizer.sh
