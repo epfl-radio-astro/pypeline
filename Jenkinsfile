@@ -12,6 +12,11 @@ pipeline {
         WORK_DIR = "/work/backup/ska/ci-jenkins/${AGENT_LABEL}"
         REF_DIR  = "/work/backup/ska/ci-jenkins/references"
         OUT_DIR  = "${env.WORK_DIR}/${env.GIT_BRANCH}/${env.UTC_TAG}_${env.BUILD_ID}"
+
+        // Set to "1" to run corresponding profiling
+        PROFILE_VTUNE    = "1"
+        PROFILE_CPROFILE = "1"
+        PROFILE_NSIGHT   = "1"
     }
 
     stages {
