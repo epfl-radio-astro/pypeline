@@ -27,6 +27,14 @@ echo; pwd
 echo; hostname
 echo
 
+# Check finufft version that is used
+#FINUFFT=./finufft
+#cd $FINUFFT
+#FINUFFT_DIR=`pwd` python -m pip install -e ./python
+$PYTHON -c "import finufft as _; print(_.__path__)" # Print path to finufft
+#cd ..
+#exit 0
+
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
@@ -40,6 +48,7 @@ echo
 env | grep SLURM || true
 echo; echo
 
+echo "TEST_DIR    = ${TEST_DIR}"
 echo "TEST_SEFF   = ${TEST_SEFF}"
 echo
 echo "PROFILE_CPROFILE = ${PROFILE_CPROFILE}"
@@ -56,10 +65,17 @@ RUN_NSIGHT="${PROFILE_NSIGHT:-0}"
 RUN_VTUNE="${PROFILE_VTUNE:-0}"
 RUN_ADVISOR="${PROFILE_ADVISOR:-0}"
 
-# List of environment variables set via Jenkins
-echo "TEST_DIR    = ${TEST_DIR}"
-OUTPUT_DIR=${TEST_DIR:-.}     # default to cwd when ENV[TEST_DIR] not set
-echo OUTPUT_DIR = $OUTPUT_DIR
+# Output directory must be defined and existing
+if [[ -z "${TEST_DIR}" ]]; then
+    echo "Error: TEST_DIR unset. Must point to an existing directory."
+    exit 1
+else 
+    if [[ ! -d "${TEST_DIR}" ]]; then
+        echo "Error: TEST_DIR must point to an existing directory."
+        exit 1
+    fi
+fi
+ARG_TEST_DIR="--outdir ${TEST_DIR}"
 
 # Script to be run
 PY_SCRIPT="./examples/simulation/lofar_bootes_nufft_small_fov.py"
@@ -68,8 +84,7 @@ echo "PY_SCRIPT = $PY_SCRIPT"; echo
 
 # Note: --outdir is omitted, no output is written on disk
 echo "### Timing"
-time python $PY_SCRIPT --outdir $OUTPUT_DIR
-ls -rtl $OUTPUT_DIR
+time python $PY_SCRIPT $ARG_TEST_DIR
 echo; echo
 
 # Running with TEST_SEFF=1 causes an early exit
@@ -90,9 +105,7 @@ if [ $RUN_VTUNE == "1" ]; then
     echo "### Intel VTune Amplifier"
     source /work/scitas-ge/richart/test_stacks/syrah/v1/opt/spack/linux-rhel7-skylake_avx512/gcc-8.4.0/intel-oneapi-vtune-2021.6.0-34ym22fgautykbgmg5hhgkiwrvbwfvko/setvars.sh || echo "ignoring warning"
     which vtune
-    echo listing of $OUTPUT_DIR
-    ls -rtl $OUTPUT_DIR
-    vtune -collect hotspots -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -search-dir=. -result-dir=$OUTPUT_DIR/vtune -- $PYTHON $PY_SCRIPT
+    vtune -collect hotspots -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -search-dir=. -result-dir=$TEST_DIR/vtune -- $PYTHON $PY_SCRIPT
 fi
 echo; echo
 
@@ -100,10 +113,10 @@ echo; echo
 if [ $RUN_ADVISOR == "1" ]; then
     echo "### Intel Advisor"
     source /work/scitas-ge/richart/test_stacks/syrah/v1/opt/spack/linux-rhel7-skylake_avx512/gcc-8.4.0/intel-oneapi-advisor-2021.4.0-any7cfov5s4ujprr7plf7ks7xzoyqljz/setvars.sh
-    ADVIXE_RUNTOOL_OPTIONS=--no-altstack OMP_NUM_THREADS=1 advixe-cl -collect roofline --enable-cache-simulation --profile-python -project-dir $OUTPUT_DIR/advisor -search-dir src:=. -- $PYTHON $PY_SCRIPT
+    ADVIXE_RUNTOOL_OPTIONS=--no-altstack OMP_NUM_THREADS=1 advixe-cl -collect roofline --enable-cache-simulation --profile-python -project-dir $TEST_DIR/advisor -search-dir src:=. -- $PYTHON $PY_SCRIPT
 fi
 
-ls -rtl $OUTPUT_DIR
+ls -rtl $TEST_DIR
 
 # To test from command line
-#export TMPOUT=/scratch/izar/orliac/test_pype-111a/; mkdir -pv $TMPOUT; PROFILE_NSIGHT=0 PROFILE_VTUNE=1 PROFILE_CPROFILE=1 TEST_TRANGE=5 TEST_SEFF=0 TEST_DIR=$TMPOUT srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1  ./jenkins/slurm_lofar_bootes_nufft_small_fov.sh
+#export TMPOUT=/scratch/izar/orliac/test_pype-111a/; mkdir -pv $TMPOUT; PROFILE_NSIGHT=0 PROFILE_VTUNE=1 PROFILE_CPROFILE=1 TEST_SEFF=0 TEST_DIR=$TMPOUT srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1  ./jenkins/slurm_lofar_bootes_nufft_small_fov.sh
