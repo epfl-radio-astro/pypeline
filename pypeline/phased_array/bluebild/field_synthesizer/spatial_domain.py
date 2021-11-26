@@ -8,12 +8,13 @@
 Field synthesizers that work in the spatial domain.
 """
 
+import os
 import numexpr as ne
 import numpy as np
-import cupy as cp
 import scipy.linalg as linalg
 import scipy.sparse as sparse
-
+from numpy.ctypeslib import ndpointer
+from ctypes import *
 import pypeline.phased_array.bluebild.field_synthesizer as synth
 import imot_tools.util.argcheck as chk
 
@@ -27,6 +28,79 @@ def _have_matching_shapes(V, XYZ, W):
         return True
 
     return False
+
+
+def print_info(npa, label):
+    try:
+        print(f'{label:8s} shape={str(npa.shape):18s} dtype={str(npa.dtype):12s} size={npa.nbytes / 1.E9:.3f} GB, type {type(npa)}')
+    except:
+        print(f'{label:8s} type {type(npa)}')
+
+
+def c_synthesizer_omp_sp(GRID, V, XYZ, W, wl):
+
+    Nb, Ne     = V.shape
+    Na, Nb     = W.shape
+    Nc, Nh, Nw = GRID.shape
+    GRID = GRID / linalg.norm(GRID, axis=0)
+    XYZ  = XYZ - XYZ.mean(axis=0)
+    a = 2 * np.pi / wl
+
+    abs_path = os.path.dirname(os.path.abspath(__file__))
+    so_file = os.path.join(abs_path, "../../../../", "src/libskabb.so")
+    print("so_file = ", so_file)
+
+    custom_functions = CDLL(so_file)
+    custom_functions.synthesizer_omp_sp.argtypes=[c_float,                                            # alpha (imag part)
+                                                  c_int, c_int, c_int, c_int, c_int, c_int,           # Nb, Ne, Na, Nc, Nh, Nw
+                                                  ndpointer(dtype=np.complex64, ndim=2, flags='F'),   # V
+                                                  ndpointer(dtype=np.complex64, ndim=2, flags='F'),   # W
+                                                  ndpointer(dtype=np.float32,   ndim=2, flags='F'),   # XYZ
+                                                  ndpointer(dtype=np.float32,   ndim=3, flags='F'),   # GRID
+                                                  ndpointer(dtype=np.float32,   ndim=3, flags='F')]   # I
+    V      = np.asfortranarray(V)
+    W      = np.asfortranarray(W)
+    XYZ    = np.asfortranarray(XYZ)
+    GRID   = np.asfortranarray(GRID)
+
+    I      = np.zeros((Ne, Nh, Nw), dtype=np.float32, order='F')
+
+    custom_functions.synthesizer_omp_sp(a, Nb, Ne, Na, Nc, Nh, Nw, V, W, XYZ, GRID, I)
+
+    return I
+
+
+def c_synthesizer_omp_dp(GRID, V, XYZ, W, wl):
+
+    Nb, Ne     = V.shape
+    Na, Nb     = W.shape
+    Nc, Nh, Nw = GRID.shape
+
+    GRID = GRID / linalg.norm(GRID, axis=0)
+    XYZ  = XYZ - XYZ.mean(axis=0)
+    a = 2 * np.pi / wl
+
+    abs_path = os.path.dirname(os.path.abspath(__file__))
+    so_file = os.path.join(abs_path, "../../../../", "src/libskabb.so")
+    print("so_file = ", so_file)
+
+    custom_functions = CDLL(so_file)
+    custom_functions.synthesizer_omp_dp.argtypes=[c_double,                                           # alpha (imag part)
+                                                  c_int, c_int, c_int, c_int, c_int, c_int,           # Nb, Ne, Na, Nc, Nh, Nw
+                                                  ndpointer(dtype=np.complex128, ndim=2, flags='F'),  # V
+                                                  ndpointer(dtype=np.complex128, ndim=2, flags='F'),  # W
+                                                  ndpointer(dtype=np.float64,    ndim=2, flags='F'),  # XYZ
+                                                  ndpointer(dtype=np.float64,    ndim=3, flags='F'),  # GRID
+                                                  ndpointer(dtype=np.float64,    ndim=3, flags='F')]  # I
+    V      = np.asfortranarray(V)
+    W      = np.asfortranarray(W)
+    XYZ    = np.asfortranarray(XYZ)
+    GRID   = np.asfortranarray(GRID)
+    I      = np.zeros((Ne, Nh, Nw), dtype=np.float64, order='F')
+
+    custom_functions.synthesizer_omp_dp(a, Nb, Ne, Na, Nc, Nh, Nw, V, W, XYZ, GRID, I)
+
+    return I
 
 
 class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
@@ -141,7 +215,7 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             Must be 32 or 64.
         """
         super().__init__()
-
+        
         if precision == 32:
             self._fp = np.float32
             self._cp = np.complex64
@@ -150,6 +224,8 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             self._cp = np.complex128
         else:
             raise ValueError("Parameter[precision] must be 32 or 64.")
+
+        self._precision = precision
 
         self._wl = wl
 
@@ -186,16 +262,28 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             (Note: StandardSynthesis statistics correspond to the actual field values.)
         """
 
-        # for CPU/GPU agnostic code
-        xp = cp.get_array_module(V)  # not using 'xp' instead of cp or np
+        # For CPU/GPU agnostic code
+        #EO: but not relying on cupy, as it require cuda (not avail on CPU clusters)
+        #xp = cp.get_array_module(V)  # not using 'xp' instead of cp or np
+        if (type(V) == np.ndarray):
+            xp = np
+        else:
+            import cupy as cp
+            if (cp.get_array_module(V) != cp):
+                print("Error. V was not recognized correctly as either Cupy or Numpy.")
+                sys.exit(1)
+            xp = cp
         #print("Using:", xp.__name__)
 
         if not _have_matching_shapes(V, XYZ, W):
             raise ValueError("Parameters[V, XYZ, W] are inconsistent.")
+
         # TODO: move precision control outside of the call
-        #V = V.astype(self._cp, copy=False)
-        #XYZ = XYZ.astype(self._fp, copy=False)
-        #W = W.astype(self._cp, copy=False)
+        V = V.astype(self._cp, copy=False)
+        XYZ = XYZ.astype(self._fp, copy=False)
+        W = W.astype(self._cp, copy=False)
+        self._grid = self._grid.astype(self._fp, copy=False)
+        
 
         self.mark(self.timer_tag + "Synthesizer call")
 
@@ -207,29 +295,59 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         #P = xp.zeros((N_antenna, N_height, N_width), dtype=self._cp)
         E = xp.zeros((N_eig, N_height, N_width), dtype=self._cp)
 
-        a = 1j * 2 * np.pi / self._wl
+        SKABB_VERBOSE = os.environ.get('SKABB_VERBOSE')
+
+        if SKABB_VERBOSE == "1":
+            print_info(self._grid, '._grid')
+            print_info(V, 'V')
+            print_info(XYZ, 'XYZ')            
+
+        a = 1.0j * 2.0 * np.pi / self._wl
+
+        #EO: check whether C SS was requested
+        SKABB_C_SYNTH = os.environ.get('SKABB_C_SYNTH')
+        #print("SKABB_C_SYNTH =", SKABB_C_SYNTH)
 
         self.mark(self.timer_tag + "Synthesizer matmuls")
 
-        grid_gpu = xp.asarray(self._grid)
-        print("grid shape:", self._grid.shape)
-        for i in range(N_width):
-          b = xp.matmul(XYZ,  grid_gpu[:,:,i])
-          P = xp.exp(a*b)
-          if xp == np and (isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix)):   
-            PW = W.T @ P
-          else:
-            PW = xp.matmul(W.T,P)
-          E[:,:,i]  = xp.matmul(V.T, PW)
+        # Numpy array (i.e. CPU) + SKABB_C_SYNTH=="1"
+        if xp == np and SKABB_C_SYNTH == "1":
+            print("@@@ C Standard Synthesizer in action @@@")
+            if isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix):
+                Wd = W.toarray(order='F')
+                if SKABB_VERBOSE == "1":
+                    print_info(Wd, 'Wd')
+            if self._precision == 32:
+                I = c_synthesizer_omp_sp(self._grid, V, XYZ, Wd, self._wl)
+            elif self._precision == 64:
+                I = c_synthesizer_omp_dp(self._grid, V, XYZ, Wd, self._wl)
+            else:
+                print(f"Wrong precision {self._precision:d}")
+                sys.exit(1)
+        else:
+            for i in range(N_width):
+                pix_gpu = xp.asarray(self._grid[:,:,i])
+                b  = xp.matmul(XYZ, pix_gpu)
+                P  = xp.exp(a*b)
+                if xp == np and (isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix)):
+                    PW = W.T @ P
+                else:
+                    PW = xp.matmul(W.T, P)
+                E[:,:,i]  = xp.matmul(V.T, PW)
+            I = E.real ** 2 + E.imag ** 2
 
         self.unmark(self.timer_tag + "Synthesizer matmuls")
 
-        I = E.real ** 2 + E.imag ** 2
-
         self.unmark(self.timer_tag + "Synthesizer call")
 
+        if SKABB_VERBOSE == "1":
+            print_info(I, 'I')
+            
+        #EO Always return np array
+        if xp != np:
+            I = I.get()
+
         return I
-    
 
     @chk.check("stat", chk.has_reals)
     def synthesize(self, stat):

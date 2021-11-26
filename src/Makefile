@@ -26,5 +26,5 @@ python-tester: python-tester.o python-tester.so
 	$(CC) -shared -fPIC $< -o $@
 
 clean:
-	rm dgemm-splat zgemm-splat python-tester *.o *.so
+	rm dgemm-splat dgemm-simple zgemm-splat python-tester *.o *.so *.optrpt
 

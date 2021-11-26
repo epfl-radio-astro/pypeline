@@ -1,0 +1,31 @@
+#CC = gcc
+#CFLAGS = -fPIC -Wall -Wextra -Ofast -g -fopenmp -DMKL_ILP64  -m64  -I"${MKLROOT}/include" -march=skylake-avx512 -mprefer-vector-width=512 -ftree-vectorize -fopt-info-vec-missed 
+#LDFLAGS = -shared -L${MKLROOT}/lib/intel64 -Wl,--no-as-needed -lmkl_intel_ilp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm -ldl
+
+CC = icc
+CFLAGS  = -fPIC -Wall -Wextra -Ofast -qopt-report=2 -qopt-report-phase=vec -xCORE-AVX512 -qopt-zmm-usage=high -qopenmp -g -I./ -I"${MKLROOT}/include"
+LDFLAGS = -shared -L${MKLROOT}/lib -lmkl_avx512 -mkl -liomp5
+
+
+RM = rm -f
+
+TARGET_LIB = libskabb.so
+
+SRCS = gemmexp.c std_synthesizer.c
+
+OBJS = $(SRCS:.c=.o)
+
+.PHONY: all
+all: ${TARGET_LIB}
+
+$(TARGET_LIB): $(OBJS)
+	$(CC) ${LDFLAGS} -o $@ $^
+
+$(SRCS:.c=.d):%.d:%.c
+	$(CC) $(CFLAGS) $(LIBS) ${LDFLAGS} -MM $< >$@
+
+include $(SRCS:.c=.d)
+
+.PHONY: clean
+clean:
+	-${RM} ${TARGET_LIB} ${OBJS} $(SRCS:.c=.d) $(SRCS:.c=.optrpt)

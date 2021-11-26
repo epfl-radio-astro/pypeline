@@ -19,6 +19,15 @@ import imot_tools.io.s2image as image
 import imot_tools.util.argcheck as chk
 import pypeline.util.array as array
 
+
+def print_info(npa, label):
+    try:
+        print(f'{label:8s} shape={str(npa.shape):18s} dtype={str(npa.dtype):12s} size={npa.nbytes / 1.E9:.3f} GB, type {type(npa)}')
+    except:
+        print(f'{label:8s} type {type(npa)}')
+
+
+
 class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
     """
     Multi-field synthesizer based on StandardSynthesis.
@@ -203,8 +212,9 @@ class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
         stat_std = self._synthesizer(V, XYZ, W)
 
         # get result from GPU
-        if cp == cp.get_array_module(stat_std):
-          stat_std = stat_std.get()
+        #EO: modified ss always returns np array
+        #if cp == cp.get_array_module(stat_std):
+        #  stat_std = stat_std.get()
           
         self.unmark("Image synthesis")
         stat_lsq = stat_std * D.reshape(-1, 1, 1)
