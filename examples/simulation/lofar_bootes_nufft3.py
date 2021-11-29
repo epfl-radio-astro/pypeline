@@ -35,6 +35,9 @@ import imot_tools.io.plot as implt
 import time as tt
 
 
+np.random.seed(0)
+
+
 # Dump data to args.outdir if defined
 def dump_data(stats, filename):
     if args.outdir:

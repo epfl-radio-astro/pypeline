@@ -14,13 +14,21 @@ pipeline {
         OUT_DIR  = "${env.WORK_DIR}/${env.GIT_BRANCH}/${env.UTC_TAG}_${env.BUILD_ID}"
 
         // Set to "1" to run corresponding profiling
-        PROFILE_CPROFILE = "1"
-        PROFILE_NSIGHT   = "1"
-        PROFILE_VTUNE    = "1"
+        PROFILE_CPROFILE = "0"
+        PROFILE_NSIGHT   = "0"
+        PROFILE_VTUNE    = "0"
         PROFILE_ADVISOR  = "0" // can be very time-consuming
     }
 
     stages {
+
+        stage('Management') {
+            steps {
+                // Run the data management script: all actions on /work/backup/ska/ci-jenkins should
+                // be handled through this script
+                sh 'sh ./jenkins/data_management.sh'
+            }
+        }
 
         stage('Build') {
             environment {
@@ -38,6 +46,59 @@ pipeline {
                 //
                 //sh "rm -rv ${env.WORK_DIR}/${env.GIT_BRANCH}/2021-11-18T14*"
                 //sh "rm -rv ${env.WORK_DIR}/${env.GIT_BRANCH}/2021-11-18T15-[0-2]*"
+            }
+        }
+
+        stage('Standard CPU') {
+            environment {
+                TEST_DIR  = "${env.OUT_DIR}/test_standard_cpu"
+            }
+            steps {
+                sh "mkdir -pv ${env.TEST_DIR}"
+                sh "srun --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
+            }
+        }
+
+        stage('Standard GPU') {
+            environment {
+                TEST_DIR  = "${env.OUT_DIR}/test_standard_gpu"
+                TEST_ARCH = '--gpu'
+            }
+            steps {
+                sh "mkdir -pv ${env.TEST_DIR}"
+                sh "srun --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
+            }
+        }
+
+        stage('lofar_bootes_nufft_small_fov') {
+            environment {
+                TEST_DIR  = "${env.OUT_DIR}/lofar_bootes_nufft_small_fov"
+            }
+            steps {
+                sh "mkdir -pv ${env.TEST_DIR}"
+                sh "srun --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft_small_fov.sh"
+            }
+        }
+
+        stage('lofar_bootes_ss') {
+            environment {
+                TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_ss"
+                CUPY_PYFFS = "0"
+            }
+            steps {
+                sh "mkdir -pv ${env.TEST_DIR}"
+                sh "srun --partition build --time 00-01:00:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_ss.sh"
+            }
+        }
+
+        stage('lofar_bootes_nufft3') {
+            environment {
+                TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_nufft3"
+                CUPY_PYFFS = "0"
+            }
+            steps {
+                sh "mkdir -pv ${env.TEST_DIR}"
+                sh "srun --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft3.sh"
             }
         }
 
@@ -105,64 +166,12 @@ pipeline {
             }
         }
 
-        stage('Standard CPU') {
-            environment {
-                TEST_DIR  = "${env.OUT_DIR}/test_standard_cpu"
-            }
-            steps {
-                sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
-            }
-        }
-
-        stage('Standard GPU') {
-            environment {
-                TEST_DIR  = "${env.OUT_DIR}/test_standard_gpu"
-                TEST_ARCH = '--gpu'
-            }
-            steps {
-                sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
-            }
-        }
-
-        stage('lofar_bootes_nufft_small_fov') {
-            environment {
-                TEST_DIR  = "${env.OUT_DIR}/lofar_bootes_nufft_small_fov"
-            }
-            steps {
-                sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft_small_fov.sh"
-            }
-        }
-
-        stage('lofar_bootes_ss') {
-            environment {
-                TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_ss"
-                CUPY_PYFFS = "0"
-            }
-            steps {
-                sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition build --time 00-01:00:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_ss.sh"
-            }
-        }
-
-        stage('lofar_bootes_nufft3') {
-            environment {
-                TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_nufft3"
-                CUPY_PYFFS = "0"
-            }
-            steps {
-                sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition build --time 00-00:15:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft3.sh"
-            }
-        }
-
         stage('Monitoring') {
             environment {
                 TEST_DIR       = "${env.OUT_DIR}/monitoring"
                 TEST_FSTAT_RT  = "${env.OUT_DIR}/monitoring/stats_rt.txt"
                 TEST_FSTAT_IMG = "${env.OUT_DIR}/monitoring/stats_img.txt"
+                TEST_IGNORE_UPTO = "1"
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"

@@ -8,7 +8,7 @@ import matplotlib.font_manager as font_manager
 import getopt
 import math
 
-def scan(dir):
+def scan(dir, ignore_upto):
     builds = {}
     with os.scandir(dir) as it:
         for entry in it:
@@ -16,7 +16,8 @@ def scan(dir):
                 #print(entry.name)
                 info = re.split('T|Z_', entry.name)
                 build = int(info[2])
-                if build > 180:
+                #print(f"found build {build}")
+                if build > ignore_upto:
                     builds[build] = [info[0], info[1], entry.name, tts.copy()]
     return builds
 
@@ -135,9 +136,10 @@ def main(argv):
     outdir = ''
     lastb  = -1
     fstat  = ''
+    fromb  = 0  # Ignore builds up to build fromb
 
     try:
-        opts, args = getopt.getopt(argv[1:], "hi:o:b:f:")
+        opts, args = getopt.getopt(argv[1:], "hi:o:b:f:s:")
     except getopt.GetoptError as e:
         print('Error:', e)
         print(f'{argv[0]} -i </path/to/input/directory> -o </path/to/output/directory> [-b <last build id>]')
@@ -155,6 +157,9 @@ def main(argv):
             lastb = int(arg)
         elif opt in '-f':
             fstat = arg
+        elif opt in '-s':
+            fromb = int(arg)
+        
     if indir == '':
         print(f'Fatal: argument -i </path/to/input/directory> not found.')
         sys.exit(1)
@@ -168,8 +173,9 @@ def main(argv):
     print(f"indir  is {indir}")
     print(f"outdir is {outdir}")
     print(f"fstat  is {fstat}")
+    print(f"fromb  is {fromb}")
 
-    builds = scan(indir)
+    builds = scan(indir, fromb)
     builds = collect_runtimes(indir, builds)
     stats_n_plots(outdir, builds, lastb, fstat)
 

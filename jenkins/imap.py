@@ -10,7 +10,7 @@ import math
 import imot_tools.io.s2image as image
 
 
-def scan(dir):
+def scan(dir, ignore_upto):
     builds = {}
     with os.scandir(dir) as it:
         for entry in it:
@@ -18,7 +18,7 @@ def scan(dir):
                 #print(entry.name)
                 info = re.split('T|Z_', entry.name)
                 build = int(info[2])
-                if build > 180:
+                if build > ignore_upto:
                     builds[build] = [info[0], info[1], entry.name, tts.copy()]
     return builds
 
@@ -30,9 +30,10 @@ def main(argv):
     refdir = ''
     lastb  = -1
     fstat  = ''
+    fromb  = 0
 
     try:
-        opts, args = getopt.getopt(argv[1:], "hi:o:b:f:r:")
+        opts, args = getopt.getopt(argv[1:], "hi:o:b:f:r:s:")
     except getopt.GetoptError as e:
         print('Error:', e)
         print(f'{argv[0]} -i </path/to/input/directory> -r </path/to/reference/directory> -o </path/to/output/directory> [-b <last build id>]')
@@ -52,6 +53,9 @@ def main(argv):
             fstat = arg
         elif opt in '-r':
             refdir = arg
+        elif opt in '-s':
+            fromb = int(arg)
+
     if indir == '':
         print(f'Fatal: argument -i </path/to/input/directory> not found.')
         sys.exit(1)
@@ -69,13 +73,14 @@ def main(argv):
     print(f"outdir is {outdir}")
     print(f"refdir is {refdir}")
     print(f"fstat  is {fstat}")
+    print(f"fromb  is {fromb}")
 
 
     fstats = open(fstat, 'w')
     print(f"Writing statistics to file {fstat}")
 
 
-    builds = scan(indir)
+    builds = scan(indir, fromb)
 
     # Issue warning if expected lastb solution is missing or if stats exceed threshold
 

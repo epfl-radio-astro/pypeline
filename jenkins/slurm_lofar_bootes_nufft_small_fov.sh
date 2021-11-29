@@ -106,6 +106,8 @@ if [ $RUN_VTUNE == "1" ]; then
     source /work/scitas-ge/richart/test_stacks/syrah/v1/opt/spack/linux-rhel7-skylake_avx512/gcc-8.4.0/intel-oneapi-vtune-2021.6.0-34ym22fgautykbgmg5hhgkiwrvbwfvko/setvars.sh || echo "ignoring warning"
     which vtune
     vtune -collect hotspots -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -search-dir=. -result-dir=$TEST_DIR/vtune -- $PYTHON $PY_SCRIPT
+    vtune -collect hotspots           -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -source-search-dir=. -search-dir=. -result-dir=$TEST_DIR/vtune     -- $PYTHON $PY_SCRIPT
+    vtune -collect memory-consumption -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -source-search-dir=. -search-dir=. -result-dir=$TEST_DIR/vtune_mem -- $PYTHON $PY_SCRIPT
 fi
 echo; echo
 
