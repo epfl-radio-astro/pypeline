@@ -18,10 +18,11 @@ if [ 1 == 1 ]; then
     echo REF_DIR = $REF_DIR
     [ -d $REF_DIR ] || (echo "Error: reference directory $REF_DIR not found." && exit 1)
     
-    rm $REF_DIR/test_standard_cpu
-    rm $REF_DIR/test_standard_gpu
-    rm $REF_DIR/lofar_bootes_nufft3
-    rm $REF_DIR/lofar_bootes_nufft_small_fov
+    [ -f $REF_DIR/test_standard_cpu ]            && rm $REF_DIR/test_standard_cpu
+    [ -f $REF_DIR/test_standard_gpu ]            && rm $REF_DIR/test_standard_gpu 
+    [ -f $REF_DIR/lofar_bootes_ss ]              && rm $REF_DIR/lofar_bootes_ss
+    [ -f $REF_DIR/lofar_bootes_nufft3 ]          && rm $REF_DIR/lofar_bootes_nufft3
+    [ -f $REF_DIR/lofar_bootes_nufft_small_fov ] && rm $REF_DIR/lofar_bootes_nufft_small_fov
     
     ln -s $REF_SOL/test_standard_cpu            $REF_DIR/test_standard_cpu
     ln -s $REF_SOL/test_standard_gpu            $REF_DIR/test_standard_gpu
