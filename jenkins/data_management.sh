@@ -11,6 +11,7 @@ set -e
 # 29/11/2021: Set symbolic links to an earlier solution that serves as a reference
 #
 if [ 1 == 1 ]; then
+
     REF_SOL=${WORK_DIR}/${GIT_BRANCH}/2021-11-29T17-36-15Z_3/
     [ -d $REF_SOL ] || (echo "Error: reference directory $REF_SOL not found." && exit 1)
     echo REF_SOL = $REF_SOL
@@ -18,11 +19,11 @@ if [ 1 == 1 ]; then
     echo REF_DIR = $REF_DIR
     [ -d $REF_DIR ] || (echo "Error: reference directory $REF_DIR not found." && exit 1)
     
-    [ -f $REF_DIR/test_standard_cpu ]            && rm $REF_DIR/test_standard_cpu
-    [ -f $REF_DIR/test_standard_gpu ]            && rm $REF_DIR/test_standard_gpu 
-    [ -f $REF_DIR/lofar_bootes_ss ]              && rm $REF_DIR/lofar_bootes_ss
-    [ -f $REF_DIR/lofar_bootes_nufft3 ]          && rm $REF_DIR/lofar_bootes_nufft3
-    [ -f $REF_DIR/lofar_bootes_nufft_small_fov ] && rm $REF_DIR/lofar_bootes_nufft_small_fov
+    [ -L $REF_DIR/test_standard_cpu ]            && rm $REF_DIR/test_standard_cpu
+    [ -L $REF_DIR/test_standard_gpu ]            && rm $REF_DIR/test_standard_gpu 
+    [ -L $REF_DIR/lofar_bootes_ss ]              && rm $REF_DIR/lofar_bootes_ss
+    [ -L $REF_DIR/lofar_bootes_nufft3 ]          && rm $REF_DIR/lofar_bootes_nufft3
+    [ -: $REF_DIR/lofar_bootes_nufft_small_fov ] && rm $REF_DIR/lofar_bootes_nufft_small_fov
     
     ln -s $REF_SOL/test_standard_cpu            $REF_DIR/test_standard_cpu
     ln -s $REF_SOL/test_standard_gpu            $REF_DIR/test_standard_gpu
