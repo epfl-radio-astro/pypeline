@@ -171,7 +171,7 @@ pipeline {
                 TEST_DIR       = "${env.OUT_DIR}/monitoring"
                 TEST_FSTAT_RT  = "${env.OUT_DIR}/monitoring/stats_rt.txt"
                 TEST_FSTAT_IMG = "${env.OUT_DIR}/monitoring/stats_img.txt"
-                TEST_IGNORE_UPTO = "1"
+                TEST_IGNORE_UPTO = "0"
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"
