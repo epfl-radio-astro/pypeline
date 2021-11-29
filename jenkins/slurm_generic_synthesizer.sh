@@ -42,13 +42,11 @@ echo; pwd
 echo; hostname
 echo
 
-
-# Should be safe (checked with threadpoolctl via slurm)
-#export OMP_NUM_THREADS=1
-#export OPENBLAS_NUM_THREADS=1
-#export MKL_NUM_THREADS=1
-#export VECLIB_MAXIMUM_THREADS=1
-#export NUMEXPR_NUM_THREADS=1
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
 
 # || true to avoid failure when grep returns nothing under set -e
 echo;
