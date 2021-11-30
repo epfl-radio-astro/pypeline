@@ -14,9 +14,9 @@ pipeline {
         OUT_DIR  = "${env.WORK_DIR}/${env.GIT_BRANCH}/${env.UTC_TAG}_${env.BUILD_ID}"
 
         // Set to "1" to run corresponding profiling
-        PROFILE_CPROFILE = "0"
+        PROFILE_CPROFILE = "1"
         PROFILE_NSIGHT   = "1"
-        PROFILE_VTUNE    = "0"
+        PROFILE_VTUNE    = "1"
         PROFILE_ADVISOR  = "0" // can be very time-consuming
     }
 
