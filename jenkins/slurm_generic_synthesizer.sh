@@ -135,6 +135,7 @@ if [ $RUN_VTUNE == "1" ]; then
     echo listing of $TEST_DIR
     ls -rtl $TEST_DIR
     vtune -collect hotspots           -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -source-search-dir=. -search-dir=. -result-dir=$TEST_DIR/vtune_hs  -- $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
+    vtune -collect hpc-performance    -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -source-search-dir=. -search-dir=. -result-dir=$TEST_DIR/vtune_hpc -- $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
     vtune -collect memory-consumption -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -source-search-dir=. -search-dir=. -result-dir=$TEST_DIR/vtune_mem -- $PYTHON $PY_SCRIPT ${TEST_ARCH} ${TEST_ALGO}
     echo; echo
 fi

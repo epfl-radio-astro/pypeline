@@ -105,7 +105,8 @@ if [ $RUN_VTUNE == "1" ]; then
     echo "### Intel VTune Amplifier"
     source /work/scitas-ge/richart/test_stacks/syrah/v1/opt/spack/linux-rhel7-skylake_avx512/gcc-8.4.0/intel-oneapi-vtune-2021.6.0-34ym22fgautykbgmg5hhgkiwrvbwfvko/setvars.sh || echo "ignoring warning"
     which vtune
-    vtune -collect hotspots           -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -source-search-dir=. -search-dir=. -result-dir=$TEST_DIR/vtune     -- $PYTHON $PY_SCRIPT
+    vtune -collect hotspots           -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -source-search-dir=. -search-dir=. -result-dir=$TEST_DIR/vtune_hs  -- $PYTHON $PY_SCRIPT
+    vtune -collect hpc-performance    -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -source-search-dir=. -search-dir=. -result-dir=$TEST_DIR/vtune_hpc -- $PYTHON $PY_SCRIPT
     vtune -collect memory-consumption -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -source-search-dir=. -search-dir=. -result-dir=$TEST_DIR/vtune_mem -- $PYTHON $PY_SCRIPT
 fi
 echo; echo
@@ -121,3 +122,9 @@ ls -rtl $TEST_DIR
 
 # To test from command line
 #export TMPOUT=/scratch/izar/orliac/test_pype-111e/; mkdir -pv $TMPOUT; PROFILE_NSIGHT=0 PROFILE_VTUNE=1 PROFILE_CPROFILE=1 TEST_SEFF=0 TEST_DIR=$TMPOUT CUPY_PYFFS=0 srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1  ./jenkins/slurm_lofar_bootes_nufft3.sh
+
+
+# Hel + salloc + ssh
+#conda activate pype-111
+#module load gcc fftw
+#export TMPOUT=/scratch/orliac/test_pype-111f/; mkdir -pv $TMPOUT; CUPY_PYFFS=0 vtune -collect hpc-performance -knob stack-size=0 -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -source-search-dir=. -search-dir=. -result-dir=$TMPOUT/vtune_hpc -- ~/miniconda3/envs/pype-111/bin/python ./examples/simulation/lofar_bootes_nufft3.py
