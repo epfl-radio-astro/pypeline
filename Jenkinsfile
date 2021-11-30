@@ -100,7 +100,7 @@ pipeline {
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition build --time 00-00:30:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft3.sh"
+                sh "srun --partition debug --time 00-00:30:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft3.sh"
             }
         }
 
