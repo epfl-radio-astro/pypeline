@@ -23,7 +23,7 @@ echo "TEST_ARCH = $TEST_ARCH"
 
 module load gcc
 if [ $ARCH == "GPU" ]; then
-    module load cuda/11.1.1;
+    module load cuda/11.0.2;
 fi
 module list
 
