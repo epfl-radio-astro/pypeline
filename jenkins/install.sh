@@ -3,8 +3,8 @@
 set -e
 
 
-#echo "Warning: early exit. Re-enable if a new installation is required."
-#exit 0
+echo "Warning: early exit. Re-enable if a new installation is required."
+exit 0
 
 
 # Install Miniconda in batch mode the first time
