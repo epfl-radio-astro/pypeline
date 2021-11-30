@@ -49,13 +49,15 @@ pipeline {
             }
         }
 
+        // vtune hpc-performance needs to run on debug node!
+
         stage('Standard CPU') {
             environment {
                 TEST_DIR  = "${env.OUT_DIR}/test_standard_cpu"
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition build --time 00-00:30:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
+                sh "srun --partition debug --time 00-00:30:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
             }
         }
 
@@ -66,7 +68,7 @@ pipeline {
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition build --time 00-00:30:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
+                sh "srun --partition debug --time 00-00:30:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_generic_synthesizer.sh"
             }
         }
 
@@ -76,7 +78,7 @@ pipeline {
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition build --time 00-00:30:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft_small_fov.sh"
+                sh "srun --partition debug --time 00-00:30:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft_small_fov.sh"
             }
         }
 
@@ -87,7 +89,7 @@ pipeline {
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition build --time 00-00:30:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_ss.sh"
+                sh "srun --partition debug --time 00-00:30:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_ss.sh"
             }
         }
 
