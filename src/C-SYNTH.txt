@@ -9,118 +9,52 @@ cd $PYPELINE/src
 make -B -f Makefile_ss
 
 
-# Example using the two sockets of a node of helvetios (36 phys cores), DP 
-# ------------------------------------------------------------------------
+# Benchmark using a dummy synthesizer on 2 sockets of Helvetios (36 CPU cores)
+# ----------------------------------------------------------------------------
 ssh helvetios.epfl.ch
 salloc -t 01:00:00 --exclusive
-ssh node
+ssh allocated node
 cd $PYPELINE/benchmarking
 module load intel intel-mkl python 
 OMP_NUM_THREADS=36 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 python dummy_synthesis_css.py
 
-## precision 64
+### precision 64
+SS Python : 417.093 sec
+SS C      :   3.594 sec, speed up 116.04, rmse = 0.0000000000
+
+### precision 32
+SS Python : 234.962 sec
+SS C      :   1.807 sec, speed up 130.04, rmse = 0.0000956822
+
+
+
+# Indicative benchmark using a pipeline (derived from test_nufft_ss_sizing.py)
+# using a single socket on a node of izar
 #
-pixGrid  shape=(3, 3200, 3200)    dtype=float64      size=0.246 GB
-V        shape=(24, 12)           dtype=complex128   size=0.000 GB
-XYZ      shape=(550, 3)           dtype=float64      size=0.000 GB
-W        shape=(550, 24)          dtype=complex128   size=0.000 GB
-#;synthesize;        run time 417.093 sec; MKL NT  1; OMP_NT 36
-Na = 550, Nw = 3200, Nh = 3200, Ne = 12
-size_P =  90.11 GB, size_PW =   3.93 GB, size_E =   1.97 => size_tot =  96.01
-#;c_synthesizer_omp; run time 3.594 sec; rmse = 0.0000000000; MKL_NT  1; OMP_NT 36; speed up 116.04 in 64 bits
-[orliac@h104 benchmarking]$ 
-
-## precision 32
+# Warning: what is measured is broader that just the compute kernels!
 #
-pixGrid  shape=(3, 3200, 3200)    dtype=float32      size=0.123 GB
-V        shape=(24, 12)           dtype=complex64    size=0.000 GB
-XYZ      shape=(550, 3)           dtype=float32      size=0.000 GB
-W        shape=(550, 24)          dtype=complex64    size=0.000 GB
-#;synthesize;        run time 234.962 sec; MKL NT  1; OMP_NT 36
-Na = 550, Nw = 3200, Nh = 3200, Ne = 12
-size_P =  45.06 GB, size_PW =   1.97 GB, size_E =   0.98 => size_tot =  48.01
-#;c_synthesizer_omp; run time 1.807 sec; rmse = 0.0000956822; MKL_NT  1; OMP_NT 36; speed up 130.04 in 32 bits
-
-
-## Comparing CPU vs GPU SS on izar
-## ===============================
+# ----------------------------------------------------------------------------
 cd $PYPELINE/benchmarking
 SKABB_VERBOSE=1 SKABB_C_SYNTH=0 sbatch sbatch_test_nufft_ss_css_sizing.sh
 SKABB_VERBOSE=1 SKABB_C_SYNTH=1 sbatch sbatch_test_nufft_ss_css_sizing.sh
 
-# Warning: what is mesured is broader that just the compute kernel
+# Using the original image resolution (res_fac = 1), DP
+# -----------------------------------------------------
+==> slurm-788348.out / slurm-788360.out <==
+Time GPU Standard Synthesis                 0.761 sec / 0.761 sec
+Time CPU Standard Synthesis                 7.234 sec  SS Python                   (RMSE CPU - GPU = 0.0000000000)
+Time CPU Standard Synthesis                 0.455 sec  SS C       speed up 15.898  (RMSE CPU - GPU = 0.0000000000)
 
-# Example using a single socket on a node of izar (20 phys cores), res_fac = 1, DP
-# --------------------------------------------------------------------------------
-==> slurm-788348.out <==
-Run times summary + CPU/GPU comparison
-Time Set up data                            1.339 sec
-Time Estimate intensity field parameters    1.696 sec
-Time GPU Standard Synthesis                 0.761 sec
-Time CPU Standard Synthesis                 7.234 sec  C_SYNTH? False; OMP_NUM_THREADS = 20
-RMSE CPU - GPU = 0.0000000000
-Time NUFFT Synthesis 1                      0.004 sec
-Time NUFFT Synthesis 2                      0.070 sec
-Time Estimate sensitivity field parameters  0.886 sec
-Cumulated vs total time 11.991 12.626 sec
+# Icreasing image resolution by 4 (res_fac = 4), DP
+# -------------------------------------------------
+==> slurm-788361.out / slurm-788384.out <==
+Time GPU Standard Synthesis                 1.647 sec / 1.652 sec
+Time CPU Standard Synthesis               114.436 sec  SS Python                    (RMSE CPU - GPU = 0.0000000000)
+Time CPU Standard Synthesis                 2.178 sec  SS C       speed up 52.541   (RMSE CPU - GPU = 0.0000000000)
 
-==> slurm-788360.out <==
-Time Estimate intensity field parameters    1.689 sec
-Time GPU Standard Synthesis                 0.761 sec
-Time CPU Standard Synthesis                 0.455 sec  C_SYNTH? True; OMP_NUM_THREADS = 20
-RMSE CPU - GPU = 0.0000000000
-Time NUFFT Synthesis 1                      0.004 sec
-Time NUFFT Synthesis 2                      0.197 sec
-Time Estimate sensitivity field parameters  0.879 sec
-Cumulated vs total time 5.327 5.924 sec
-
-
-# Example using a single socket on a node of izar (20 phys cores), res_fac = 4, DP
-# --------------------------------------------------------------------------------
-==> slurm-788361.out <==
-Run times summary + CPU/GPU comparison
-Time Set up data                            1.543 sec
-Time Estimate intensity field parameters    1.691 sec
-Time GPU Standard Synthesis                 1.647 sec
-Time CPU Standard Synthesis                 114.436 sec  C_SYNTH? False; OMP_NUM_THREADS = 20
-RMSE CPU - GPU = 0.0000000000
-Time NUFFT Synthesis 1                      0.009 sec
-Time NUFFT Synthesis 2                      0.072 sec
-Time Estimate sensitivity field parameters  0.879 sec
-Cumulated vs total time 120.277 122.724 sec
-
-==> slurm-788384.out <==
-Time Estimate intensity field parameters    1.674 sec
-Time GPU Standard Synthesis                 1.652 sec
-Time CPU Standard Synthesis                 2.178 sec  C_SYNTH? True; OMP_NUM_THREADS = 20
-RMSE CPU - GPU = 0.0000000000
-Time NUFFT Synthesis 1                      0.004 sec
-Time NUFFT Synthesis 2                      0.073 sec
-Time Estimate sensitivity field parameters  0.874 sec
-Cumulated vs total time 7.996 10.439 sec
-
-
-# Example using single socket on a node of izar (20 phys cores), res_fac = 4, SP
-#   warning: changing res_fac only affects the SS
-# ------------------------------------------------------------------------------
-==> slurm-788386.out <==
-Run times summary + CPU/GPU comparison
-Time Set up data                            1.580 sec
-Time Estimate intensity field parameters    1.688 sec
-Time GPU Standard Synthesis                 1.440 sec
-Time CPU Standard Synthesis                 40.350 sec  C_SYNTH? False; OMP_NUM_THREADS = 20
-RMSE CPU - GPU = 0.0009706665
-Time NUFFT Synthesis 1                      0.004 sec
-Time NUFFT Synthesis 2                      0.068 sec
-Time Estimate sensitivity field parameters  0.874 sec
-Cumulated vs total time 46.004 47.982 sec
-
-==> slurm-788398.out <==
-Time Estimate intensity field parameters    1.686 sec
-Time GPU Standard Synthesis                 1.443 sec
-Time CPU Standard Synthesis                 1.323 sec  C_SYNTH? True; OMP_NUM_THREADS = 20
-RMSE CPU - GPU = 0.0027500738
-Time NUFFT Synthesis 1                      0.004 sec
-Time NUFFT Synthesis 2                      0.070 sec
-Time Estimate sensitivity field parameters  0.875 sec
-Cumulated vs total time 6.941 8.912 sec
+# Icreasing image resolution by 4 (res_fac = 4), SP
+# -------------------------------------------------
+==> slurm-788386.out / slurm-788398.out <==
+Time GPU Standard Synthesis                 1.440 sec / 1.443 sec
+Time CPU Standard Synthesis                40.350 sec  SS Python                    (RMSE CPU - GPU = 0.0009706665)
+Time CPU Standard Synthesis                 1.323 sec  SS C       speed up  30.499  (RMSE CPU - GPU = 0.0027500738)
