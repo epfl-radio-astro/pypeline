@@ -26,6 +26,7 @@ import pypeline.util.frame as frame
 import typing as typ
 import warnings
 import finufft
+from cufinufft import cufinufft
 import astropy.coordinates as aspy
 
 
@@ -471,10 +472,14 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             self._lmn_grid -= grid_center[:, None]
             self._prephasing = np.exp(1j * np.sum(grid_center[:, None] * self._UVW, axis=0)).squeeze().astype(
                 self._precision_mappings[self._precision]['complex'])
-            self._plan = finufft.Plan(nufft_type=3, n_modes_or_dim=3, eps=eps, isign=1, n_trans=n_trans,
-                                      dtype=self._precision_mappings[self._precision]['dtype'])
-            self._plan.setpts(x=self._UVW[0], y=self._UVW[1], z=self._UVW[-1],
-                              s=self._lmn_grid[0], t=self._lmn_grid[1], u=self._lmn_grid[-1])
+
+            dtype = dtype=self._precision_mappings[self._precision]['real']
+            self._plan = cufinufft(3, 3, n_trans, eps=eps, isign=1, dtype=dtype)
+                                      #dtype=self._precision_mappings[self._precision]['dtype'])
+            self._plan.set_pts(cp.asarray(self._UVW[0]), cp.asarray(self._UVW[1]), cp.asarray(self._UVW[-1]),
+                              cp.asarray(self._lmn_grid[0]), cp.asarray(self._lmn_grid[1]), cp.asarray(self._lmn_grid[-1]))
+
+
             self._inner_fft_sizes = np.floor(4 * np.linalg.norm(self._lmn_grid, ord=np.infty, axis=-1) * \
                                              np.linalg.norm(self._UVW, ord=np.infty, axis=-1) / np.pi +
                                              np.log(1 / eps) + 1)
@@ -485,6 +490,7 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
                 self._precision_mappings[self._precision]['real'])
             self._prephasing = np.exp(1j * self._UVW[-1]).squeeze().astype(
                 self._precision_mappings[self._precision]['complex'])
+
             self._plan = finufft.Plan(nufft_type=1, n_modes_or_dim=(self._grid_size, self._grid_size),
                                       eps=eps, isign=1, n_trans=n_trans,
                                       dtype=self._precision_mappings[self._precision]['dtype'])
@@ -532,13 +538,18 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             if self._n_trans == 1:  # NUFFT are evaluated sequentially
                 out = []
                 for n in range(V.shape[0]):
-                    out.append(np.real(self._plan.execute(V[n])))
+                    res = cp.ndarray((self._n_trans, len(self._lmn_grid[0])), dtype=self._precision_mappings[self._precision]['complex'])
+                    self._plan.execute(cp.asarray(V[n]), res)
+                    out.append(np.real(cp.asnumpy(res)))
                 out = np.stack(out, axis=0)
             else:
-                out = np.real(self._plan.execute(
-                    V))  # NUFFT are evaluated in parallel (not clear if multi-threaded or multi-processed?)
+                res = cp.ndarray((self._n_trans, len(self._lmn_grid[0])), dtype=self._precision_mappings[self._precision]['complex'])
+                self._plan.execute(cp.asarray(V), res)
+                out = np.real(cp.asnumpy(res))  # NUFFT are evaluated in parallel (not clear if multi-threaded or multi-processed?)
         else:
-            out = np.real(self._plan.execute(V * self._prephasing))
+            res = cp.ndarray((self._n_trans, len(self._lmn_grid[0])), dtype=self._precision_mappings[self._precision]['complex'])
+            self._plan.execute(cp.asarray(V * self._prephasing), res)
+            out = np.real(cp.asnumpy(res))
         return out
 
     def synthesize(self, V: np.ndarray) -> np.ndarray:
