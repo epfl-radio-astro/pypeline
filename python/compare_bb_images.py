@@ -47,18 +47,22 @@ sky_model = source.from_tgss_catalog(field_center, FoV, N_src=30)
 
 
 
-data_nu = np.load("bluebild_nufft_img.npy")
-data_ss = np.load("bluebild_ss_img.npy")        
-data_ps = np.load("bluebild_ps_img.npy")
-grid = np.load("bluebild_np_grid.npy")
+data_nu = np.load("bluebild_nufft_img3.npy")
+data_nu3 = np.load("bluebild_nufft3d_img3.npy")
+data_ss = np.load("bluebild_ss_img3.npy")        
+#data_ps = np.load("bluebild_ps_img2.npy")
+grid = np.load("bluebild_np_grid3.npy")
 
 
 data_nu = np.sum(data_nu, axis=0)
+data_nu3 = np.sum(data_nu3, axis=0)
 data_ss = np.sum(data_ss, axis=0)
-data_ps = np.sum(data_ps, axis=0)
+#data_ps = np.sum(data_ps, axis=0)
 #data_nu /= np.max(data_nu)
+#data_nu3 /= np.max(data_nu3)
 #data_ss /= np.max(data_ss)
 #data_ps /= np.max(data_ps)
+source_intensity = sky_model.intensity # / np.max(sky_model.intensity)
 
 img_nu = s2image.Image(data_nu, grid)
 
@@ -72,27 +76,45 @@ def draw(data, a, title):
     fig.colorbar(pos, ax=a)
     a.set_title(title)
 
-draw(data_nu, ax[0], 'NUFFT')
-draw(data_ss, ax[1], 'Standard Synthesis')
-draw(data_ps, ax[2], 'Periodic Synthesis')
-draw(data_ss-data_nu, ax[3], 'SS-NUFFT')
-draw(data_ss-data_ps, ax[4], 'SS-PS')
+draw(data_nu, ax[0], 'NUFFT 3D')
+draw(data_nu, ax[1], 'NUFFT')
+draw(data_ss, ax[2], 'Standard Synthesis')
+#draw(data_ps, ax[3], 'Periodic Synthesis')
+draw(data_nu3-data_nu, ax[3], 'NUFFT3D - NUFFT')
+draw(data_ss-data_nu, ax[4], 'SS-NUFFT')
+draw(data_ss-data_nu3, ax[5], 'SS-NUFFT3D')
+#draw(data_ss-data_ps, ax[7], 'SS-PS')
 
-ax[0].scatter(source_y, source_x, s=40, facecolors='none', edgecolors='r')
-ax[1].scatter(source_y, source_x, s=40, facecolors='none', edgecolors='r')
-ax[2].scatter(source_y, source_x, s=40, facecolors='none', edgecolors='r')
+for i in range(3):
+    ax[i].scatter(source_y, source_x, s=80, facecolors='none', edgecolors='r')
+
 for x,y, intensity in zip(source_x, source_y, sky_model.intensity):
     print(intensity, np.sum(data_nu[x-4:x+4,y-4:y+4]))
 
-measurement1_nu =  [np.max(data_nu[x-4:x+4,y-4:y+4]) for x,y in zip(source_x, source_y)]
-measurement1_ps =  [np.max(data_ps[x-4:x+4,y-4:y+4]) for x,y in zip(source_x, source_y)]
-measurement1_ss =  [np.max(data_ss[x-4:x+4,y-4:y+4]) for x,y in zip(source_x, source_y)]
+measurement1_nu  =  [np.max(data_nu[x-4:x+4,y-4:y+4]) for x,y in zip(source_x, source_y)]
+measurement1_nu3 =  [np.max(data_nu3[x-4:x+4,y-4:y+4]) for x,y in zip(source_x, source_y)]
+#measurement1_ps  =  [np.max(data_ps[x-4:x+4,y-4:y+4]) for x,y in zip(source_x, source_y)]
+measurement1_ss  =  [np.max(data_ss[x-4:x+4,y-4:y+4]) for x,y in zip(source_x, source_y)]
 
-ax[5].scatter(sky_model.intensity, measurement1_nu, c = 'r', label = 'nufft')
-ax[5].scatter(sky_model.intensity, measurement1_ps, c = 'g', label = 'ps')
-ax[5].scatter(sky_model.intensity, measurement1_ss, c = 'b', label = 'ss')
-ax[5].set_xlabel('source intensity')
-ax[5].set_ylabel('measured flux at source position')
-ax[5].legend()
-plt.savefig("compare_bb_images")
+plt.savefig("compare_bb_images_qualitative")
+
+fig, ax = plt.subplots(ncols=2, nrows = 1, figsize=(7, 7))
+ax = ax.flatten()
+
+ax[0].scatter(source_intensity, measurement1_nu, c = 'orangered', label = 'nufft', marker = '^')
+ax[0].scatter(source_intensity, measurement1_nu3, c = 'black', label = 'nufft3d', marker = 'v')
+#ax[0].scatter(source_intensity, measurement1_ps, c = 'forestgreen', label = 'ps', marker = 's')
+ax[0].scatter(source_intensity, measurement1_ss, c = 'dodgerblue', label = 'ss')
+ax[0].set_xlabel('source intensity')
+ax[0].set_ylabel('measured flux at source position')
+ax[0].legend()
+
+'''
+ax[1].hist(source_intensity - measurement1_nu, range = (-0.5,0.5), bins = 20, color = 'orangered', label = 'nufft', histtype = 'step')
+ax[1].hist(source_intensity - measurement1_nu3,range = (-0.5,0.5), bins = 20, color = 'black', label = 'nufft3d', histtype = 'step')
+#ax[1].hist(source_intensity - measurement1_ps, range = (-0.5,0.5), bins = 20, color = 'forestgreen', label = 'ps', histtype = 'step')
+ax[1].hist(source_intensity - measurement1_ss, range = (-0.5,0.5), bins = 20, color = 'dodgerblue', label = 'ss', histtype = 'step')
+ax[1].legend()'''
+plt.savefig("compare_bb_images_quantitative")
+
 

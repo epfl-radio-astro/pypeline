@@ -212,7 +212,6 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         self.mark(self.timer_tag + "Synthesizer matmuls")
 
         grid_gpu = xp.asarray(self._grid)
-        print("grid shape:", self._grid.shape)
         for i in range(N_width):
           b = xp.matmul(XYZ,  grid_gpu[:,:,i])
           P = xp.exp(a*b)

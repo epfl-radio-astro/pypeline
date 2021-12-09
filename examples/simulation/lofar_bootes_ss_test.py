@@ -50,7 +50,7 @@ vis = statistics.VisibilityGeneratorBlock(sky_model, T_integration, fs=196000, S
 time = obs_start + (T_integration * u.s) * np.arange(3595)
 
 # Imaging
-N_level = 20 #4
+N_level = 2 #4
 N_bits = 32 # 32
 _, _, px_colat, px_lon = grid.equal_angle(
     N=dev.nyquist_rate(wl), direction=field_center.cartesian.xyz.value, FoV=FoV
@@ -70,7 +70,6 @@ for t in ProgressBar(time[::200]):
 
     I_est.collect(S, G)
 N_eig, c_centroid = I_est.infer_parameters()
-print( N_eig, c_centroid)
 
 # Imaging
 I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)

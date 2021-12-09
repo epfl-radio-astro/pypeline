@@ -25,6 +25,7 @@ import finufft
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.bluebild.gram as bb_gr
+import pypeline.phased_array.bluebild.field_synthesizer.fourier_domain as bb_synth
 import pypeline.phased_array.bluebild.imager.fourier_domain as bb_fd
 import pypeline.phased_array.bluebild.imager.spatial_domain as bb_sd
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
@@ -40,9 +41,9 @@ from timing import Timer
 
 t = Timer()
 
-do_spherical_interpolation = True # BEWARE, if set to true the runtime becomes very slow!!
-do_periodic_synthesis = True
-timeslice = slice(None,None,5)
+do_spherical_interpolation = False # BEWARE, if set to true the runtime becomes very slow!!
+do_periodic_synthesis = False
+timeslice = slice(None,None,20)
 
 t.start_time("Set up data")
 
@@ -117,6 +118,14 @@ lmn_grid = np.stack((Lpix, Mpix, Jpix), axis=0)
 pix_xyz = np.tensordot(uvw_frame, lmn_grid, axes=1)
 _, pix_lat_sq, pix_lon_sq = transform.cart2eq(*pix_xyz)
 
+## test: use nufft grid to define standard synthesis grid
+px_grid = pix_xyz
+
+# Imaging
+eps = 1e-3
+w_term = True
+precision = 'single'
+
 t.end_time("Set up data")
 
 ### Intensity Field =================================================
@@ -137,15 +146,20 @@ t.end_time("Estimate intensity field parameters")
 #### Imaging
 ####################################################################
 I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
+IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq', 'sqrt'))
 I_mfs_ps = bb_fd.Fourier_IMFS_Block(wl, pix_colat, pix_lon, N_FS, T_kernel, R, N_level, N_bits)
+
 I_mfs_ss = bb_sd.Spatial_IMFS_Block(wl, px_grid, N_level, N_bits)
 UVW_baselines = []
+UVW_baselines2 = []
 ICRS_baselines = []
 gram_corrected_visibilities = []
+gram_corrected_visibilities2 = []
 baseline_rescaling = 2 * np.pi / wl
 for ti in ProgressBar(time[timeslice]):
     t.start_time("Synthesis: prep input matrices & fPCA")
     XYZ = dev(ti)
+
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
     G = gram(XYZ, W, wl)
@@ -158,10 +172,14 @@ for ti in ProgressBar(time[timeslice]):
     XYZ_gpu = cp.asarray(XYZ.data)
     W_gpu  = cp.asarray(W.data.toarray())
     V_gpu  = cp.asarray(V)
-    t.start_time("Standard Synthesis")
+    '''t.start_time("Standard Synthesis (CPU)")
+    _ = I_mfs_ss(D, V, XYZ.data, W.data,  c_idx)
+    t.end_time("Standard Synthesis (CPU)")'''
+
+    t.start_time("Standard Synthesis (GPU)")
     _ = I_mfs_ss(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
     #_ = I_mfs_ss(D, V, XYZ.data, W.data, c_idx)
-    t.end_time("Standard Synthesis")
+    t.end_time("Standard Synthesis (GPU)")
 
     t.start_time("NUFFT Synthesis 1")
     UVW = (uvw_frame.transpose() @ XYZ.data.transpose()).transpose()
@@ -169,37 +187,53 @@ for ti in ProgressBar(time[timeslice]):
     ICRS_baselines_t = (XYZ.data[:, None, :] - XYZ.data[None, ...])
     UVW_baselines.append(baseline_rescaling * UVW_baselines_t)
     ICRS_baselines.append(baseline_rescaling * ICRS_baselines_t)
-    W = W.data
-    S_corrected  = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
-    S_corrected2 = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
+    S_corrected  = (W.data @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.data.transpose().conj()
+    S_corrected2 = (W.data @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.data.transpose().conj()
     gram_corrected_visibilities.append(S_corrected)
+
+
     t.end_time("NUFFT Synthesis 1")
 
+    t.start_time("NUFFT3 Synthesis 1")
+    UVW_baselines_t2 = dev.baselines(ti, uvw=True, field_center=field_center)
+    UVW_baselines2.append(UVW_baselines_t2)
+    S_corrected2 = IV_dp(D, V, W, c_idx)
+    gram_corrected_visibilities2.append(S_corrected2)
+    t.end_time("NUFFT3 Synthesis 1")
 
 I_std_ps, I_lsq_ps = I_mfs_ps.as_image()
 I_std_ss, I_lsq_ss = I_mfs_ss.as_image()
 
 t.start_time("NUFFT Synthesis 2")
 UVW_baselines = np.stack(UVW_baselines, axis=0).reshape(-1, 3)
-ICRS_baselines = np.stack(ICRS_baselines, axis=0)
+#ICRS_baselines = np.stack(ICRS_baselines, axis=0)
 gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=0).reshape(-1)
 
 w_correction = np.exp(1j * UVW_baselines[:, -1])
 gram_corrected_visibilities_nufft = gram_corrected_visibilities*w_correction
 
-print("test")
 
 scalingx = 2 * lim / N_pix
 scalingy = 2 * lim / N_pix
 bb_image = finufft.nufft2d1(x=scalingx * UVW_baselines[:, 1],
                             y=scalingy * UVW_baselines[:, 0],
                             c=gram_corrected_visibilities_nufft,
-                            n_modes=N_pix, eps=1e-4)
+                            n_modes=N_pix, eps=1e-3)
 
 bb_image = np.real(bb_image)
 t.end_time("NUFFT Synthesis 2")
-print(bb_image.shape,bb_image[0,0])
 
+t.start_time("NUFFT3 Synthesis 2")
+UVW_baselines2 = np.stack(UVW_baselines2, axis=0).reshape(-1, 3)
+gram_corrected_visibilities2 = np.stack(gram_corrected_visibilities2, axis=-3).reshape(*S_corrected2.shape[:2], -1)
+nufft_imager = bb_fd.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines2.T, grid_size=N_pix, FoV=FoV,
+                                      field_center=field_center, eps=eps, w_term=w_term,
+                                      n_trans=np.prod(gram_corrected_visibilities2.shape[:-1]), precision=precision)
+print(nufft_imager._synthesizer._inner_fft_sizes)
+lsq_image_nufft3, sqrt_image_nufft3 = nufft_imager(gram_corrected_visibilities2)
+print(lsq_image_nufft3.shape, sqrt_image_nufft3.shape)
+
+t.end_time("NUFFT3 Synthesis 2")
 
 #====
 
@@ -217,9 +251,11 @@ t.end_time("Estimate sensitivity field parameters")
 
 # Imaging
 S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
+SV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq',))
 S_mfs_ps = bb_fd.Fourier_IMFS_Block(wl, pix_colat, pix_lon, N_FS, T_kernel, R, 1, N_bits)
 S_mfs_ss = bb_sd.Spatial_IMFS_Block(wl, px_grid, 1, N_bits)
 sensitivity_coeffs = []
+sensitivity_coeffs2 = []
 for ti in ProgressBar(time[timeslice]): 
 
     XYZ = dev(ti)
@@ -227,19 +263,20 @@ for ti in ProgressBar(time[timeslice]):
     G = gram(XYZ, W, wl)
 
     D, V = S_dp(G)
-    W = W.data
 
-    _ = S_mfs_ps(D, V, XYZ.data, W, cluster_idx=np.zeros(N_eig, dtype=int))
+    _ = S_mfs_ps(D, V, XYZ.data, W.data, cluster_idx=np.zeros(N_eig, dtype=int))
 
     XYZ_gpu = cp.asarray(XYZ.data)
-    W_gpu  = cp.asarray(W.toarray())
+    W_gpu  = cp.asarray(W.data.toarray())
     V_gpu  = cp.asarray(V)
     #_ = I_mfs_ss(D, V, XYZ.data, W.data, c_idx)
     #_ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
     _ = S_mfs_ss(D, V_gpu, XYZ_gpu, W_gpu, cluster_idx=np.zeros(N_eig, dtype=int))
 
-    S_sensitivity = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
+    S_sensitivity = (W.data @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.data.transpose().conj()
     sensitivity_coeffs.append(S_sensitivity)
+    S_sensitivity2 = SV_dp(D, V, W, cluster_idx=np.zeros(N_eig, dtype=int))
+    sensitivity_coeffs2.append(S_sensitivity2)
 _, S_ps = S_mfs_ps.as_image()
 _, S_ss = S_mfs_ss.as_image()
 
@@ -257,6 +294,16 @@ sensitivity_image = finufft.nufft2d1(x=scalingx * UVW_baselines[:, 1],
 sensitivity_image = np.real(sensitivity_image)
 print(sensitivity_image.shape,sensitivity_image[0,0], pix_xyz[0,0,0])
 I_lsq_eq_nufft = s2image.Image(bb_image / sensitivity_image, pix_xyz)
+
+sensitivity_coeffs2 = np.stack(sensitivity_coeffs2, axis=0).reshape(-1)
+nufft_imager = bb_fd.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines2.T, grid_size=N_pix, FoV=FoV,
+                                      field_center=field_center, eps=eps, w_term=w_term,
+                                      n_trans=1, precision=precision)
+print(nufft_imager._synthesizer._inner_fft_sizes)
+sensitivity_image2 = nufft_imager(sensitivity_coeffs2)
+
+I_lsq_eq_nufft3 = s2image.Image(lsq_image_nufft3 / sensitivity_image2, nufft_imager._synthesizer.xyz_grid)
+I_sqrt_eq_nufft3 = s2image.Image(sqrt_image_nufft3 / sensitivity_image2, nufft_imager._synthesizer.xyz_grid)
 
 ### Spherical reinterpolation Field =========================================================
 
@@ -324,9 +371,9 @@ print(f'Elapsed time: {t2 - t1} seconds.')
 print(f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180/np.pi)} degrees.\n'
       f'Run time {np.floor(t2 - t1)} seconds.')
 if do_spherical_interpolation:
-    fig, ax = plt.subplots(ncols=3, nrows = 2, figsize=(16, 8))
+    fig, ax = plt.subplots(ncols=4, nrows = 2, figsize=(16, 8))
 else:
-    fig, ax = plt.subplots(ncols=3, nrows = 1, figsize=(16, 8))
+    fig, ax = plt.subplots(ncols=4, nrows = 1, figsize=(16, 8))
 ax = ax.flatten()
 I_lsq_eq_ss.draw(catalog=sky_model.xyz.T, ax=ax[0], data_kwargs=dict(cmap='cubehelix'), show_gridlines=False)
 ax[0].set_title('Standard Synthesis')
@@ -337,25 +384,35 @@ ax[1].set_title('Periodic Synthesis')
 I_lsq_eq_nufft.draw(catalog=sky_model.xyz.T, ax=ax[2], data_kwargs=dict(cmap='cubehelix'), show_gridlines=False)
 ax[2].set_title('NUFFT')
 
+I_lsq_eq_nufft3.draw(catalog=sky_model.xyz.T, ax=ax[3], data_kwargs=dict(cmap='cubehelix'), show_gridlines=False)
+ax[3].set_title('NUFFT-3D')
+
 
 if do_spherical_interpolation:
     I_lsq_eq_ss_interp = s2image.Image(f_interp_ss, pix_xyz_interp)
-    I_lsq_eq_ss_interp.draw(catalog=sky_model.xyz.T, ax=ax[3], data_kwargs=dict(cmap='cubehelix'), show_gridlines=False)
-    ax[3].set_title('Interpolated Standard Synthesis')
+    I_lsq_eq_ss_interp.draw(catalog=sky_model.xyz.T, ax=ax[4], data_kwargs=dict(cmap='cubehelix'), show_gridlines=False)
+    ax[4].set_title('Interpolated Standard Synthesis')
     if do_periodic_synthesis:
         I_lsq_eq_ps_interp = s2image.Image(f_interp_ps, pix_xyz_interp)
-        I_lsq_eq_ps_interp.draw(catalog=sky_model.xyz.T, ax=ax[4], data_kwargs=dict(cmap='cubehelix'), show_gridlines=False)
-        ax[4].set_title('Interpolated Periodic Synthesis')
-        np.save("bluebild_ps_img", f_interp_ps)
+        I_lsq_eq_ps_interp.draw(catalog=sky_model.xyz.T, ax=ax[5], data_kwargs=dict(cmap='cubehelix'), show_gridlines=False)
+        ax[5].set_title('Interpolated Periodic Synthesis')
+        np.save("bluebild_ps_img2", f_interp_ps)
     plt.savefig("test_bluebild2")
 
 
-    np.save("bluebild_ss_img", f_interp_ss)
-    np.save("bluebild_nufft_img", I_lsq_eq_nufft.data)
+    np.save("bluebild_ss_img2", f_interp_ss)
+    np.save("bluebild_nufft_img2", I_lsq_eq_nufft.data)
+    np.save("bluebild_nufft3d_img2", I_lsq_eq_nufft3.data)
+    np.save("bluebild_np_grid2", pix_xyz)
 
 else:
-    plt.savefig("test_bluebild_planes")
+    plt.savefig("test_bluebild_planes2")
+
+    np.save("bluebild_ss_img3", I_lsq_eq_ss.data)
+    np.save("bluebild_nufft_img3", I_lsq_eq_nufft.data)
+    np.save("bluebild_nufft3d_img3", I_lsq_eq_nufft3.data)
+    np.save("bluebild_np_grid3", pix_xyz)
 t.print_summary()
-np.save("bluebild_np_grid", pix_xyz)
+
 
 #===
