@@ -37,12 +37,12 @@ import joblib as job
 start_time = time.process_time()
 
 # Instrument
-N_station = 37
-ms_file = "/home/etolley/data/gauss4/gauss4_t201806301100_SBL180.MS"
+N_station = 24
+ms_file = "/home/krishna/bluebild/testData/gauss4_t201806301100_SBL180.MS"
 ms = measurement_set.LofarMeasurementSet(ms_file, N_station) # stations 1 - N_station 
 gram = bb_gr.GramBlock()
 
-print("Reading {0}\nUsing {1} stations".format(ms_file, N_station))
+#print("Reading {0}\n".format(ms_file))
 
 # Observation
 FoV = np.deg2rad(5)
@@ -66,13 +66,14 @@ _, _, px_colat, px_lon = grid.equal_angle(
     N=ms.instrument.nyquist_rate(wl), direction=ms.field_center.cartesian.xyz.value, FoV=FoV
 )
 
-print(ms.instrument.nyquist_rate(wl), "Nstation {0}, px_col {1}, px_lon {2}".format(N_station, px_colat.shape, px_lon.shape))
+print(ms.instrument.nyquist_rate(wl), "px_col {0}, px_lon {1}".format(px_colat.shape, px_lon.shape))
 
 #N_FS, T_kernel = ms.instrument.bfsf_kernel_bandwidth(wl, obs_start, obs_end), np.deg2rad(10)
 #px_grid = transform.pol2cart(1, px_colat, px_lon).reshape(3, -1)
 px_grid = transform.pol2cart(1, px_colat, px_lon)
 time_slice = 200
 print("Grid size is:", px_colat.shape, px_lon.shape)
+print("pxgrid", px_grid)
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
@@ -166,7 +167,7 @@ for i in range(N_level):
 #fig.show()
 #plt.show()
 #sys.exit()
-plt.savefig("4gauss_standard_new")
+plt.savefig("/scratch/izar/krishna/4gauss_standard_new")
 
 
 ### Interpolate critical-rate image to any grid resolution ====================
@@ -177,7 +178,7 @@ plt.savefig("4gauss_standard_new")
 
 start_interp_time = time.process_time()
 
-cl_WCS = ifits.wcs("/home/etolley/data/gauss4/gauss4-image-pb.fits")
+cl_WCS = ifits.wcs("/home/krishna/bluebild/testData/gauss4-image-pb.fits")
 cl_WCS = cl_WCS.sub(['celestial'])
 cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10)))  # downsample, too high res!
 cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame
@@ -235,7 +236,7 @@ f_interp = (f_interp  # We need to transpose axes due to the FORTRAN
             .reshape(N_level, N_cl_lon, N_cl_lat)  # indexing conventions of the FITS standard.
             .transpose(0, 2, 1))
 I_lsq_eq_interp = s2image.WCSImage(f_interp, cl_WCS)
-I_lsq_eq_interp.to_fits('bluebild_ss_4gauss_{0}Stations.fits'.format(N_station))
+I_lsq_eq_interp.to_fits('/scratch/izar/krishna/bluebild_ss_meerKAT.fits')
 
 end_interp_time = time.process_time()
 

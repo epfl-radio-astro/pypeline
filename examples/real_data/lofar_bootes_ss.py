@@ -27,8 +27,8 @@ import pypeline.phased_array.measurement_set as measurement_set
 
 # Instrument
 N_station = 24
-ms_file = "/home/sep/Documents/Data/Radio-Astronomy/LOFAR/BOOTES24_SB180-189.2ch8s_SIM.ms"
-ms = measurement_set.LofarMeasurementSet(ms_file, N_station)
+ms_file = "/work/ska/MeerKAT/1569274256_sdp_l0_wtspec_J0159.0-3413.ms/"
+ms = measurement_set.MwaMeasurementSet(ms_file) # changed to Mwa from Lofar
 gram = bb_gr.GramBlock()
 
 # Observation
@@ -115,4 +115,4 @@ ax[0].set_title("Bluebild Standardized Image")
 I_lsq_eq = s2image.Image(I_lsq.data / S.data, I_lsq.grid)
 I_lsq_eq.draw(catalog=sky_model.xyz.T, ax=ax[1])
 ax[1].set_title("Bluebild Least-Squares Image")
-fig.show()
+plt.save_fig("test_output.png")

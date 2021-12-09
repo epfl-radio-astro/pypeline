@@ -107,7 +107,7 @@ if __name__ == "__main__":
     precision = 32 # 32 or 64
 
     #data = SimulatedDataGen(frequency = 145e6)
-    data = RealDataGen("/home/etolley/data/gauss4/gauss4_t201806301100_SBL180.MS", N_level = 4, N_station = 24) # n level = # eigenimages
+    data = RealDataGen("/home/krishna/bluebild/testData/gauss4_t201806301100_SBL180.MS", N_level = 4, N_station = 24) # n level = # eigenimages
     #data = dummy_synthesis.RandomDataGen()
 
     ################################### 

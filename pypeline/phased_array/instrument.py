@@ -668,3 +668,52 @@ class MwaBlock(EarthBoundInstrumentGeometryBlock):
 
         XYZ = _as_InstrumentGeometry(itrs_geom)
         return XYZ
+
+class MeerkatBlock(EarthBoundInstrumentGeometryBlock):
+    """
+    `MeerKAT located in South Africa.
+
+    This MeerKAT model consists of 58 stations, each consisting of a 15 m offset Gregorian antenna.
+    """
+
+    @chk.check(dict(N_station=chk.allow_None(chk.is_integer), station_only=chk.is_boolean))
+    def __init__(self, N_station=None, station_only=False):
+        """
+        Parameters
+        ----------
+        N_station : int
+            Number of stations to use. (Default = all)
+
+            Sometimes only a subset of an instrument’s stations are desired.
+            Setting `N_station` limits the number of stations to those that appear first in `XYZ`
+            when sorted by STATION_ID.
+
+        station_only : bool
+            If :py:obj:`True`, model LOFAR stations as single-element antennas. (Default = False)
+        """
+        XYZ = self._get_geometry(station_only)
+        super().__init__(XYZ, N_station)
+
+    def _get_geometry(self, station_only):
+        """
+        Load instrument geometry.
+
+        Returns
+        -------
+        :py:class:`~pypeline.phased_array.instrument.InstrumentGeometry`
+            ITRS instrument geometry.
+        """
+        rel_path = pathlib.Path("data", "antenna_array", "instrument", "MEERKAT.csv")
+        abs_path = pkg.resource_filename("pypeline", str(rel_path))
+
+        itrs_geom = pd.read_csv(abs_path).set_index(["STATION_ID", "ANTENNA_ID"])
+
+        if station_only:
+            itrs_geom = itrs_geom.groupby("STATION_ID").mean()
+            station_id = itrs_geom.index.get_level_values("STATION_ID")
+            itrs_geom.index = pd.MultiIndex.from_product(
+                [station_id, [0]], names=["STATION_ID", "ANTENNA_ID"]
+            )
+
+        XYZ = _as_InstrumentGeometry(itrs_geom)
+        return XYZ
