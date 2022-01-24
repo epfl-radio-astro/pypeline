@@ -333,3 +333,71 @@ class NUFFT_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
         for stat in self._statistics:
             out.append(image.Image(stat, self._synthesizer.xyz_grid))
         return out
+
+class CUNUFFT_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
+    r"""
+    Multi-field synthesizer based on the NUFFT synthesizer.
+    """
+
+    def __init__(self, wl: float, UVW: np.ndarray, grid_size: int, FoV: float, field_center: aspy.SkyCoord,
+                 eps: float = 1e-6, w_term: bool = True, n_trans: int = 1, precision: str = 'double'):
+        r"""
+
+        Parameters
+        ----------
+        wl: float
+            Observation wavelength.
+        UVW: np.ndarray
+            (3, N_uvw) UVW coordinates expressed in the local UVW frame.
+        grid_size: int
+            Size of the output imaging grid across each dimension.
+        FoV: float
+            Size of the FoV in radians.
+        field_center: astropy.coordinates.SkyCoord
+            Center of the field of view for defining the local UVW frame.
+        eps: float
+            Relative tolerance of the NUFFT.
+        w_term: bool
+            Neglects the ``w_term`` (do not use for large FoV!).
+        n_trans: int
+            Number of simultaneous NUFFT transforms.
+        precision: str
+            Whether to use ``'single'`` or ``'double'`` precision.
+        """
+        self._synthesizer = psd.CUNUFFTFieldSynthesizerBlock(wl=wl, UVW=UVW, grid_size=grid_size, FoV=FoV,
+                                                           field_center=field_center, eps=eps,
+                                                           w_term=w_term, n_trans=n_trans, precision=precision)
+        super(CUNUFFT_IMFS_Block, self).__init__()
+
+    def __call__(self, V: np.ndarray) -> np.ndarray:
+        r"""
+        Image a set of (virtual) visibilities.
+
+        Parameters
+        ----------
+        V: np.ndarray
+            (M, N_uvw) stack of virtual visibilities to synthesize. If the ``n_trans`` parameter of the NUFFT plan is
+            different from zero, then one must have ``M==n_trans``. In which case, the ``M`` NUFFTs are computed in parallel
+            using OpenMP multi-threading. Otherwise, the ``M`` NUFFTs are computed sequentially.
+        Returns
+        -------
+        field: np.ndarray
+            (M, N_pix) field statistics. Output is also stored in private attribute ``self._statistics``.
+        """
+        V_shape = V.shape[:-1]
+        self._statistics = self._synthesizer(V).reshape(V_shape + self._synthesizer.xyz_grid.shape[1:])
+        return self._statistics
+
+    def as_image(self) -> list:
+        r"""
+        Transform integrated statistics to viewable ICRS image.
+
+        Returns
+        -------
+        out : list[:py:class:`~imot_tools.io.s2image.Image`]
+            List of energy-level image cubes with size (N_level, N_height, N_width).
+        """
+        out = []
+        for stat in self._statistics:
+            out.append(image.Image(stat, self._synthesizer.xyz_grid))
+        return out
