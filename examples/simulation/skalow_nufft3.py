@@ -107,8 +107,8 @@ for t, f, S in ProgressBar(
     XYZ = ms.instrument(t)
     UVW_baselines_t = ms.baselines(t, uvw=True, field_center=field_center)
     print('baselines shape:',UVW_baselines_t.shape)
-    plt.scatter(UVW_baselines_t[:,0,0], UVW_baselines_t[0,0,:])
-    plt.savefig("skalow_nufft_new_baselines")
+    plt.scatter(UVW_baselines_t[:,:,0], UVW_baselines_t[:,:,1])
+    plt.savefig("skalow_nufft_new_baselinesUV")
     UVW_baselines.append(UVW_baselines_t)
     W = ms.beamformer(XYZ, wl)
     G = gram(XYZ, W, wl)
@@ -188,13 +188,13 @@ plt.savefig("skalow_nufft_new")
 
 # 5. Store the interpolated Bluebild image in standard-compliant FITS for view
 # in AstroPy/DS9.
-N_cl_lon, N_cl_lat = nufft_imager._synthesizer.xyz_grid.shape[-2:]
+'''N_cl_lon, N_cl_lat = nufft_imager._synthesizer.xyz_grid.shape[-2:]
 f_interp = (I_lsq_eq.data  # We need to transpose axes due to the FORTRAN
             .reshape(N_level, N_cl_lon, N_cl_lat)  # indexing conventions of the FITS standard.
             .transpose(0, 2, 1))
 #f_interp = I_lsq_eq.data 
 f_interp = np.rot90(f_interp, 2, axes=(1,2))
-f_interp = np.flip(f_interp, axis=2)
+f_interp = np.flip(f_interp, axis=2)'''
 import healpy.fitsfunc as hfits
 import healpy.pixelfunc as hpix
 lsq_eq_hp = np.zeros((N_level, hpix.nside2npix(nufft_imager._synthesizer._nside)), dtype=lsq_image.dtype)

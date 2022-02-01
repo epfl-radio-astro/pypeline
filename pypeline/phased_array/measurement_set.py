@@ -355,17 +355,52 @@ class MeasurementSet:
         baselines: np.ndarray
             (N_antenna, N_antenna, 3) baselines coordinates.
         """
-        #XYZ = self.instrument._layout
         XYZ = self.instrument(t).data
         if uvw:
             if field_center is None:
                 raise ValueError('Please provide a field_center for uvw coordinates conversion.')
             uvw_frame = frame.uvw_basis(field_center)
+            print("XYZ:", XYZ[0,:])
             UVW = (uvw_frame.transpose() @ XYZ.transpose()).transpose()
+            print("bluebild UVW:", UVW[0,:])
+            sidereal_day_seconds = 86164.090530833
+
+            #ha = t * (sidereal_day_seconds / 86400.0)
+            ha = t.sidereal_time('apparent', (field_center.ra.rad, field_center.dec.rad)  )
+            print("rascil UVW:", xyz_to_uvw(XYZ[0,:],ha,field_center.dec.rad))
             baselines = (UVW[:, None, :] - UVW[None, ...])
         else:
             baselines = (XYZ[:, None, :] - XYZ[None, ...])
         return baselines
+
+def xyz_to_uvw(xyz, ha, dec):
+    """
+    Rotate :math:`(x,y,z)` positions in earth coordinates to
+    :math:`(u,v,w)` coordinates relative to astronomical source
+    position :math:`(ha, dec)`. Can be used for both antenna positions
+    as well as for baselines.
+
+    Hour angle and declination can be given as single values or arrays
+    of the same length. Angles can be given as radians or astropy
+    quantities with a valid conversion.
+
+    :param xyz: :math:`(x,y,z)` co-ordinates of antennas in array
+    :param ha: hour angle of phase tracking centre (:math:`ha = ra - lst`)
+    :param dec: declination of phase tracking centre.
+    """
+
+    # return eci_to_uvw(xyz, ha, dec)
+    x, y, z = np.hsplit(xyz, 3)  # pylint: disable=unbalanced-tuple-unpacking
+
+    # Two rotations:
+    #  1. by 'ha' along the z axis
+    #  2. by '90-dec' along the u axis
+    u = x * np.cos(ha) - y * np.sin(ha)
+    v0 = x * np.sin(ha) + y * np.cos(ha)
+    w = z * np.sin(dec) - v0 * np.cos(dec)
+    v = z * np.cos(dec) + v0 * np.sin(dec)
+
+    return np.hstack([u, v, w])
 
 
 def _series2array(visibility: pd.Series) -> np.ndarray:
