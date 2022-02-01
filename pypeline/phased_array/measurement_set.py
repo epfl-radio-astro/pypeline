@@ -18,11 +18,13 @@ import casacore.tables as ct
 import imot_tools.util.argcheck as chk
 import numpy as np
 import pandas as pd
+import typing as typ
 import scipy.sparse as sparse
 
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.instrument as instrument
 import pypeline.phased_array.data_gen.statistics as vis
+import pypeline.util.frame as frame
 
 
 @chk.check(
@@ -283,8 +285,13 @@ class MeasurementSet:
             data = sub_table.getcol(column)  # (N_entry, N_channel, 4)
 
             # We only want XX and YY correlations
-            data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
-            data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
+            print("debug data shape:", data.shape)
+            try:
+                data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
+                data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
+            except IndexError as error:
+                data = np.average(data[:, :, :], axis=2)[:, channel_id]
+                data_flag = np.any(data_flag[:, :, :], axis=2)[:, channel_id]
 
             # Set broken visibilities to 0
             data[data_flag] = 0
@@ -328,6 +335,37 @@ class MeasurementSet:
                 v = _series2array(S[ch_id].rename("S", inplace=True))
                 visibility = vis.VisibilityMatrix(v, beam_idx)
                 yield t, f[ch_id], visibility
+    def baselines(self, t, uvw= False,
+                  field_center = None):
+        r"""
+        Baselines of the instrument at a given time.
+
+        Parameters
+        ----------
+        t: astropy.time.time
+            Time at which the coordinates are wanted.
+        uvw: bool
+            If ``True``, the baselines coordinates are expressed in the local UVW frame, attached to the center of the FoV.
+            If ``False``, the baseline coordinates are expressed in the ICRS frame.
+        field_center: Optional[astropy.coordinates.SkyCoord]
+            If ``uvw=True`` this argument specifies the center of the FoV used to define the local UVW frame.
+
+        Returns
+        -------
+        baselines: np.ndarray
+            (N_antenna, N_antenna, 3) baselines coordinates.
+        """
+        #XYZ = self.instrument._layout
+        XYZ = self.instrument(t).data
+        if uvw:
+            if field_center is None:
+                raise ValueError('Please provide a field_center for uvw coordinates conversion.')
+            uvw_frame = frame.uvw_basis(field_center)
+            UVW = (uvw_frame.transpose() @ XYZ.transpose()).transpose()
+            baselines = (UVW[:, None, :] - UVW[None, ...])
+        else:
+            baselines = (XYZ[:, None, :] - XYZ[None, ...])
+        return baselines
 
 
 def _series2array(visibility: pd.Series) -> np.ndarray:
@@ -622,3 +660,6 @@ class SKALowMeasurementSet(MeasurementSet):
             self._beamformer = beamforming.MatchedBeamformerBlock(beam_config)
 
         return self._beamformer
+
+
+

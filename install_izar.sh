@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # Assumes that Miniconda was installed, and conda added to $PATH
+module load cuda/11.1.1
 
 set -e
 
