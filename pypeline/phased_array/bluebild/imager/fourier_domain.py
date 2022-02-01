@@ -272,7 +272,8 @@ class NUFFT_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
     """
 
     def __init__(self, wl: float, UVW: np.ndarray, grid_size: int, FoV: float, field_center: aspy.SkyCoord,
-                 eps: float = 1e-6, w_term: bool = True, n_trans: int = 1, precision: str = 'double'):
+                 eps: float = 1e-6, w_term: bool = True, n_trans: int = 1, precision: str = 'double',
+                 hermitian: bool = True, grid_type: str ='healpix'):
         r"""
 
         Parameters
@@ -295,10 +296,14 @@ class NUFFT_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
             Number of simultaneous NUFFT transforms.
         precision: str
             Whether to use ``'single'`` or ``'double'`` precision.
+        hermitian: bool
+            If ``True``, the synthesizer assumes that the data is Hermitian symmetry and uses only half of the data (reduces
+            computational/memory footprint).
         """
         self._synthesizer = psd.NUFFTFieldSynthesizerBlock(wl=wl, UVW=UVW, grid_size=grid_size, FoV=FoV,
                                                            field_center=field_center, eps=eps,
-                                                           w_term=w_term, n_trans=n_trans, precision=precision)
+                                                           w_term=w_term, n_trans=n_trans, precision=precision,
+                                                           hermitian=hermitian, grid_type=grid_type)
         super(NUFFT_IMFS_Block, self).__init__()
 
     def __call__(self, V: np.ndarray) -> np.ndarray:

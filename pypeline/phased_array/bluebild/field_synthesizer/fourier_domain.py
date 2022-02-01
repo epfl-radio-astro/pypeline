@@ -28,6 +28,8 @@ import warnings
 import finufft
 from cufinufft import cufinufft
 import astropy.coordinates as aspy
+import healpy as hp
+import healpy.pixelfunc as hpix
 
 
 class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
@@ -434,7 +436,8 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
                                double=dict(complex=np.complex128, real=np.float64, dtype='float64'))
 
     def __init__(self, wl: float, UVW: np.ndarray, grid_size: int, FoV: float, field_center: aspy.SkyCoord,
-                 eps: float = 1e-6, w_term: bool = True, n_trans: int = 1, precision: str = 'double'):
+                 eps: float = 1e-6, w_term: bool = True, n_trans: int = 1, precision: str = 'double',
+                 hermitian: bool = True, grid_type: str = 'healpix'):
         r"""
         Parameters
         ----------
@@ -456,26 +459,45 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             Number of simultaneous NUFFT transforms.
         precision: str
             Whether to use ``'single'`` or ``'double'`` precision.
+        hermitian: bool
+            If ``True``, the synthesizer assumes that the data is Hermitian symmetry and uses only half of the data (reduces
+            computational/memory footprint).
         """
         self._precision = precision
         UVW = np.array(UVW, copy=False)
         self._UVW = (2 * np.pi * UVW.reshape(3, -1) / wl).astype(self._precision_mappings[self._precision]['real'])
+        self._hermitian = bool(hermitian)
+        self._w_term = bool(w_term)
+        self._dc_mask = np.linalg.norm(self._UVW, axis=0) == 0
+        if self._hermitian:
+            split_axis = np.argmax(np.linalg.norm(self._UVW, axis=-1, ord=np.infty))
+            self._halfspace_mask = self._UVW[split_axis] >= 0
+            self._mask = ~self._dc_mask & self._halfspace_mask
+        else:
+            self._mask = np.ones(self._dc_mask.size, dtype=bool)
+        self._UVW = self._UVW[:, self._mask]
         self._grid_size = grid_size
         self._FoV = FoV
         self._field_center = field_center
+        self._grid_type = grid_type
         self.lmn_grid, self.xyz_grid = self._make_grids()
-        self._lmn_grid = self.lmn_grid.reshape(3, -1).astype(self._precision_mappings[self._precision]['real'])
+        self._uvw_grid = self.lmn_grid.reshape(3, -1).astype(self._precision_mappings[self._precision]['real'])
         self._n_trans = n_trans
-        if w_term:
-            grid_center = self._lmn_grid.mean(axis=-1)
-            self._lmn_grid -= grid_center[:, None]
+        if self._w_term:
+            grid_center = (self._uvw_grid.min(axis=-1) + self._uvw_grid.max(axis=-1)) / 2
+            freq_center = (self._UVW.min(axis=-1) + self._UVW.max(axis=-1)) / 2
+            self._uvw_grid -= grid_center[:, None]
+            self._UVW -= freq_center[:, None]
             self._prephasing = np.exp(1j * np.sum(grid_center[:, None] * self._UVW, axis=0)).squeeze().astype(
+                self._precision_mappings[self._precision]['complex'])
+            self._postphasing = np.exp(
+                1j * np.sum((self._uvw_grid + grid_center[:, None]) * freq_center[:, None], axis=0)).squeeze().astype(
                 self._precision_mappings[self._precision]['complex'])
             self._plan = finufft.Plan(nufft_type=3, n_modes_or_dim=3, eps=eps, isign=1, n_trans=n_trans,
                                       dtype=self._precision_mappings[self._precision]['dtype'])
             self._plan.setpts(x=self._UVW[0], y=self._UVW[1], z=self._UVW[-1],
-                              s=self._lmn_grid[0], t=self._lmn_grid[1], u=self._lmn_grid[-1])
-            self._inner_fft_sizes = np.floor(4 * np.linalg.norm(self._lmn_grid, ord=np.infty, axis=-1) * \
+                              s=self._uvw_grid[0], t=self._uvw_grid[1], u=self._uvw_grid[-1])
+            self._inner_fft_sizes = np.floor(4 * np.linalg.norm(self._uvw_grid, ord=np.infty, axis=-1) * \
                                              np.linalg.norm(self._UVW, ord=np.infty, axis=-1) / np.pi +
                                              np.log(1 / eps) + 1)
         else:
@@ -485,6 +507,7 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
                 self._precision_mappings[self._precision]['real'])
             self._prephasing = np.exp(1j * self._UVW[-1]).squeeze().astype(
                 self._precision_mappings[self._precision]['complex'])
+            self._postphasing = np.r_[1].astype(self._precision_mappings[self._precision]['real'])
             self._plan = finufft.Plan(nufft_type=1, n_modes_or_dim=(self._grid_size, self._grid_size),
                                       eps=eps, isign=1, n_trans=n_trans,
                                       dtype=self._precision_mappings[self._precision]['dtype'])
@@ -496,17 +519,26 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         Imaging grid.
         Returns
         -------
-        lmn_grid, xyz_grid: Tuple[np.ndarray, np.ndarray]
-            (3, grid_size, grid_size) grid coordinates in the local UVW frame and ICRS respectively.
+        uvw_grid, xyz_grid: Tuple[np.ndarray, np.ndarray]
+            (3, grid_size, grid_size) or (3, Npix) grid coordinates in the local UVW frame and ICRS respectively.
         """
-        lim = np.sin(self._FoV / 2)
-        grid_slice = np.linspace(-lim, lim, self._grid_size)
-        l_grid, m_grid = np.meshgrid(grid_slice, grid_slice)
-        n_grid = np.sqrt(1 - l_grid ** 2 - m_grid ** 2)  # No -1 if r on the sphere !
-        lmn_grid = np.stack((l_grid, m_grid, n_grid), axis=0)
-        uvw_frame = frame.uvw_basis(self._field_center)
-        xyz_grid = np.tensordot(uvw_frame, lmn_grid, axes=1)
-        return lmn_grid, xyz_grid
+        if self._grid_type == 'dircosines':
+            lim = np.sin(self._FoV / 2)
+            grid_slice = np.linspace(-lim, lim, self._grid_size)
+            l_grid, m_grid = np.meshgrid(grid_slice, grid_slice)
+            n_grid = np.sqrt(1 - l_grid ** 2 - m_grid ** 2)  # No -1 if r on the sphere !
+            uvw_grid = np.stack((l_grid, m_grid, n_grid), axis=0)
+            uvw_frame = frame.uvw_basis(self._field_center)
+            xyz_grid = np.tensordot(uvw_frame, uvw_grid, axes=1)
+        elif self._grid_type == 'healpix':
+            self._nside = hpix.get_min_valid_nside(np.ceil(self._grid_size * 16 / (self._FoV**2)))
+            self._ipix = hp.query_disc(self._nside, self._field_center.cartesian.xyz.value, self._FoV / 2)
+            xyz_grid = np.stack(hpix.pix2vec(self._nside, self._ipix), axis=0)
+            uvw_frame = frame.uvw_basis(self._field_center)
+            uvw_grid = np.tensordot(uvw_frame.T, xyz_grid, axes=1)
+        else:
+            raise NotImplementedError('Supported grid types are "dircosines" or "healpix".')
+        return uvw_grid, xyz_grid
 
     def __call__(self, V: np.ndarray) -> np.ndarray:
         r"""
@@ -523,20 +555,29 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             (M, N_pix) field values.
         """
         V = np.array(V, copy=False).squeeze().astype(self._precision_mappings[self._precision]['complex'])
+        scaling = np.r_[2 if self._hermitian else 1.].astype(self._precision_mappings[self._precision]['real'])
         if V.ndim > 1:
-            V = V.reshape(-1, self._UVW.shape[-1])
+            V = V.reshape(-1, self._dc_mask.size)
+            V_dc = np.sum(V[:, self._dc_mask], axis=-1).real if self._hermitian else np.zeros(V.shape[0], dtype=
+            self._precision_mappings[self._precision]['real'])
+            V = V[:, self._mask]
             self._prephasing = self._prephasing[None, :]
             V *= self._prephasing
             if self._n_trans == 1:  # NUFFT are evaluated sequentially
                 out = []
                 for n in range(V.shape[0]):
-                    out.append(np.real(self._plan.execute(V[n])))
+                    pout = scaling * np.real(self._postphasing * self._plan.execute(V[n])).ravel() + V_dc[n]
+                    out.append(pout)
                 out = np.stack(out, axis=0)
-            else:
-                out = np.real(self._plan.execute(
-                    V))  # NUFFT are evaluated in parallel (not clear if multi-threaded or multi-processed?)
+            else:  # NUFFT are evaluated in parallel
+                out = scaling * np.real(self._postphasing[None, :] * self._plan.execute(V)).reshape(V_dc.size, -1) + V_dc[:, None]
+            # out[:, np.linalg.norm(self._uvw_grid[:-1], axis=0) > np.sin(self._FoV / 2)] = None
         else:
-            out = np.real(self._plan.execute(V * self._prephasing))
+            V_dc = np.sum(V[self._dc_mask], axis=0).real if self._hermitian else np.zeros(1, dtype=
+            self._precision_mappings[self._precision]['real'])
+            V = V[self._mask]
+            out = scaling * np.real(self._postphasing * self._plan.execute(V * self._prephasing)).ravel() + V_dc
+            # out[np.linalg.norm(self._uvw_grid[:-1], axis=0) > np.sin(self._FoV / 2)] = None
         return out
 
     def synthesize(self, V: np.ndarray) -> np.ndarray:
