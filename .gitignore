@@ -58,3 +58,4 @@ doc/build/
 *.so
 *.o
 *.optrpt
+*.fits
