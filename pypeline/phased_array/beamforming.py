@@ -71,19 +71,8 @@ def _as_BeamWeights(df):
         .loc[:, ["ROW_ID", "COL_ID", "W"]]
     )
 
-    sparsity_ratio = len(data) / (N_antenna * N_beam)
-    max_sparsity_ratio = pypeline.config.getfloat(
-        "phased_array.beamforming", "bw_max_sparsity_ratio"
-    )
-    if sparsity_ratio <= max_sparsity_ratio:  # Use sparse matrix
-        W = sparse.csr_matrix(
-            (data.W.values, (data.ROW_ID.values, data.COL_ID.values)),
-            shape=(N_antenna, N_beam),
-            dtype=complex,
-        )
-    else:  # Use dense matrix
-        W = np.zeros(shape=(N_antenna, N_beam), dtype=complex)
-        W[data.ROW_ID.values, data.COL_ID.values] = data.W.values
+    W = np.zeros(shape=(N_antenna, N_beam), dtype=complex, order='F')
+    W[data.ROW_ID.values, data.COL_ID.values] = data.W.values
 
     ant_idx = pd.MultiIndex.from_arrays(
         [row_map.STATION_ID, row_map.ANTENNA_ID], names=["STATION_ID", "ANTENNA_ID"]

@@ -16,11 +16,11 @@ import imot_tools.io.s2image as s2image
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as constants
-import finufft
+import bluebild
 from imot_tools.io.plot import cmap
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.bluebild.data_processor as bb_dp
-import pypeline.phased_array.bluebild.gram as bb_gr
+from pypeline.phased_array.bluebild.gram import GramMatrix
 import pypeline.phased_array.bluebild.field_synthesizer.fourier_domain as bb_synth
 import pypeline.phased_array.bluebild.imager.fourier_domain as bb_im
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
@@ -44,7 +44,6 @@ N_station = 24
 dev = instrument.LofarBlock(N_station)
 mb_cfg = [(_, _, field_center) for _ in range(N_station)]
 mb = beamforming.MatchedBeamformerBlock(mb_cfg)
-gram = bb_gr.GramBlock()
 
 # Data generation
 T_integration = 8
@@ -63,13 +62,15 @@ t1 = tt.time()
 N_level = 3
 time_slice = 25
 
+ctx = bluebild.Context(bluebild.ProcessingUnit.AUTO)
+
 ### Intensity Field ===========================================================
 # Parameter Estimation
 I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=0.95)
 for t in ProgressBar(time[::200]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
-    G = gram(XYZ, W, wl)
+    G = GramMatrix(data=ctx.gram_matrix(XYZ.data, W.data, wl), beam_idx=W.index[1])
     S = vis(XYZ, W, wl)
     I_est.collect(S, G)
 
@@ -87,8 +88,9 @@ for t in ProgressBar(time[::time_slice]):
     UVW_baselines.append(UVW_baselines_t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    G = gram(XYZ, W, wl)
-    D, V, c_idx = I_dp(S, G)
+
+    D, V, c_idx = ctx.intensity_field_data(N_eig, XYZ.data, W.data, wl, S.data, c_centroid)
+
     S_corrected = IV_dp(D, V, W, c_idx)
     gram_corrected_visibilities.append(S_corrected)
 
@@ -119,7 +121,7 @@ S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=0.95)
 for t in ProgressBar(time[::200]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
-    G = gram(XYZ, W, wl)
+    G = GramMatrix(data=ctx.gram_matrix(XYZ.data, W.data, wl), beam_idx=W.index[1])
 
     S_est.collect(G)
 N_eig = S_est.infer_parameters()
@@ -131,8 +133,9 @@ sensitivity_coeffs = []
 for t in ProgressBar(time[::time_slice]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
-    G = gram(XYZ, W, wl)
-    D, V = S_dp(G)
+
+    D, V = ctx.sensitivity_field_data(N_eig, XYZ.data, W.data, wl)
+
     S_sensitivity = SV_dp(D, V, W, cluster_idx=np.zeros(N_eig, dtype=int))
     sensitivity_coeffs.append(S_sensitivity)
 
@@ -172,3 +175,4 @@ for i in range(lsq_image.shape[0]):
                   catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5), show_gridlines=False)
 
 plt.suptitle(f'Bluebild Eigenmaps')
+#  plt.show()
