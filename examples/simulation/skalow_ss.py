@@ -16,7 +16,7 @@ import imot_tools.io.s2image as s2image
 import imot_tools.math.sphere.grid as grid
 import matplotlib.pyplot as plt
 import numpy as np
-import cupy as cp
+#import cupy as cp
 import scipy.constants as constants
 import sys, time
 import finufft
@@ -28,15 +28,16 @@ import pypeline.phased_array.bluebild.imager.spatial_domain as bb_sd
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.data_gen.source as source
 import pypeline.phased_array.measurement_set as measurement_set
-import imot_tools.math.sphere.interpolate as interpolate
-import imot_tools.math.sphere.transform as transform
-import pycsou.linop as pyclop
-from imot_tools.math.func import SphericalDirichlet
+#import imot_tools.math.sphere.interpolate as interpolate
+#import imot_tools.math.sphere.transform as transform
+#import pycsou.linop as pyclop
+#from imot_tools.math.func import SphericalDirichlet
 import joblib as job
 
 start_time = time.process_time()
 
-cl_WCS = ifits.wcs("/home/etolley/rascil_ska_sim/results_test/imaging_dirty.fits")
+#cl_WCS = ifits.wcs("/home/etolley/rascil_ska_sim/results_test/imaging_dirty.fits")
+cl_WCS = ifits.wcs("/home/etolley/wsclean/ska-sim-image.fits")
 print(cl_WCS.to_header())
 cl_WCS = cl_WCS.sub(['celestial'])
 #cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10)))  # downsample, too high res!
@@ -45,7 +46,7 @@ N_cl_lon, N_cl_lat = cl_pix_icrs.shape[-2:]
 
 
 # Instrument
-ms_file = "/home/etolley/rascil_ska_sim/results_test/ska-pipeline_simulation.ms"
+ms_file = "/home/etolley/rascil_ska_sim/results_testing/ska-pipeline_simulation.ms"
 ms = measurement_set.SKALowMeasurementSet(ms_file) # stations 1 - N_station 
 gram = bb_gr.GramBlock()
 
@@ -119,13 +120,12 @@ for t, f, S in ProgressBar(
     print(c_idx)
     #c_idx = [0,1,2,3]
 
-    #_ = I_mfs(D, V, XYZ.data, W.data, c_idx)
+    _ = I_mfs(D, V, XYZ.data, W.data, c_idx)
 
-    XYZ_gpu = cp.asarray(XYZ.data)
-    W_gpu  = cp.asarray(W.data.toarray())
-    V_gpu  = cp.asarray(V)
-
-    _ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
+    #XYZ_gpu = cp.asarray(XYZ.data)
+    #W_gpu  = cp.asarray(W.data.toarray())
+    #V_gpu  = cp.asarray(V)
+    #_ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
     
 I_std, I_lsq = I_mfs.as_image()
 

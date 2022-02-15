@@ -10,7 +10,10 @@ Field synthesizers that work in the spatial domain.
 
 import numexpr as ne
 import numpy as np
-import cupy as cp
+try:
+  import cupy as cp
+except:
+  cp = None
 import scipy.linalg as linalg
 import scipy.sparse as sparse
 
@@ -187,7 +190,10 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         """
 
         # for CPU/GPU agnostic code
-        xp = cp.get_array_module(V)  # not using 'xp' instead of cp or np
+        if cp == None:
+          xp = np
+        else:
+          xp = cp.get_array_module(V)  # not using 'xp' instead of cp or np
         #print("Using:", xp.__name__)
 
         if not _have_matching_shapes(V, XYZ, W):
