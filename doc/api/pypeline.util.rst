@@ -1,12 +1,23 @@
-pypeline.util
+﻿pypeline.util
 =============
 
 .. automodule:: pypeline.util
 
-.. rubric:: Modules
+   
+   
+   
 
-.. autosummary::
-   :toctree:
+   
+   
+   
 
-   ~pypeline.util.array
-   ~pypeline.util.frame
+   
+   
+   
+
+   
+   
+   
+
+
+

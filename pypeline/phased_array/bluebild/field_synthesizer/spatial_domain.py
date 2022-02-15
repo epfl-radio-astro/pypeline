@@ -10,12 +10,10 @@ Field synthesizers that work in the spatial domain.
 
 import numexpr as ne
 import numpy as np
-try:
-  import cupy as cp
-except:
-  cp = None
 import scipy.linalg as linalg
 import scipy.sparse as sparse
+import nvtx
+import sys
 
 import pypeline.phased_array.bluebild.field_synthesizer as synth
 import imot_tools.util.argcheck as chk
@@ -171,8 +169,10 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
     )'''
     
     def __call__(self, V, XYZ, W):
+
         """
         Compute instantaneous field statistics.
+
         Parameters
         ----------
         V : :py:class:`~numpy.ndarray`
@@ -190,14 +190,23 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         """
 
         # for CPU/GPU agnostic code
-        if cp == None:
-          xp = np
+        # Commented out solution forces to load Cupy which is not possible on CPU clusters
+        #with nvtx.annotate(message="s_d/(cu|num)py", color="lime"):
+        #    xp = get_array_module(V)  # now using 'xp' instead of cp or np
+        if (type(V) == np.ndarray):
+            xp = np
         else:
-          xp = cp.get_array_module(V)  # not using 'xp' instead of cp or np
+            import cupy as cp
+            if (cp.get_array_module(V) != cp):
+                print("Error. V was not recognized correctly as either Cupy or Numpy.")
+                sys.exit(1)
+            xp = cp
+
         #print("Using:", xp.__name__)
 
         if not _have_matching_shapes(V, XYZ, W):
             raise ValueError("Parameters[V, XYZ, W] are inconsistent.")
+
         # TODO: move precision control outside of the call
         #V = V.astype(self._cp, copy=False)
         #XYZ = XYZ.astype(self._fp, copy=False)
@@ -211,27 +220,38 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
 
         XYZ = XYZ - XYZ.mean(axis=0)
         #P = xp.zeros((N_antenna, N_height, N_width), dtype=self._cp)
-        E = xp.zeros((N_eig, N_height, N_width), dtype=self._cp)
+
+        with nvtx.annotate(message="s_d/E alloc", color="fuchsia"):
+            E = xp.zeros((N_eig, N_height, N_width), dtype=self._cp)
 
         a = 1j * 2 * np.pi / self._wl
 
         self.mark(self.timer_tag + "Synthesizer matmuls")
 
-        grid_gpu = xp.asarray(self._grid)
         for i in range(N_width):
-          b = xp.matmul(XYZ,  grid_gpu[:,:,i])
-          P = xp.exp(a*b)
-          if xp == np and (isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix)):   
-            PW = W.T @ P
-          else:
-            PW = xp.matmul(W.T,P)
-          E[:,:,i]  = xp.matmul(V.T, PW)
+            with nvtx.annotate(message="s_d/pix", color="grey"):
+                pix_gpu = xp.asarray(self._grid[:,:,i])
+            with nvtx.annotate(message="s_d/b", color="green"):
+                b  = xp.matmul(XYZ, pix_gpu)
+            with nvtx.annotate(message="s_d/P", color="yellow"):
+                P  = xp.exp(a*b)
+            with nvtx.annotate(message="s_d/PW", color="cyan"):
+                if xp == np and (isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix)):
+                    PW = W.T @ P
+                else:
+                    PW = xp.matmul(W.T, P)
+            with nvtx.annotate(message="s_d/E", color="chocolate"):
+                E[:,:,i]  = xp.matmul(V.T, PW)
 
         self.unmark(self.timer_tag + "Synthesizer matmuls")
 
-        I = E.real ** 2 + E.imag ** 2
+        with nvtx.annotate(message="s_d/I", color="lavender"):
+            I = E.real ** 2 + E.imag ** 2
 
         self.unmark(self.timer_tag + "Synthesizer call")
+
+        if xp != np:
+            return I.get()
 
         return I
     

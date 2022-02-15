@@ -1,8 +1,12 @@
-pypeline.phased\_array.bluebild.field\_synthesizer.spatial\_domain
+﻿pypeline.phased\_array.bluebild.field\_synthesizer.spatial\_domain
 ==================================================================
 
 .. automodule:: pypeline.phased_array.bluebild.field_synthesizer.spatial_domain
-   :special-members: __init__, __call__
+
+   
+   
+   
+
    
    
    
@@ -19,3 +23,7 @@ pypeline.phased\_array.bluebild.field\_synthesizer.spatial\_domain
 
    
    
+   
+
+
+

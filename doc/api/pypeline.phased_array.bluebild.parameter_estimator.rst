@@ -1,8 +1,12 @@
-pypeline.phased\_array.bluebild.parameter\_estimator
+﻿pypeline.phased\_array.bluebild.parameter\_estimator
 ====================================================
 
 .. automodule:: pypeline.phased_array.bluebild.parameter_estimator
-   :special-members: __init__
+
+   
+   
+   
+
    
    
    
@@ -12,11 +16,16 @@ pypeline.phased\_array.bluebild.parameter\_estimator
    .. rubric:: Classes
 
    .. autosummary::
-
-      ParameterEstimator
+   
       IntensityFieldParameterEstimator
+      ParameterEstimator
       SensitivityFieldParameterEstimator
    
+   
 
    
    
+   
+
+
+

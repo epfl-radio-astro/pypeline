@@ -1,24 +1,36 @@
-pypeline.phased\_array.data\_gen.source
+﻿pypeline.phased\_array.data\_gen.source
 =======================================
 
 .. automodule:: pypeline.phased_array.data_gen.source
-   :special-members: __init__
 
+   
+   
+   
 
-
+   
+   
    .. rubric:: Functions
 
    .. autosummary::
-
+   
       from_tgss_catalog
       is_source_config
+   
+   
 
-
-
-
-
+   
+   
    .. rubric:: Classes
 
    .. autosummary::
-
+   
       SkyEmission
+   
+   
+
+   
+   
+   
+
+
+
