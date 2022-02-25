@@ -9,7 +9,6 @@ High-level Bluebild interfaces that work in the spatial domain.
 """
 
 import numpy as np
-#import cupy as cp
 import scipy.sparse as sparse
 import time as stime
 
@@ -205,6 +204,7 @@ class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
         # get result from GPU
         #if cp == cp.get_array_module(stat_std):
         #  stat_std = stat_std.get()
+        print("???????????????????????????", type(stat_std))
         if (type(stat_std) != np.ndarray):
             import cupy as cp
             if (cp.get_array_module(stat_std) != cp):
