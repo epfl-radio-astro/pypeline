@@ -202,16 +202,13 @@ class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
         stat_std = self._synthesizer(V, XYZ, W)
 
         # get result from GPU
-        #if cp == cp.get_array_module(stat_std):
-        #  stat_std = stat_std.get()
-        print("???????????????????????????", type(stat_std))
         if (type(stat_std) != np.ndarray):
             import cupy as cp
             if (cp.get_array_module(stat_std) != cp):
                 print("Error. stat_std was not recognized correctly as either Cupy or Numpy.")
                 sys.exit(1)
             stat_std = stat_std.get()
-          
+
         self.unmark("Image synthesis")
         stat_lsq = stat_std * D.reshape(-1, 1, 1)
         #stat_lsq = stat_std * D.reshape(-1, 1)

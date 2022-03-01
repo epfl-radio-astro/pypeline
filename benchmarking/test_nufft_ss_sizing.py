@@ -8,10 +8,12 @@
 Simulated LOFAR imaging with Bluebild (Standard, Periodic, and nufft).
 """
 
-'''export OMP_NUM_THREADS=1''' 
-
 import os
-import sys
+if os.getenv('OMP_NUM_THREADS') == None : os.environ['OMP_NUM_THREADS'] = "1"
+
+import bluebild_tools.cupy_util as bbt_cupy
+use_cupy = bbt_cupy.is_cupy_usable()
+
 from tqdm import tqdm as ProgressBar
 import astropy.coordinates as coord
 import astropy.time as atime
@@ -20,14 +22,12 @@ import imot_tools.io.s2image as s2image
 import imot_tools.math.sphere.grid as grid
 import matplotlib.pyplot as plt
 import numpy as np
-#import cupy as cp
 import scipy.constants as constants
 import finufft
 
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.bluebild.gram as bb_gr
-#import pypeline.phased_array.bluebild.imager.fourier_domain as bb_fd
 import pypeline.phased_array.bluebild.imager.spatial_domain as bb_sd
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.data_gen.source as source
@@ -39,12 +39,12 @@ import pycsou.linop as pyclop
 from imot_tools.math.func import SphericalDirichlet
 import joblib as job
 from timing import Timer
-sys.path.append('../utils')
-import cupy_util
 
-use_cupy = cupy_util.is_cupy_usable()
-print(f"\n@@@ use_cupy? {use_cupy}\n")
-xp = cp if use_cupy else np
+
+# For CuPy agnostic code
+# ----------------------
+xp = bbt_cupy.cupy if use_cupy else np
+
 
 t = Timer()
 
@@ -151,42 +151,47 @@ UVW_baselines = []
 #ICRS_baselines = []
 gram_corrected_visibilities = []
 baseline_rescaling = 2 * np.pi / wl
+
+
 for ti in ProgressBar(time[timeslice]):
+
     t.start_time("Synthesis: prep input matrices & fPCA")
     XYZ = dev(ti)
-    W = mb(XYZ, wl)
-    S = vis(XYZ, W, wl)
-    G = gram(XYZ, W, wl)
-
+    W   = mb(XYZ, wl)
+    S   = vis(XYZ, W, wl)
+    G   = gram(XYZ, W, wl)
     print("Matrix XYZ dimensions:", XYZ.shape)
     print("Matrix W dimensions:", W.shape)
     print("Matrix G dimensions:", G.shape)
     print("Matrix S dimensions:", S.shape)
-
     D, V, c_idx = I_dp(S, G)
-    t.end_time("Synthesis: prep input matrices & fPCA")
     print("Matrix V dimensions:", V.shape)
     print("Matrix D dimensions:", D.shape)
+    t.end_time("Synthesis: prep input matrices & fPCA")
+
     #t.start_time("Periodic Synthesis")
     #_ = I_mfs_ps(D, V, XYZ.data, W.data, c_idx)
     #t.end_time("Periodic Synthesis")
 
-    XYZ = xp.asarray(XYZ.data)
-    W   = xp.asarray(W.data.toarray())
-    V   = xp.asarray(V)
-    
-    if use_cupy:
-        XYZ = XYZ.get()
-    
+    W = W.data
+
     t.start_time("Standard Synthesis")
-    _ = I_mfs_ss(D, V, XYZ, W, c_idx)
+
+    if use_cupy:
+        XYZ_gpu = xp.asarray(XYZ.data)
+        W_gpu   = xp.asarray(W.toarray())
+        V_gpu   = xp.asarray(V)
+        _ = I_mfs_ss(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
+    else:
+        _ = I_mfs_ss(D, V, XYZ.data, W, c_idx)
     #_ = I_mfs_ss(D, V, XYZ.data, W.data, c_idx)
     t.end_time("Standard Synthesis")
 
     t.start_time("NUFFT Synthesis 1")
     print("uvw_frame shape:", uvw_frame.shape)
-    print("XYZ shape:", XYZ.shape)
-    UVW = (uvw_frame.transpose() @ XYZ.transpose()).transpose()
+    print("XYZ shape:", XYZ.data.shape)
+    UVW = (uvw_frame.transpose() @ XYZ.data.transpose()).transpose()
+
     print("UVW shape:", UVW.shape)
     print("UVW shape a:", UVW[:, None, :].shape)
     print("UVW shape b:", UVW[None, ...].shape)
@@ -195,6 +200,10 @@ for ti in ProgressBar(time[timeslice]):
     UVW_baselines.append(baseline_rescaling * UVW_baselines_t)
     #ICRS_baselines.append(baseline_rescaling * ICRS_baselines_t)
     print("UVW_baselines_t shape:", UVW_baselines_t.shape)
+    print("type V", type(V))
+    print("type W", type(W))
+    print("type D", type(D))
+
     S_corrected  = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
     #S_corrected2 = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
     gram_corrected_visibilities.append(S_corrected)
@@ -258,12 +267,15 @@ for ti in ProgressBar(time[timeslice]):
 
     #_ = S_mfs_ps(D, V, XYZ.data, W, cluster_idx=np.zeros(N_eig, dtype=int))
 
-    XYZ = xp.asarray(XYZ.data)
-    W   = xp.asarray(W.toarray())
-    V   = xp.asarray(V)
-    #_ = I_mfs_ss(D, V, XYZ.data, W.data, c_idx)
-    #_ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
-    _ = S_mfs_ss(D, V, XYZ, W, cluster_idx=np.zeros(N_eig, dtype=int))
+    if use_cupy:
+        XYZ_gpu = xp.asarray(XYZ.data)
+        W_gpu   = xp.asarray(W.toarray())
+        V_gpu   = xp.asarray(V)
+        #_ = I_mfs_ss(D, V, XYZ.data, W.data, c_idx)
+        #_ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
+        _ = S_mfs_ss(D, V_gpu, XYZ_gpu, W_gpu, cluster_idx=np.zeros(N_eig, dtype=int))
+    else:
+        _ = S_mfs_ss(D, V, XYZ.data, W, cluster_idx=np.zeros(N_eig, dtype=int))
 
     S_sensitivity = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
     sensitivity_coeffs.append(S_sensitivity)

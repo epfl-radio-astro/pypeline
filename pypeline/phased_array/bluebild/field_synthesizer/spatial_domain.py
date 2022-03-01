@@ -189,11 +189,8 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             (Note: StandardSynthesis statistics correspond to the actual field values.)
         """
 
-        # for CPU/GPU agnostic code
-
-        # Commented out solution forces to load Cupy which is not possible on CPU clusters
-        #with nvtx.annotate(message="s_d/(cu|num)py", color="lime"):
-        #    xp = get_array_module(V)  # now using 'xp' instead of cp or np
+        # for CuPy agnostic code
+        use_cupy = False
         if (type(V) == np.ndarray):
             xp = np
         else:
@@ -202,7 +199,9 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
                 print("Error. V was not recognized correctly as either Cupy or Numpy.")
                 sys.exit(1)
             xp = cp
+            use_cupy = True
         #print("Using:", xp.__name__)
+
 
         if not _have_matching_shapes(V, XYZ, W):
             raise ValueError("Parameters[V, XYZ, W] are inconsistent.")
@@ -218,6 +217,9 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         N_height, N_width = self._grid.shape[1:]
         N_eig = V.shape[1]
 
+        if use_cupy:
+            XYZ = xp.asarray(XYZ)
+
         XYZ = XYZ - XYZ.mean(axis=0)
         #P = xp.zeros((N_antenna, N_height, N_width), dtype=self._cp)
 
@@ -230,9 +232,9 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
 
         for i in range(N_width):
             with nvtx.annotate(message="s_d/pix", color="grey"):
-                pix_gpu = xp.asarray(self._grid[:,:,i])
+                pix = xp.asarray(self._grid[:,:,i])
             with nvtx.annotate(message="s_d/b", color="green"):
-                b  = xp.matmul(XYZ, pix_gpu)
+                b  = xp.matmul(XYZ, pix)
             with nvtx.annotate(message="s_d/P", color="yellow"):
                 P  = xp.exp(a*b)
             with nvtx.annotate(message="s_d/PW", color="cyan"):
