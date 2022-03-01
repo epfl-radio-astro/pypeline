@@ -9,17 +9,11 @@ Real-data LOFAR imaging with Bluebild (PeriodicSynthesis).
 Compare Bluebild image with WSCLEAN image.
 """
 
+import os
+if os.getenv('OMP_NUM_THREADS') == None : os.environ['OMP_NUM_THREADS'] = "1"
 
-
-# Check whether CuPy can and should be used (before loading the modules)
-# ----------------------------------------------------------------------
-import sys
-sys.path.append('../utils')
-import cupy_util
-use_cupy = cupy_util.is_cupy_usable()
-print(f"\n@@@ use_cupy? {use_cupy}\n")
-xp = cp if use_cupy else np
-
+import bluebild_tools.cupy_util as bbt_cupy
+use_cupy = bbt_cupy.is_cupy_usable()
 
 from tqdm import tqdm as ProgressBar
 import astropy.units as u
@@ -45,11 +39,16 @@ from imot_tools.math.func import SphericalDirichlet
 import joblib as job
 
 
+# For CuPy agnostic code
+# ----------------------
+xp = bbt_cupy.cupy if use_cupy else np
+
+
 start_time = time.process_time()
 
 # Instrument
 N_station = 37
-ms_file = "/home/etolley/data/gauss4/gauss4_t201806301100_SBL180.MS"
+ms_file = "/work/backup/ska/gauss4/gauss4_t201806301100_SBL180.MS"
 ms = measurement_set.LofarMeasurementSet(ms_file, N_station) # stations 1 - N_station 
 gram = bb_gr.GramBlock()
 
@@ -189,7 +188,7 @@ plt.savefig("4gauss_standard_new")
 
 start_interp_time = time.process_time()
 
-cl_WCS = ifits.wcs("/work/backup/ska/data/gauss4/gauss4-image-pb.fits")
+cl_WCS = ifits.wcs("/work/backup/ska/gauss4/gauss4-image-pb.fits")
 cl_WCS = cl_WCS.sub(['celestial'])
 cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10)))  # downsample, too high res!
 cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame
