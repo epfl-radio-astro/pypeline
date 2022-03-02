@@ -49,7 +49,8 @@ wl = constants.speed_of_light / frequency
 
 
 # Instrument
-ms_file = "/home/etolley/rascil_ska_sim/results_test/ska-pipeline_simulation.ms"
+#ms_file = "/home/etolley/rascil_ska_sim/results_test/ska-pipeline_simulation.ms"
+ms_file = "/home/etolley/rascil_ska_sim/results_testing/ska-pipeline_simulation.ms"
 ms = measurement_set.SKALowMeasurementSet(ms_file) # stations 1 - N_station 
 gram = bb_gr.GramBlock()
 
@@ -105,10 +106,11 @@ for t, f, S in ProgressBar(
 ):
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
-    UVW_baselines_t = ms.baselines(t, uvw=True, field_center=field_center)
+    UVW_baselines_t = ms.baselines(t, uvw=True)
     print('baselines shape:',UVW_baselines_t.shape)
     plt.scatter(UVW_baselines_t[:,:,0], UVW_baselines_t[:,:,1])
     plt.savefig("skalow_nufft_new_baselinesUV")
+    sys.exit()
     UVW_baselines.append(UVW_baselines_t)
     W = ms.beamformer(XYZ, wl)
     G = gram(XYZ, W, wl)

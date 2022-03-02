@@ -16,7 +16,7 @@ import imot_tools.io.s2image as s2image
 import imot_tools.math.sphere.grid as grid
 import matplotlib.pyplot as plt
 import numpy as np
-#import cupy as cp
+import cupy as cp
 import scipy.constants as constants
 import sys, time
 import finufft
@@ -37,7 +37,7 @@ import joblib as job
 start_time = time.process_time()
 
 #cl_WCS = ifits.wcs("/home/etolley/rascil_ska_sim/results_test/imaging_dirty.fits")
-cl_WCS = ifits.wcs("/home/etolley/wsclean/ska-sim-image.fits")
+cl_WCS = ifits.wcs("/work/ska/lofar30MHz_256/lofar30MHz256-image.fits")
 print(cl_WCS.to_header())
 cl_WCS = cl_WCS.sub(['celestial'])
 #cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10)))  # downsample, too high res!
@@ -46,9 +46,9 @@ N_cl_lon, N_cl_lat = cl_pix_icrs.shape[-2:]
 
 
 # Instrument
-ms_file = "/home/etolley/rascil_ska_sim/results_testing/ska-pipeline_simulation.ms"
+ms_file = "/work/ska/lofar30MHz_256/lofar30MHz_t201806301100_SBH256.MS/"
 #ms_file = '/work/ska/gauss4/gauss4_t201806301100_SBL180.MS'
-ms = measurement_set.SKALowMeasurementSet(ms_file) # stations 1 - N_station 
+ms = measurement_set.LofarMeasurementSet(ms_file) # stations 1 - N_station 
 gram = bb_gr.GramBlock()
 
 print("Reading {0}\n".format(ms_file))
@@ -65,7 +65,7 @@ print("obs start: {0}, end: {1}".format(obs_start, obs_end))
 print(ms.time["TIME"])
 
 # Imaging
-N_level = 10
+N_level = 1
 N_bits = 32
 #R = ms.instrument.icrs2bfsf_rot(obs_start, obs_end)
 #colat_idx, lon_idx, pix_colat, pix_lon = grid.equal_angle(
@@ -81,7 +81,7 @@ N_bits = 32
 #N_FS, T_kernel = ms.instrument.bfsf_kernel_bandwidth(wl, obs_start, obs_end), np.deg2rad(10)
 #px_grid = transform.pol2cart(1, px_colat, px_lon).reshape(3, -1)
 px_grid = cl_pix_icrs
-time_slice = 10
+time_slice = slice(0, 5, 1)
 print("Grid size is:", px_grid.shape)
 
 ### Intensity Field ===========================================================
@@ -98,22 +98,21 @@ for t, f, S in ProgressBar(
     print('baselines shape:',UVW_baselines_t.shape)
     fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 10))
     ax.scatter(UVW_baselines_t[:,:,0], UVW_baselines_t[:,:,1],s=1,)
-    plt.savefig("skalow_ss_new_baselinesUV")
+    plt.savefig("lofar_ss_new_baselinesUV")
 
     UVW_baselines3_t = ms.instrument.baselines_rascil(t, field_center = ms.field_center)
     fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 10))
     ax.scatter(UVW_baselines3_t[:,:,0], UVW_baselines3_t[:,:,1],s=1,c='green')
-    plt.savefig("skalow_ss_rascil_baselinesUV")
+    plt.savefig("lofar_ss_rascil_baselinesUV")
 
     fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 10))
     print(ms.instrument._layout['X'])
     ax.scatter(ms.instrument._layout['X'], ms.instrument._layout['Y'],s=1,c='red')
-    plt.savefig("skalow_geometry")
+    plt.savefig("lofar_geometry")
 
     print(ms.instrument.UVW(t, field_center = ms.field_center))
     print(ms.instrument.UVW_rascil(t, field_center = ms.field_center))
 
-    sys.exit()
     W = ms.beamformer(XYZ, wl)
     G = gram(XYZ, W, wl)
     S, _ = measurement_set.filter_data(S, W)
@@ -129,7 +128,7 @@ I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
 #I_mfs = bb_fd.Fourier_IMFS_Block(wl, pix_colat, pix_lon, N_FS, T_kernel, R, N_level, N_bits)
 I_mfs = bb_sd.Spatial_IMFS_Block(wl, px_grid, N_level, N_bits)
 for t, f, S in ProgressBar(
-        ms.visibilities(channel_id=[channel_id], time_id=slice(None, None, time_slice), column="DATA")
+        ms.visibilities(channel_id=[channel_id], time_id=time_slice, column="DATA")
 ):
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
@@ -141,12 +140,12 @@ for t, f, S in ProgressBar(
     print(c_idx)
     #c_idx = [0,1,2,3]
 
-    _ = I_mfs(D, V, XYZ.data, W.data, c_idx)
+    #_ = I_mfs(D, V, XYZ.data, W.data, c_idx)
 
-    #XYZ_gpu = cp.asarray(XYZ.data)
-    #W_gpu  = cp.asarray(W.data.toarray())
-    #V_gpu  = cp.asarray(V)
-    #_ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
+    XYZ_gpu = cp.asarray(XYZ.data)
+    W_gpu  = cp.asarray(W.data.toarray())
+    V_gpu  = cp.asarray(V)
+    _ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
     
 I_std, I_lsq = I_mfs.as_image()
 
@@ -170,7 +169,7 @@ S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
 #S_mfs = bb_fd.Fourier_IMFS_Block(wl, pix_colat, pix_lon, N_FS, T_kernel, R, 1, N_bits)
 S_mfs = bb_sd.Spatial_IMFS_Block(wl, px_grid, 1, N_bits)
 for t, f, S in ProgressBar(
-        ms.visibilities(channel_id=[channel_id], time_id=slice(None, None, time_slice), column="DATA")
+        ms.visibilities(channel_id=[channel_id], time_id=time_slice, column="DATA")
 ):
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
@@ -179,7 +178,12 @@ for t, f, S in ProgressBar(
     S, W = measurement_set.filter_data(S, W)
 
     D, V = S_dp(G)
-    _ = S_mfs(D, V, XYZ.data, W.data, cluster_idx=np.zeros(N_eig, dtype=int))
+    #_ = S_mfs(D, V, XYZ.data, W.data, cluster_idx=np.zeros(N_eig, dtype=int))
+    XYZ_gpu = cp.asarray(XYZ.data)
+    W_gpu  = cp.asarray(W.data.toarray())
+    V_gpu  = cp.asarray(V)
+    _ = S_mfs(D, V_gpu, XYZ_gpu, W_gpu, cluster_idx=np.zeros(N_eig, dtype=int))
+    #_ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
 _, S = S_mfs.as_image()
 
 # Plot Results ================================================================

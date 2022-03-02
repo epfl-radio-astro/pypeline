@@ -285,7 +285,7 @@ class MeasurementSet:
             data = sub_table.getcol(column)  # (N_entry, N_channel, 4)
 
             # We only want XX and YY correlations
-            print("debug data shape:", data.shape)
+            #print("debug data shape:", data.shape)
             try:
                 data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
                 data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
@@ -329,49 +329,25 @@ class MeasurementSet:
 
             # Break S into columns and stream out
             t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
+            t2 =  sub_table.getcol("TIME")[0]
+            t2 = time.Time(t2, format="mjd", scale="utc")
+            print("MS MJD(TIME) time:",  t, type(t), t.mjd)
+            print("MS time -> mjd:",  t2, type(t2), t.mjd)
+
+            int_time = sub_table.getcol("INTERVAL")[0]
+            print("MS int time:", int_time)
+            #ra_time = t2 - int_time / 2.0
+            #print("RASCIL time:",  t2 - int_time / 2.0)
+
             f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
             for ch_id in channel_id:
                 v = _series2array(S[ch_id].rename("S", inplace=True))
                 visibility = vis.VisibilityMatrix(v, beam_idx)
                 yield t, f[ch_id], visibility
-    def baselines(self, t, uvw= False,
-                  field_center = None):
-        r"""
-        Baselines of the instrument at a given time.
 
-        Parameters
-        ----------
-        t: astropy.time.time
-            Time at which the coordinates are wanted.
-        uvw: bool
-            If ``True``, the baselines coordinates are expressed in the local UVW frame, attached to the center of the FoV.
-            If ``False``, the baseline coordinates are expressed in the ICRS frame.
-        field_center: Optional[astropy.coordinates.SkyCoord]
-            If ``uvw=True`` this argument specifies the center of the FoV used to define the local UVW frame.
-
-        Returns
-        -------
-        baselines: np.ndarray
-            (N_antenna, N_antenna, 3) baselines coordinates.
-        """
-        XYZ = self.instrument(t).data
-        if uvw:
-            if field_center is None:
-                raise ValueError('Please provide a field_center for uvw coordinates conversion.')
-            uvw_frame = frame.uvw_basis(field_center)
-            print("XYZ:", XYZ[0,:])
-            UVW = (uvw_frame.transpose() @ XYZ.transpose()).transpose()
-            print("bluebild UVW:", UVW[0,:])
-            sidereal_day_seconds = 86164.090530833
-
-            #ha = t * (sidereal_day_seconds / 86400.0)
-            ha = t.sidereal_time('apparent', (field_center.ra.rad, field_center.dec.rad)  )
-            print("rascil UVW:", xyz_to_uvw(XYZ[0,:],ha,field_center.dec.rad))
-            baselines = (UVW[:, None, :] - UVW[None, ...])
-        else:
-            baselines = (XYZ[:, None, :] - XYZ[None, ...])
-        return baselines
+    def baselines(self, t, uvw= False):
+        return self.instrument.baselines(t, uvw=uvw, field_center = self.field_center)
 
 def xyz_to_uvw(xyz, ha, dec):
     """

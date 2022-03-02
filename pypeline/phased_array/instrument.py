@@ -414,6 +414,77 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
             baselines = (XYZ[:, None, :] - XYZ[None, ...])
         return baselines
 
+    def baselines_rascil(self, t: time.Time,
+                  field_center: typ.Optional[coord.SkyCoord] = None) -> np.ndarray:
+        r"""
+        Baselines of the instrument at a given time.
+
+        Parameters
+        ----------
+        t: astropy.time.time
+            Time at which the coordinates are wanted.
+        uvw: bool
+            If ``True``, the baselines coordinates are expressed in the local UVW frame, attached to the center of the FoV.
+            If ``False``, the baseline coordinates are expressed in the ICRS frame.
+        field_center: Optional[astropy.coordinates.SkyCoord]
+            If ``uvw=True`` this argument specifies the center of the FoV used to define the local UVW frame.
+
+        Returns
+        -------
+        baselines: np.ndarray
+            (N_antenna, N_antenna, 3) baselines coordinates.
+        """
+
+        UVW = self.UVW_rascil(t, field_center)
+        baselines = (UVW[:, None, :] - UVW[None, ...])
+        '''res = []
+        nants = UVW.shape[0]
+        for a1 in range(nants):
+            for a2 in range(a1 + 1, nants):
+                res.append(UVW[a2] - UVW[a1])
+
+        basel_uvw = np.array(res)
+
+        return basel_uvw'''
+
+
+        return baselines
+
+    def UVW(self,t,field_center):
+        XYZ = self.__call__(t).data
+        uvw_frame = frame.uvw_basis(field_center)
+        UVW = (uvw_frame.transpose() @ XYZ.transpose()).transpose()
+        print(UVW.shape)
+        return UVW
+    def UVW_rascil(self,t,field_center):
+
+        import astropy.time as time
+        ha =  t.sidereal_time('apparent', (field_center.ra.rad, field_center.dec.rad)  )
+        print('time in default', t)
+        print('time in mjd',  time.Time(t, format="mjd", scale="utc"))
+        print('time in ha', ha)
+        ha = 0
+        print('time is', ha)
+
+        dec = field_center.dec.rad
+        print('dec is', dec)
+
+        x, y, z = np.array(self._layout['X']),np.array(self._layout['Y']), np.array(self._layout['Z'])
+        # Two rotations:
+        #  1. by 'ha' along the z axis
+        #  2. by '90-dec' along the u axis
+        u = x * np.cos(ha) - y * np.sin(ha)
+        v0 = x * np.sin(ha) + y * np.cos(ha)
+        w = z * np.sin(dec) - v0 * np.cos(dec)
+        v = z * np.cos(dec) + v0 * np.sin(dec)
+
+        print(u.shape, v.shape, w.shape)
+
+        UVW = np.stack(( u, v, w), axis = -1)
+        print(UVW.shape)
+        UVW *= -1
+        return UVW
+
     @chk.check(dict(obs_start=chk.is_instance(time.Time), obs_end=chk.is_instance(time.Time)))
     def icrs2bfsf_rot(self, obs_start, obs_end):
         """
