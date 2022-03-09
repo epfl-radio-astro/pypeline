@@ -65,7 +65,7 @@ print("obs start: {0}, end: {1}".format(obs_start, obs_end))
 print(ms.time["TIME"])
 
 # Imaging
-N_level = 1
+N_level = 4
 N_bits = 32
 #R = ms.instrument.icrs2bfsf_rot(obs_start, obs_end)
 #colat_idx, lon_idx, pix_colat, pix_lon = grid.equal_angle(
@@ -196,20 +196,13 @@ for i in range(N_level):
     ax[0,i].set_title("Standardized Image Level = {0}".format(i))
     I_lsq_eq.draw(index=i, ax=ax[1,i])
     ax[1,i].set_title("Least-Squares Image Level = {0}".format(i))
-#fig.show()
-#plt.show()
-#sys.exit()
+
 plt.savefig("skalow_standard_new")
 
-# 5. Store the interpolated Bluebild image in standard-compliant FITS for view
-# in AstroPy/DS9.
 
 f_interp = (I_lsq_eq.data  # We need to transpose axes due to the FORTRAN
             .reshape(N_level, N_cl_lon, N_cl_lat)  # indexing conventions of the FITS standard.
             .transpose(0, 2, 1))
-#f_interp = I_lsq_eq.data 
-f_interp = np.rot90(f_interp, 2, axes=(1,2))
-f_interp = np.flip(f_interp, axis=2)
 I_lsq_eq_interp = s2image.WCSImage(np.sum(f_interp,axis=0), cl_WCS)
 I_lsq_eq_interp.to_fits('bluebild_ss_skalow_combined-test.fits')
 I_lsq_eq_interp = s2image.WCSImage(f_interp, cl_WCS)
