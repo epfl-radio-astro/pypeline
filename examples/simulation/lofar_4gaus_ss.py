@@ -36,21 +36,31 @@ import joblib as job
 
 start_time = time.process_time()
 
+# wsclean -size 1000 1000 -scale 10asec -name 4gauss -reorder -niter 10000 -mgain 0.8 -auto-threshold 4 -channel-range 0 1 -interval 0 10 /work/ska/gauss4/gauss4_t201806301100_SBL180.MS
+
+cl_WCS = ifits.wcs("/home/etolley/wsclean/4gauss-image.fits")
+print(cl_WCS.to_header())
+cl_WCS = cl_WCS.sub(['celestial'])
+cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame
+N_cl_lon, N_cl_lat = cl_pix_icrs.shape[-2:]
+
 # Instrument
 N_station = 37
-ms_file = "/home/etolley/data/gauss4/gauss4_t201806301100_SBL180.MS"
+ms_file = "/work/ska/gauss4/gauss4_t201806301100_SBL180.MS"
 ms = measurement_set.LofarMeasurementSet(ms_file, N_station) # stations 1 - N_station 
 gram = bb_gr.GramBlock()
 
 print("Reading {0}\nUsing {1} stations".format(ms_file, N_station))
 
 # Observation
+channel_id = 0
+'''
 FoV = np.deg2rad(5)
 channel_id = 0
 frequency = ms.channels["FREQUENCY"][channel_id]
 wl = constants.speed_of_light / frequency.to_value(u.Hz)
 sky_model = source.from_tgss_catalog(ms.field_center, FoV, N_src=4)
-obs_start, obs_end = ms.time["TIME"][[0, -1]]
+obs_start, obs_end = ms.time["TIME"][[0, -1]]'''
 
 # Imaging
 N_level = 4
@@ -62,17 +72,18 @@ N_bits = 32
 #    FoV=FoV,
 #)
 
+'''
 _, _, px_colat, px_lon = grid.equal_angle(
     N=ms.instrument.nyquist_rate(wl), direction=ms.field_center.cartesian.xyz.value, FoV=FoV
-)
+)'''
 
-print(ms.instrument.nyquist_rate(wl), "Nstation {0}, px_col {1}, px_lon {2}".format(N_station, px_colat.shape, px_lon.shape))
+#print(ms.instrument.nyquist_rate(wl), "Nstation {0}, px_col {1}, px_lon {2}".format(N_station, px_colat.shape, px_lon.shape))
 
 #N_FS, T_kernel = ms.instrument.bfsf_kernel_bandwidth(wl, obs_start, obs_end), np.deg2rad(10)
 #px_grid = transform.pol2cart(1, px_colat, px_lon).reshape(3, -1)
-px_grid = transform.pol2cart(1, px_colat, px_lon)
-time_slice = 200
-print("Grid size is:", px_colat.shape, px_lon.shape)
+#px_grid = transform.pol2cart(1, px_colat, px_lon)
+#time_slice = 200
+print("Grid size is:", cl_pix_icrs.shape)
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
@@ -97,7 +108,7 @@ print("N_eig:", N_eig)
 print ("centroids = ", c_centroid)
 I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
 #I_mfs = bb_fd.Fourier_IMFS_Block(wl, pix_colat, pix_lon, N_FS, T_kernel, R, N_level, N_bits)
-I_mfs = bb_sd.Spatial_IMFS_Block(wl, px_grid, N_level, N_bits)
+I_mfs = bb_sd.Spatial_IMFS_Block(wl, cl_pix_icrs, N_level, N_bits)
 for t, f, S in ProgressBar(
         ms.visibilities(channel_id=[channel_id], time_id=slice(0, 10, 1), column="DATA")
 ):
@@ -159,14 +170,14 @@ I_std_eq = s2image.Image(I_std.data, I_std.grid) #  / S.data
 I_lsq_eq = s2image.Image(I_lsq.data, I_lsq.grid) # / S.data
 
 for i in range(N_level):
-    I_std_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax[0,i])
+    I_std_eq.draw(index=i, ax=ax[0,i])
     ax[0,i].set_title("Standardized Image Level = {0}".format(i))
-    I_lsq_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax[1,i])
+    I_lsq_eq.draw(index=i, ax=ax[1,i])
     ax[1,i].set_title("Least-Squares Image Level = {0}".format(i))
 #fig.show()
 #plt.show()
 #sys.exit()
-plt.savefig("4gauss_standard_new")
+plt.savefig("4gauss_standard_new2")
 
 
 ### Interpolate critical-rate image to any grid resolution ====================
@@ -174,14 +185,14 @@ plt.savefig("4gauss_standard_new")
 # interpolate the Bluebild estimate at CLEAN (cl_) sky coordinates.
 
 # 1. Load pixel grid the CLEAN image is defined on.
-
+'''
 start_interp_time = time.process_time()
 
 cl_WCS = ifits.wcs("/home/etolley/data/gauss4/gauss4-image-pb.fits")
 cl_WCS = cl_WCS.sub(['celestial'])
 cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10)))  # downsample, too high res!
 cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame
-N_cl_lon, N_cl_lat = cl_pix_icrs.shape[-2:]
+N_cl_lon, N_cl_lat = cl_pix_icrs.shape[-2:]'''
 
 # 2. ICRS <> BFSF transform.
 # Why are we doing this? The Bluebild image produced by PeriodicSynthesis lies
@@ -196,7 +207,7 @@ N_cl_lon, N_cl_lat = cl_pix_icrs.shape[-2:]
 # computing the interpolation kernel's spatial support per output pixel.
 #bb_pix_bfsf = transform.pol2cart(1, pix_colat, pix_lon)  # Bluebild critical support points
 # TODO/NB: to modify for SS remove above line
-
+'''
 dirichlet_kernel = SphericalDirichlet(N=ms.instrument.nyquist_rate(wl), approx=True)
 nside = (ms.instrument.nyquist_rate(wl) + 1) / 3
 nodal_width = 2.8345 / np.sqrt(12 * nside ** 2)
@@ -215,7 +226,7 @@ with job.Parallel(backend='loky', n_jobs=-1, verbose=True) as parallel:
 f_interp = np.stack(interpolated_maps, axis=0).reshape((N_level,) + cl_pix_icrs.shape[1:])
 f_interp = f_interp / (ms.instrument.nyquist_rate(wl) + 1)
 f_interp = np.clip(f_interp, 0, None)
-fig, ax = plt.subplots(ncols=N_level, nrows=2)
+fig, ax = plt.subplots(ncols=N_level, nrows=2)'''
 
 '''
 for i in range(N_level):
@@ -231,13 +242,13 @@ plt.savefig("4gauss_interp")'''
 
 # 5. Store the interpolated Bluebild image in standard-compliant FITS for view
 # in AstroPy/DS9.
-f_interp = (f_interp  # We need to transpose axes due to the FORTRAN
+f_interp = (I_lsq_eq.data  # We need to transpose axes due to the FORTRAN
             .reshape(N_level, N_cl_lon, N_cl_lat)  # indexing conventions of the FITS standard.
             .transpose(0, 2, 1))
 I_lsq_eq_interp = s2image.WCSImage(f_interp, cl_WCS)
 I_lsq_eq_interp.to_fits('bluebild_ss_4gauss_{0}Stations.fits'.format(N_station))
 
-end_interp_time = time.process_time()
+#end_interp_time = time.process_time()
 
-print("Time to make BB image: {0}s".format(end_time - start_time))
-print("Time to reinterpolate image: {0}s".format(end_interp_time - start_interp_time))
+#print("Time to make BB image: {0}s".format(end_time - start_time))
+#print("Time to reinterpolate image: {0}s".format(end_interp_time - start_interp_time))

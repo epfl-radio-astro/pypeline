@@ -23,6 +23,8 @@ Only positional information is modeled at the moment, and can be accessed throug
 import pathlib
 
 import astropy.coordinates as coord
+from astropy.coordinates import EarthLocation
+from astroplan import Observer
 import astropy.time as time
 import imot_tools.math.linalg as pylinalg
 import imot_tools.math.special as sp
@@ -313,7 +315,7 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
     @chk.check(
         dict(XYZ=chk.is_instance(InstrumentGeometry), N_station=chk.allow_None(chk.is_integer))
     )
-    def __init__(self, XYZ, N_station=None):
+    def __init__(self, XYZ, N_station=None, location = None):
         """
         Parameters
         ----------
@@ -326,10 +328,17 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
             Setting `N_station` limits the number of stations to those that appear first in `XYZ`
             when sorted by STATION_ID.
         """
+        self._location = location
         super().__init__(XYZ, N_station)
 
+    @property
+    def location(self)-> EarthLocation:
+        if self._location == None:
+            raise NotImplementedError
+        return self._location
+
     @chk.check("time", chk.is_instance(time.Time))
-    def __call__(self, time):
+    def __call__(self, time, field_center = None):
         """
         Determine instrument antenna positions in ICRS.
 
@@ -372,15 +381,28 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
                   [ 1620400.53, -3497583.69,  5064544.37],
                   [ 1620405.5 , -3497583.23,  5064543.11]])
         """
-        layout = self._layout.loc[:, ["X", "Y", "Z"]].values.T
-        r = linalg.norm(layout, axis=0)
 
-        itrs_layout = coord.CartesianRepresentation(layout)
-        itrs_position = coord.SkyCoord(itrs_layout, obstime=time, frame="itrs")
-        icrs_position = r * (itrs_position.transform_to("icrs").cartesian.xyz)
-        icrs_layout = pd.DataFrame(
-            data=icrs_position.T, index=self._layout.index, columns=("X", "Y", "Z")
-        )
+        if field_center != None:
+            site = Observer(location=self.location)
+            ha = site.target_hour_angle(time, field_center).wrap_at("180d")
+            x, y, z = np.array(self._layout['X']),np.array(self._layout['Y']), np.array(self._layout['Z'])
+
+
+            x2 = x * np.cos(ha) - y * np.sin(ha)
+            y2 = x * np.sin(ha) + y * np.cos(ha)
+            XYZ = np.stack(( x2, y2, z), axis = -1)
+            icrs_layout = pd.DataFrame(data=XYZ, index=self._layout.index, columns=("X", "Y", "Z"))
+        else:
+
+            layout = self._layout.loc[:, ["X", "Y", "Z"]].values.T
+            r = linalg.norm(layout, axis=0)
+
+            itrs_layout = coord.CartesianRepresentation(layout)
+            itrs_position = coord.SkyCoord(itrs_layout, obstime=time, frame="itrs")
+            icrs_position = r * (itrs_position.transform_to("icrs").cartesian.xyz)
+            icrs_layout = pd.DataFrame(
+                data=icrs_position.T, index=self._layout.index, columns=("X", "Y", "Z")
+            )
         return _as_InstrumentGeometry(icrs_layout)
 
     def baselines(self, t: time.Time, uvw: bool = False,
@@ -416,37 +438,17 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
 
     def baselines_rascil(self, t: time.Time,
                   field_center: typ.Optional[coord.SkyCoord] = None) -> np.ndarray:
-        r"""
-        Baselines of the instrument at a given time.
-
-        Parameters
-        ----------
-        t: astropy.time.time
-            Time at which the coordinates are wanted.
-        uvw: bool
-            If ``True``, the baselines coordinates are expressed in the local UVW frame, attached to the center of the FoV.
-            If ``False``, the baseline coordinates are expressed in the ICRS frame.
-        field_center: Optional[astropy.coordinates.SkyCoord]
-            If ``uvw=True`` this argument specifies the center of the FoV used to define the local UVW frame.
-
-        Returns
-        -------
-        baselines: np.ndarray
-            (N_antenna, N_antenna, 3) baselines coordinates.
-        """
 
         UVW = self.UVW_rascil(t, field_center)
         baselines = (UVW[:, None, :] - UVW[None, ...])
-        '''res = []
-        nants = UVW.shape[0]
-        for a1 in range(nants):
-            for a2 in range(a1 + 1, nants):
-                res.append(UVW[a2] - UVW[a1])
 
-        basel_uvw = np.array(res)
+        return baselines
 
-        return basel_uvw'''
+    def baselines_test(self, t: time.Time,
+                  field_center: typ.Optional[coord.SkyCoord] = None) -> np.ndarray:
 
+        UVW = self.UVW_test(t, field_center)
+        baselines = (UVW[:, None, :] - UVW[None, ...])
 
         return baselines
 
@@ -454,20 +456,12 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
         XYZ = self.__call__(t).data
         uvw_frame = frame.uvw_basis(field_center)
         UVW = (uvw_frame.transpose() @ XYZ.transpose()).transpose()
-        print(UVW.shape)
         return UVW
     def UVW_rascil(self,t,field_center):
 
-        import astropy.time as time
-        ha =  t.sidereal_time('apparent', (field_center.ra.rad, field_center.dec.rad)  )
-        print('time in default', t)
-        print('time in mjd',  time.Time(t, format="mjd", scale="utc"))
-        print('time in ha', ha)
-        ha = 0
-        print('time is', ha)
-
+        site = Observer(location=self.location)
+        ha = site.target_hour_angle(t, field_center).wrap_at("180d")
         dec = field_center.dec.rad
-        print('dec is', dec)
 
         x, y, z = np.array(self._layout['X']),np.array(self._layout['Y']), np.array(self._layout['Z'])
         # Two rotations:
@@ -478,10 +472,33 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
         w = z * np.sin(dec) - v0 * np.cos(dec)
         v = z * np.cos(dec) + v0 * np.sin(dec)
 
-        print(u.shape, v.shape, w.shape)
+        UVW = np.stack(( u, v, w), axis = -1)
+        UVW *= -1
+        return UVW
+
+    def UVW_test(self,t,field_center):
+
+        site = Observer(location=self.location)
+        ha = site.target_hour_angle(t, field_center).wrap_at("180d")
+        dec = field_center.dec.rad
+
+        x2, y2, z2 = np.array(self._layout['X']),np.array(self._layout['Y']), np.array(self._layout['Z'])
+        print('raw telescope X positions:',x2[:2],y2[:2],z2[:2])
+
+        XYZ = self.__call__(t).data
+        x,y,z = XYZ[:,0],XYZ[:,1], XYZ[:,2]
+        print('BB positions:',x[:2],y[:2],z[:2])
+
+        x3 = x2 * np.cos(ha) - y2 * np.sin(ha)
+        y3 = x2 * np.sin(ha) + y2 * np.cos(ha)
+        print('rascil positions:',x3[:2],y3[:2],z2[:2])
+
+        u = x3
+        v0 = y3
+        w = z2 * np.sin(dec) - v0 * np.cos(dec)
+        v = z2 * np.cos(dec) + v0 * np.sin(dec)
 
         UVW = np.stack(( u, v, w), axis = -1)
-        print(UVW.shape)
         UVW *= -1
         return UVW
 
@@ -635,6 +652,11 @@ class LofarBlock(EarthBoundInstrumentGeometryBlock):
         XYZ = self._get_geometry(station_only)
         super().__init__(XYZ, N_station)
 
+    @staticmethod
+    @property
+    def location(self)-> EarthLocation:
+        return  EarthLocation(x=3826923.9 * u.m, y=460915.1 * u.m, z=5064643.2 * u.m)
+
     def _get_geometry(self, station_only):
         """
         Load instrument geometry.
@@ -684,6 +706,10 @@ class MwaBlock(EarthBoundInstrumentGeometryBlock):
         """
         XYZ = self._get_geometry(station_only)
         super().__init__(XYZ, N_station)
+
+    @property
+    def location(self)-> EarthLocation:
+        return EarthLocation.of_site('mwa')
 
     def _get_geometry(self, station_only):
         """
@@ -739,3 +765,33 @@ class MwaBlock(EarthBoundInstrumentGeometryBlock):
 
         XYZ = _as_InstrumentGeometry(itrs_geom)
         return XYZ
+
+class SKALowBlock(EarthBoundInstrumentGeometryBlock):
+    """
+    `Murchison Widefield Array (MWA) <http://www.mwatelescope.org/>`_ located in Australia.
+
+    MWA consists of 128 stations, each containing 16 dipole antennas.
+    """
+
+    @chk.check(dict(N_station=chk.allow_None(chk.is_integer), station_only=chk.is_boolean))
+    def __init__(self, N_station=None, station_only=False):
+        """
+        Parameters
+        ----------
+        N_station : int
+            Number of stations to use. (Default = all)
+
+            Sometimes only a subset of an instrument’s stations are desired.
+            Setting `N_station` limits the number of stations to those that appear first in `XYZ`
+            when sorted by STATION_ID.
+
+        station_only : bool
+            If :py:obj:`True`, model MWA stations as single-element antennas. (Default = False)
+        """
+        XYZ = self._get_geometry(station_only)
+        super().__init__(XYZ, N_station)
+
+    @property
+    def location(self)-> EarthLocation:
+        return EarthLocation(lon=116.76444824 * u.deg, lat=-26.824722084 * u.deg, height=300.0)
+    

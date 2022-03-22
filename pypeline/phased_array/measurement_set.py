@@ -11,6 +11,7 @@ Measurement Set (MS) readers and tools.
 import pathlib
 
 import astropy.coordinates as coord
+from astropy.coordinates import EarthLocation
 import astropy.table as tb
 import astropy.time as time
 import astropy.units as u
@@ -224,6 +225,10 @@ class MeasurementSet:
         """
         raise NotImplementedError
 
+    @property
+    def location(self):
+        return self.instrument.location
+    
     @chk.check(
         dict(
             channel_id=chk.accept_any(chk.has_integers, chk.is_instance(slice)),
@@ -285,7 +290,6 @@ class MeasurementSet:
             data = sub_table.getcol(column)  # (N_entry, N_channel, 4)
 
             # We only want XX and YY correlations
-            #print("debug data shape:", data.shape)
             try:
                 data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
                 data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
@@ -329,15 +333,6 @@ class MeasurementSet:
 
             # Break S into columns and stream out
             t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
-            t2 =  sub_table.getcol("TIME")[0]
-            t2 = time.Time(t2, format="mjd", scale="utc")
-            print("MS MJD(TIME) time:",  t, type(t), t.mjd)
-            print("MS time -> mjd:",  t2, type(t2), t.mjd)
-
-            int_time = sub_table.getcol("INTERVAL")[0]
-            print("MS int time:", int_time)
-            #ra_time = t2 - int_time / 2.0
-            #print("RASCIL time:",  t2 - int_time / 2.0)
 
             f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
@@ -497,7 +492,8 @@ class LofarMeasurementSet(MeasurementSet):
 
             # Finally, only keep the stations that were specified in `__init__()`.
             XYZ = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
-            self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ, self._N_station)
+            lofar_loc = EarthLocation(x=3826923.9 * u.m, y=460915.1 * u.m, z=5064643.2 * u.m)
+            self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ, self._N_station, location=lofar_loc)
 
         return self._instrument
 
@@ -570,7 +566,7 @@ class MwaMeasurementSet(MeasurementSet):
 
             XYZ = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
 
-            self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ)
+            self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ, location=EarthLocation.of_site('mwa'))
 
         return self._instrument
 
@@ -644,7 +640,8 @@ class SKALowMeasurementSet(MeasurementSet):
 
             XYZ = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
 
-            self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ)
+            skalow_loc = EarthLocation(lon=116.76444824 * u.deg, lat=-26.824722084 * u.deg, height=300.0)
+            self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ, location = skalow_loc)
 
         return self._instrument
 

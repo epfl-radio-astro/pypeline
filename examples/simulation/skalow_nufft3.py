@@ -50,7 +50,7 @@ wl = constants.speed_of_light / frequency
 
 # Instrument
 #ms_file = "/home/etolley/rascil_ska_sim/results_test/ska-pipeline_simulation.ms"
-ms_file = "/home/etolley/rascil_ska_sim/results_testing/ska-pipeline_simulation.ms"
+ms_file = "/work/ska/results_rascil_skalow_small/ska-pipeline_simulation.ms"
 ms = measurement_set.SKALowMeasurementSet(ms_file) # stations 1 - N_station 
 gram = bb_gr.GramBlock()
 
@@ -73,7 +73,7 @@ eps = 1e-5
 w_term = True
 N_level = 4
 precision = 'single'
-time_slice = 1
+time_slice = slice(0, 5, 1)
 
 
 ### Intensity Field ===========================================================
@@ -102,15 +102,15 @@ UVW_baselines = []
 gram_corrected_visibilities = []
 fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 10))
 for t, f, S in ProgressBar(
-        ms.visibilities(channel_id=[channel_id], time_id=slice(None, None, time_slice), column="DATA")
+        ms.visibilities(channel_id=[channel_id], time_id=time_slice, column="DATA")
 ):
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
-    UVW_baselines_t = ms.baselines(t, uvw=True)
+    #UVW_baselines_t = ms.baselines(t, uvw=True)
+    UVW_baselines_t = ms.instrument.baselines_rascil(t, field_center = ms.field_center)
     print('baselines shape:',UVW_baselines_t.shape)
     plt.scatter(UVW_baselines_t[:,:,0], UVW_baselines_t[:,:,1])
     plt.savefig("skalow_nufft_new_baselinesUV")
-    sys.exit()
     UVW_baselines.append(UVW_baselines_t)
     W = ms.beamformer(XYZ, wl)
     G = gram(XYZ, W, wl)
@@ -128,7 +128,7 @@ print("Running NUFFT on the CPU")
 t = time.process_time()
 nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
                                       field_center=field_center, eps=eps, w_term=w_term,
-                                      n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
+                                      n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision, grid_type='dircosines')
 #print(nufft_imager._synthesizer._inner_fft_sizes)
 lsq_image, sqrt_image = nufft_imager(gram_corrected_visibilities)
 
@@ -152,7 +152,7 @@ S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
 SV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq',))
 sensitivity_coeffs = []
 for t, f, S in ProgressBar(
-        ms.visibilities(channel_id=[channel_id], time_id=slice(None, None, time_slice), column="DATA")
+        ms.visibilities(channel_id=[channel_id], time_id=time_slice, column="DATA")
 ):
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
@@ -169,14 +169,14 @@ print("Running NUFFT on the CPU")
 t = time.process_time()
 nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
                                       field_center=field_center, eps=eps, w_term=w_term,
-                                      n_trans=1, precision=precision)
+                                      n_trans=1, precision=precision, grid_type='dircosines')
 sensitivity_image = nufft_imager(sensitivity_coeffs)
 print("time elapsed: {0}".format(time.process_time() - t))
 
 # Plot Results ================================================================
-fig, ax = plt.subplots(ncols=N_level, nrows=2, figsize=(16, 10))
-I_lsq_eq     = s2image.Image(lsq_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
-I_std_eq    = s2image.Image(sqrt_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
+fig, ax    = plt.subplots(ncols=N_level, nrows=2, figsize=(16, 10))
+I_lsq_eq   = s2image.Image(lsq_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
+I_std_eq   = s2image.Image(sqrt_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
 
 for i in range(N_level):
     I_std_eq.draw(index=i, ax=ax[0,i])
@@ -190,20 +190,14 @@ plt.savefig("skalow_nufft_new")
 
 # 5. Store the interpolated Bluebild image in standard-compliant FITS for view
 # in AstroPy/DS9.
-'''N_cl_lon, N_cl_lat = nufft_imager._synthesizer.xyz_grid.shape[-2:]
+N_cl_lon, N_cl_lat = nufft_imager._synthesizer.xyz_grid.shape[-2:]
 f_interp = (I_lsq_eq.data  # We need to transpose axes due to the FORTRAN
             .reshape(N_level, N_cl_lon, N_cl_lat)  # indexing conventions of the FITS standard.
             .transpose(0, 2, 1))
-#f_interp = I_lsq_eq.data 
-f_interp = np.rot90(f_interp, 2, axes=(1,2))
-f_interp = np.flip(f_interp, axis=2)'''
-import healpy.fitsfunc as hfits
-import healpy.pixelfunc as hpix
-lsq_eq_hp = np.zeros((N_level, hpix.nside2npix(nufft_imager._synthesizer._nside)), dtype=lsq_image.dtype)
-lsq_eq_hp[lsq_eq_hp == 0] = np.NaN
-lsq_eq_hp[:, nufft_imager._synthesizer._ipix] = lsq_image / sensitivity_image
-sqrt_eq_hp = np.zeros((N_level, hpix.nside2npix(nufft_imager._synthesizer._nside)), dtype=lsq_image.dtype)
-sqrt_eq_hp[sqrt_eq_hp == 0] = np.NaN
-sqrt_eq_hp[:, nufft_imager._synthesizer._ipix] = sqrt_image / sensitivity_image
-hfits.write_map('bb_eigenmaps_skalow_nufft.fits', I_lsq_eq, coord='C', partial=False, overwrite=True, column_names=titles)
+I_lsq_eq_interp = s2image.WCSImage(np.sum(f_interp,axis=0), cl_WCS)
+I_lsq_eq_interp.to_fits('bluebild_nufft3_skalow_combined-test.fits')
+I_lsq_eq_interp = s2image.WCSImage(f_interp, cl_WCS)
+I_lsq_eq_interp.to_fits('bluebild_nufft3_skalow_levels-test.fits')
+
+
 
