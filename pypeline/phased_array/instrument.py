@@ -22,6 +22,8 @@ Only positional information is modeled at the moment, and can be accessed throug
 
 import pathlib
 
+from astropy.coordinates import EarthLocation
+from astroplan import Observer
 import astropy.coordinates as coord
 import astropy.time as time
 import imot_tools.math.linalg as pylinalg
@@ -313,7 +315,7 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
     @chk.check(
         dict(XYZ=chk.is_instance(InstrumentGeometry), N_station=chk.allow_None(chk.is_integer))
     )
-    def __init__(self, XYZ, N_station=None):
+    def __init__(self, XYZ, N_station=None, location = None):
         """
         Parameters
         ----------
@@ -325,8 +327,18 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
             Sometimes only a subset of an instrument’s stations are desired.
             Setting `N_station` limits the number of stations to those that appear first in `XYZ`
             when sorted by STATION_ID.
+        location: EarthLocation
+            Location of the instrument
         """
+        self._location = location
         super().__init__(XYZ, N_station)
+
+
+    @property
+    def location(self)-> EarthLocation:
+        if self._location == None:
+            raise NotImplementedError
+        return self._location
 
     @chk.check("time", chk.is_instance(time.Time))
     def __call__(self, time):
@@ -407,12 +419,33 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
         if uvw:
             if field_center is None:
                 raise ValueError('Please provide a field_center for uvw coordinates conversion.')
-            uvw_frame = frame.uvw_basis(field_center)
-            UVW = (uvw_frame.transpose() @ XYZ.transpose()).transpose()
+
+            #uvw_frame = frame.uvw_basis(field_center)
+            #UVW = (uvw_frame.transpose() @ XYZ.transpose()).transpose()
+            UVW = self.UVW(t,field_center)
             baselines = (UVW[:, None, :] - UVW[None, ...])
         else:
             baselines = (XYZ[:, None, :] - XYZ[None, ...])
         return baselines
+
+    def UVW(self,t,field_center):
+
+        site = Observer(location=self.location)
+        ha = site.target_hour_angle(t, field_center).wrap_at("180d")
+        dec = field_center.dec.rad
+
+        x, y, z = np.array(self._layout['X']),np.array(self._layout['Y']), np.array(self._layout['Z'])
+        # Two rotations:
+        #  1. by 'ha' along the z axis
+        #  2. by '90-dec' along the u axis
+        u = x * np.cos(ha) - y * np.sin(ha)
+        v0 = x * np.sin(ha) + y * np.cos(ha)
+        w = z * np.sin(dec) - v0 * np.cos(dec)
+        v = z * np.cos(dec) + v0 * np.sin(dec)
+
+        UVW = np.stack(( u, v, w), axis = -1)
+        #UVW *= -1
+        return UVW
 
     @chk.check(dict(obs_start=chk.is_instance(time.Time), obs_end=chk.is_instance(time.Time)))
     def icrs2bfsf_rot(self, obs_start, obs_end):
@@ -564,6 +597,10 @@ class LofarBlock(EarthBoundInstrumentGeometryBlock):
         XYZ = self._get_geometry(station_only)
         super().__init__(XYZ, N_station)
 
+    @property
+    def location(self)-> EarthLocation:
+        return  EarthLocation(x=3826923.9 * u.m, y=460915.1 * u.m, z=5064643.2 * u.m)
+
     def _get_geometry(self, station_only):
         """
         Load instrument geometry.
@@ -613,6 +650,10 @@ class MwaBlock(EarthBoundInstrumentGeometryBlock):
         """
         XYZ = self._get_geometry(station_only)
         super().__init__(XYZ, N_station)
+
+    @property
+    def location(self)-> EarthLocation:
+        return EarthLocation.of_site('mwa')
 
     def _get_geometry(self, station_only):
         """
@@ -668,3 +709,28 @@ class MwaBlock(EarthBoundInstrumentGeometryBlock):
 
         XYZ = _as_InstrumentGeometry(itrs_geom)
         return XYZ
+
+class SKALowBlock(EarthBoundInstrumentGeometryBlock):
+    """
+    SKA-Low  located in Australia.
+    """
+
+    @chk.check(dict(N_station=chk.allow_None(chk.is_integer), station_only=chk.is_boolean))
+    def __init__(self, N_station=None, station_only=False):
+        """
+        Parameters
+        ----------
+        N_station : int
+            Number of stations to use. (Default = all)
+            Sometimes only a subset of an instrument’s stations are desired.
+            Setting `N_station` limits the number of stations to those that appear first in `XYZ`
+            when sorted by STATION_ID.
+        station_only : bool
+            If :py:obj:`True`, model stations as single-element antennas. (Default = False)
+        """
+        XYZ = self._get_geometry(station_only)
+        super().__init__(XYZ, N_station)
+
+    @property
+    def location(self)-> EarthLocation:
+        return EarthLocation(lon=116.76444824 * u.deg, lat=-26.824722084 * u.deg, height=300.0)
