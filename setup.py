@@ -10,6 +10,15 @@
 Pypeline setup script
 """
 
-from setuptools import setup
+from setuptools import find_packages
+from skbuild import setup
+import os
 
-setup(setup_requires=["pbr"], pbr=True)
+bluebild_gpu = str(os.getenv('BLUEBILD_GPU', 'CUDA'))
+
+setup(setup_requires=["pbr"], pbr=True,
+    packages=(find_packages() + ['bluebild']),
+    package_dir={'bluebild': 'src/bluebild/python/bluebild'},
+    cmake_source_dir='src/bluebild',
+    cmake_args=['-DBLUEBILD_GPU=' + bluebild_gpu],
+)
