@@ -1,12 +1,13 @@
 import casacore.tables as ct
 import astropy.units as u
-import pathlib
+import os
+from pathlib import Path
 
 def examine(filename):
 
 	print("ms file:", filename)
 
-	path = pathlib.Path(filename).absolute()
+	path = Path(filename).absolute()
 
 	if not path.exists():
 	    raise FileNotFoundError(f"{filename} does not exist.")
@@ -24,7 +25,11 @@ def examine(filename):
 	print(freq)
 
 
-ms_files = ["/home/etolley/data/gauss4/gauss4_t201806301100_SBL180.MS"]
+datasets_dir = Path.joinpath(Path(__file__).absolute().parents[1], "datasets")
+if not os.path.isdir(datasets_dir):
+    print(f"Fatal  : datasets_dir {datasets_dir} not existing!")
+
+ms_files = [Path.joinpath(datasets_dir, "gauss4/gauss4_t201806301100_SBL180.MS").as_posix()]
 for m in ms_files: examine(m)
 
 

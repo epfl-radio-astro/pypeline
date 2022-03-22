@@ -8,6 +8,7 @@ use_cupy = bbt_cupy.is_cupy_usable()
 import sys,timing
 import numpy as np
 import scipy.sparse as sparse
+from pathlib import Path
 import imot_tools.io.s2image as image
 import imot_tools.math.sphere.transform as transform
 import astropy.time as atime
@@ -115,7 +116,10 @@ if __name__ == "__main__":
     precision = 32 # 32 or 64
 
     #data = SimulatedDataGen(frequency = 145e6)
-    data = RealDataGen("/work/scitas-share/SKA/data/gauss4/gauss4_t201806301100_SBL180.MS", N_level = 4, N_station = 24) # n level = # eigenimages
+    datasets_dir = Path.joinpath(Path(__file__).absolute().parents[1], "datasets")
+    if not os.path.isdir(datasets_dir):
+        print(f"Fatal  : datasets_dir {datasets_dir} not existing!")
+    data = RealDataGen(Path.joinpath(datasets_dir, "gauss4/gauss4_t201806301100_SBL180.MS").as_posix(), N_level = 4, N_station = 24 ) # n level = # eigenimages
     #data = dummy_synthesis.RandomDataGen()
 
     ################################### 
@@ -163,6 +167,8 @@ if __name__ == "__main__":
 
         # call the Bluebild Synthesis Kernels
         #stats_standard = synthesizer_standard(V,XYZ,W)
+        stats_standard_gpu = synthesizer_standard(V_gpu,XYZ_gpu,W_gpu)
+        stats_standard = stats_standard_gpu#.get()
 
         D_r =  D.reshape(-1, 1, 1)
 

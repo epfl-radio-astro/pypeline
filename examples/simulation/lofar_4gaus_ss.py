@@ -25,6 +25,8 @@ import numpy as np
 import scipy.constants as constants
 import time
 import finufft
+import os
+from pathlib import Path
 
 import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.bluebild.gram as bb_gr
@@ -48,7 +50,10 @@ start_time = time.process_time()
 
 # Instrument
 N_station = 37
-ms_file = "/work/backup/ska/gauss4/gauss4_t201806301100_SBL180.MS"
+datasets_dir = Path.joinpath(Path(__file__).absolute().parents[2], "datasets")
+if not os.path.isdir(datasets_dir):
+    print(f"Fatal  : datasets_dir {datasets_dir} not existing!")
+ms_file = Path.joinpath(datasets_dir, "gauss4/gauss4_t201806301100_SBL180.MS").as_posix()
 ms = measurement_set.LofarMeasurementSet(ms_file, N_station) # stations 1 - N_station 
 gram = bb_gr.GramBlock()
 
@@ -188,7 +193,7 @@ plt.savefig("4gauss_standard_new")
 
 start_interp_time = time.process_time()
 
-cl_WCS = ifits.wcs("/work/backup/ska/gauss4/gauss4-image-pb.fits")
+cl_WCS = ifits.wcs(Path.joinpath(datasets_dir, "gauss4/gauss4-image-pb.fits").as_posix())
 cl_WCS = cl_WCS.sub(['celestial'])
 cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10)))  # downsample, too high res!
 cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame

@@ -1,10 +1,14 @@
 import sys,timing
 import numpy as np
+import os
+from pathlib import Path
 
 import imot_tools.io.s2image as image
 import imot_tools.io.fits as ifits
 import imot_tools.math.sphere.transform as transform
 import astropy.time as atime
+from astropy.io import fits
+import astropy.wcs as pywcs
 
 # plotting
 import matplotlib.pyplot as plt
@@ -18,6 +22,7 @@ import dummy_synthesis
 from dummy_synthesis import synthesize, synthesize_stack
 
 from data_gen_utils import RandomDataGen, SimulatedDataGen, RealDataGen
+
 
 def draw_levels(stats_standard, field_periodic, stats_standard_norm, field_periodic_norm, pix, icrs_grid):
     grid_kwargs = {"ticks": False}
@@ -92,9 +97,13 @@ if __name__ == "__main__":
 
     precision = 32 # 32 or 64
 
+    datasets_dir = Path.joinpath(Path(__file__).absolute().parents[1], "datasets")
+    if not os.path.isdir(datasets_dir):
+        print(f"Fatal  : datasets_dir {datasets_dir} not existing!")
+
     #data = SimulatedDataGen(frequency = 145e6)
-    data = RealDataGen("/home/etolley/data/gauss4/gauss4_t201806301100_SBL180.MS", N_level = 4,  N_station = 37 ) # n level = # eigenimages
-    #data = RealDataGen("/home/etolley/data/gauss2/gauss2_t201806301100_SBL180.MS", N_level = 2)
+    data = RealDataGen(Path.joinpath(datasets_dir, "gauss4/gauss4_t201806301100_SBL180.MS").as_posix(), N_level = 4, N_station = 37 ) # n level = # eigenimages
+    #data = RealDataGen(Path.joinpath(datasets_dir, "gauss2/gauss2_t201806301100_SBL180.MS").as_posix(), N_level = 2, N_station = 37)
 
     doPeriodic = False
     #data = dummy_synthesis.RandomDataGen()
@@ -171,10 +180,8 @@ if __name__ == "__main__":
         #draw_comparison(stats_standard, field_periodic, pix, icrs_grid)
     draw_levels(stats_standard_combined, stats_periodic_combined,
                 stats_standard_normcombined, stats_periodic_normcombined, pix, icrs_grid)
-    from astropy.io import fits
-    import astropy.wcs as pywcs
-    #with fits.open("/home/etolley/data/gauss4/gauss4-image-pb.fits") as hdul:
-    with fits.open("/home/etolley/data/gauss4/C_4gaussian-model.fits") as hdul:
+    
+    with fits.open(Path.joinpath(datasets_dir, "gauss4/C_4gaussian-model.fits").as_posix()) as hdul:
         wcs = pywcs.WCS(hdul[0].header)
         wcs = wcs.sub(['celestial'])
     img_standard = image.Image(stats_standard_combined, pix)

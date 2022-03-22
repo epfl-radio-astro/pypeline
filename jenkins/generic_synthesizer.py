@@ -11,6 +11,7 @@ import dummy_synthesis
 from dummy_synthesis import synthesize, synthesize_stack
 from data_gen_utils import RandomDataGen, SimulatedDataGen, RealDataGen
 import timing
+from pathlib import Path
 
 
 #EO: make it a cl arg
@@ -117,8 +118,11 @@ if __name__ == "__main__":
     precision = 32 # 32 or 64
 
     #data = SimulatedDataGen(frequency = 145e6)
-    MS_file = "/work/scitas-share/SKA/data/gauss4/gauss4_t201806301100_SBL180.MS"
-    data = RealDataGen(MS_file, N_level = 4, N_station = 24) # n level = # eigenimages
+    datasets_dir = Path.joinpath(Path(__file__).absolute().parents[1], "datasets")
+    if not os.path.isdir(datasets_dir):
+        print(f"Fatal  : datasets_dir {datasets_dir} not existing!")
+    ms_file = Path.joinpath(datasets_dir, "gauss4/gauss4_t201806301100_SBL180.MS").as_posix()
+    data = RealDataGen(ms_file, N_level = 4, N_station = 24) # n level = # eigenimages
     #data = dummy_synthesis.RandomDataGen()
 
     timer = timing.Timer()
