@@ -27,6 +27,7 @@ import time
 import finufft
 import os
 from pathlib import Path
+import utils.paths as pypaths
 
 import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.bluebild.gram as bb_gr
@@ -50,9 +51,7 @@ start_time = time.process_time()
 
 # Instrument
 N_station = 37
-datasets_dir = Path.joinpath(Path(__file__).absolute().parents[2], "datasets")
-if not os.path.isdir(datasets_dir):
-    print(f"Fatal  : datasets_dir {datasets_dir} not existing!")
+datasets_dir = pypaths.get_datasets_path()
 ms_file = Path.joinpath(datasets_dir, "gauss4/gauss4_t201806301100_SBL180.MS").as_posix()
 ms = measurement_set.LofarMeasurementSet(ms_file, N_station) # stations 1 - N_station 
 gram = bb_gr.GramBlock()

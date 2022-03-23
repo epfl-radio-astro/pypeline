@@ -15,6 +15,7 @@ import astropy.time as atime
 import matplotlib.pyplot as plt
 import pypeline.phased_array.bluebild.field_synthesizer.fourier_domain as synth_periodic
 import pypeline.phased_array.bluebild.field_synthesizer.spatial_domain as synth_standard
+import utils.paths as pypaths
 import dummy_synthesis 
 from dummy_synthesis import synthesize, synthesize_stack
 from data_gen_utils import RandomDataGen, SimulatedDataGen, RealDataGen
@@ -114,11 +115,8 @@ if __name__ == "__main__":
     ###### make simulated dataset ###### 
 
     precision = 32 # 32 or 64
-
+    datasets_dir = pypaths.get_datasets_path()
     #data = SimulatedDataGen(frequency = 145e6)
-    datasets_dir = Path.joinpath(Path(__file__).absolute().parents[1], "datasets")
-    if not os.path.isdir(datasets_dir):
-        print(f"Fatal  : datasets_dir {datasets_dir} not existing!")
     data = RealDataGen(Path.joinpath(datasets_dir, "gauss4/gauss4_t201806301100_SBL180.MS").as_posix(), N_level = 4, N_station = 24 ) # n level = # eigenimages
     #data = dummy_synthesis.RandomDataGen()
 

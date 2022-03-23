@@ -18,6 +18,7 @@ import numpy as np
 import scipy.constants as constants
 import os
 from pathlib import Path
+import utils.paths as pypaths
 
 import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.bluebild.gram as bb_gr
@@ -29,9 +30,7 @@ import pypeline.phased_array.measurement_set as measurement_set
 
 # Instrument
 N_station = 24
-datasets_dir = Path.joinpath(Path(__file__).absolute().parents[1], "datasets")
-if not os.path.isdir(datasets_dir):
-    print(f"Fatal  : datasets_dir {datasets_dir} not existing!")
+datasets_dir = pypaths.get_datasets_path()
 ms_file = Path.joinpath(datasets_dir, "gauss4/gauss4_t201806301100_SBL180.MS").as_posix()
 ms = measurement_set.LofarMeasurementSet(ms_file, N_station)
 gram = bb_gr.GramBlock()

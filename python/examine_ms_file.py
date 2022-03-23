@@ -2,6 +2,7 @@ import casacore.tables as ct
 import astropy.units as u
 import os
 from pathlib import Path
+import utils.paths as pypaths
 
 def examine(filename):
 
@@ -25,10 +26,7 @@ def examine(filename):
 	print(freq)
 
 
-datasets_dir = Path.joinpath(Path(__file__).absolute().parents[1], "datasets")
-if not os.path.isdir(datasets_dir):
-    print(f"Fatal  : datasets_dir {datasets_dir} not existing!")
-
+datasets_dir = pypaths.get_datasets_path()
 ms_files = [Path.joinpath(datasets_dir, "gauss4/gauss4_t201806301100_SBL180.MS").as_posix()]
 for m in ms_files: examine(m)
 

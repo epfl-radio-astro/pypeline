@@ -1,7 +1,7 @@
 import sys,timing
 import numpy as np
-import os
 from pathlib import Path
+import utils.paths as pypaths
 
 import imot_tools.io.s2image as image
 import imot_tools.io.fits as ifits
@@ -96,11 +96,7 @@ if __name__ == "__main__":
     ###### make simulated dataset ###### 
 
     precision = 32 # 32 or 64
-
-    datasets_dir = Path.joinpath(Path(__file__).absolute().parents[1], "datasets")
-    if not os.path.isdir(datasets_dir):
-        print(f"Fatal  : datasets_dir {datasets_dir} not existing!")
-
+    datasets_dir = pypaths.get_datasets_path()
     #data = SimulatedDataGen(frequency = 145e6)
     data = RealDataGen(Path.joinpath(datasets_dir, "gauss4/gauss4_t201806301100_SBL180.MS").as_posix(), N_level = 4, N_station = 37 ) # n level = # eigenimages
     #data = RealDataGen(Path.joinpath(datasets_dir, "gauss2/gauss2_t201806301100_SBL180.MS").as_posix(), N_level = 2, N_station = 37)
