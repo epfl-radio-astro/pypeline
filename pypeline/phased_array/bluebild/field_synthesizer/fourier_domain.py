@@ -508,10 +508,16 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         self._precision = precision
         UVW = np.array(UVW, copy=False)
         self._UVW = (2 * np.pi * UVW.reshape(3, -1) / wl).astype(self._precision_mappings[self._precision]['real'])
-        self._grid_size = grid_size
         self._FoV = FoV
         self._field_center = field_center
-        self.lmn_grid, self.xyz_grid = self._make_grids()
+        if(w_term and type(grid_size) != int):
+            uvw_frame = frame.uvw_basis(self._field_center)
+            self.xyz_grid = grid_size       # pass a grid instead of calculating it
+            self.lmn_grid = np.tensordot(np.linalg.inv(uvw_frame), self.xyz_grid, axes=1)
+        else:
+            self._grid_size = grid_size
+            self.lmn_grid, self.xyz_grid = self._make_grids()
+
         self._lmn_grid = self.lmn_grid.reshape(3, -1).astype(self._precision_mappings[self._precision]['real'])
         self._n_trans = n_trans
         if w_term:
