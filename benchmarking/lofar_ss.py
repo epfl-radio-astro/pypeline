@@ -12,7 +12,6 @@ from tqdm import tqdm as ProgressBar
 import astropy.units as u
 from imot_tools.io import fits as ifits, s2image
 import numpy as np
-import cupy as cp
 import scipy.constants as constants
 
 from pypeline.phased_array.bluebild import gram as bb_gr, data_processor as bb_dp, parameter_estimator as bb_pe
@@ -27,6 +26,7 @@ warnings.filterwarnings('ignore', category=UserWarning, append=True)
 warnings.simplefilter('ignore', category=AstropyWarning)
 
 t = Timer()
+xp = bbt_cupy.cupy if use_cupy else np
 
 time_slice = 100
 N_station = 60
@@ -118,9 +118,9 @@ for i_t, ti in enumerate(ProgressBar(time)):
     
     t.start_time("Standard Synthesis")
     if(use_cupy):
-        XYZ_gpu = cp.asarray(XYZ.data)
-        W_gpu  = cp.asarray(W.data.toarray())
-        V_gpu  = cp.asarray(V)
+        XYZ_gpu = xp.asarray(XYZ.data)
+        W_gpu  = xp.asarray(W.data)
+        V_gpu  = xp.asarray(V)
         _ = I_mfs_ss(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
     else:
         _ = I_mfs_ss(D, V, XYZ.data, W.data, c_idx)
@@ -160,9 +160,9 @@ for i_t, ti in enumerate(ProgressBar(time)):
     D, V = S_dp(G)
 
     if(use_cupy):
-        XYZ_gpu = cp.asarray(XYZ.data)
-        W_gpu  = cp.asarray(W.data.toarray())
-        V_gpu  = cp.asarray(V)
+        XYZ_gpu = xp.asarray(XYZ.data)
+        W_gpu  = xp.asarray(W.data)
+        V_gpu  = xp.asarray(V)
         _ = S_mfs_ss(D, V_gpu, XYZ_gpu, W_gpu, cluster_idx=np.zeros(N_eig, dtype=int))
     else:
         _ = S_mfs_ss(D, V, XYZ, W, cluster_idx=np.zeros(N_eig, dtype=int))

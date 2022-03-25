@@ -12,7 +12,6 @@ from tqdm import tqdm as ProgressBar
 import astropy.units as u
 from imot_tools.io import fits as ifits, s2image
 import numpy as np
-import cupy as cp
 import scipy.constants as constants
 
 from pypeline.phased_array.bluebild import data_processor as bb_dp, gram as bb_gr
@@ -27,6 +26,7 @@ warnings.filterwarnings('ignore', category=UserWarning, append=True)
 warnings.simplefilter('ignore', category=AstropyWarning)
 
 t = Timer()
+xp = bbt_cupy.cupy if use_cupy else np
 
 time_slice = 100
 N_station = 60
