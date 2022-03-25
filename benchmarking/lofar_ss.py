@@ -5,6 +5,9 @@
 # Simulated LOFAR imaging with Bluebild (Standard).
 # #############################################################################
 
+import bluebild_tools.cupy_util as bbt_cupy
+use_cupy = bbt_cupy.is_cupy_usable()
+
 from tqdm import tqdm as ProgressBar
 import astropy.units as u
 from imot_tools.io import fits as ifits, s2image
