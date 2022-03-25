@@ -28,7 +28,6 @@ warnings.simplefilter('ignore', category=AstropyWarning)
 
 t = Timer()
 
-gpu = True
 time_slice = 100
 N_station = 60
 N_level = 4
@@ -166,11 +165,6 @@ for i_t, ti in enumerate(ProgressBar(time)):
     W = ms.beamformer(XYZ, wl)
     G = gram(XYZ, W, wl)
     D, V = S_dp(G)
-
-    if(gpu):
-        XYZ_gpu = cp.asarray(XYZ.data)
-        W_gpu  = cp.asarray(W.data.toarray())
-        V_gpu  = cp.asarray(V)
 
     S_sensitivity = SV_dp(D, V, W, cluster_idx=np.zeros(N_eig, dtype=int))  # (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
     sensitivity_coeffs.append(S_sensitivity)
