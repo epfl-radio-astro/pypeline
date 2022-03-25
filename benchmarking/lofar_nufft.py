@@ -29,7 +29,7 @@ t = Timer()
 xp = bbt_cupy.cupy if use_cupy else np
 
 time_slice = 100
-N_station = 60
+N_station = 24
 N_level = 4
 
 fname_prefix = 'lofar30MHz1'
