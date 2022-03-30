@@ -111,6 +111,19 @@ if(NOT TARGET LAPACK::LAPACK)
 endif()
 list(APPEND BLUEBILD_EXTERNAL_LIBS LAPACK::LAPACK)
 
+find_package(FINUFFT REQUIRED)
+list(APPEND BLUEBILD_EXTERNAL_LIBS FINUFFT::finufft)
+# finufft has fftw in interface headers
+find_package(FFTW REQUIRED)
+find_package(FFTWF REQUIRED)
+list(APPEND BLUEBILD_EXTERNAL_LIBS FFTW::FFTW FFTWF::FFTWF)
+
+
+if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
+	find_package(CUFINUFFT REQUIRED)
+	list(APPEND BLUEBILD_EXTERNAL_LIBS CUFINUFFT::cufinufft)
+endif()
+
 # check if C api is available for blas and lapack
 # include(CheckCXXSymbolExists)
 set(CMAKE_REQUIRED_LIBRARIES ${BLUEBILD_EXTERNAL_LIBS})

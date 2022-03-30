@@ -3,6 +3,7 @@
 
 #include "bluebild/bluebild.h"
 #include "bluebild/config.h"
+#include "bluebild/context.hpp"
 #include "memory/buffer.hpp"
 #include "context_internal.hpp"
 #include "host/gram_matrix_host.hpp"
@@ -89,9 +90,10 @@ BLUEBILD_EXPORT BluebildError bluebild_gram_matrix_s(BluebildContext ctx, int m,
     return BLUEBILD_INVALID_HANDLE_ERROR;
   }
   try {
-    gram_matrix<float>(*reinterpret_cast<ContextInternal*>(ctx), m, n,
-                       reinterpret_cast<const std::complex<float>*>(w), ldw, xyz, ldxyz, wl,
-                       reinterpret_cast<std::complex<float>*>(g), ldg);
+    gram_matrix<float>(
+        *InternalContextAccessor::get(*reinterpret_cast<Context *>(ctx)), m, n,
+        reinterpret_cast<const std::complex<float> *>(w), ldw, xyz, ldxyz, wl,
+        reinterpret_cast<std::complex<float> *>(g), ldg);
   } catch (const bluebild::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -107,9 +109,10 @@ BLUEBILD_EXPORT BluebildError bluebild_gram_matrix_d(BluebildContext ctx, int m,
     return BLUEBILD_INVALID_HANDLE_ERROR;
   }
   try {
-    gram_matrix<double>(*reinterpret_cast<ContextInternal*>(ctx), m, n,
-                        reinterpret_cast<const std::complex<double>*>(w), ldw, xyz, ldxyz, wl,
-                        reinterpret_cast<std::complex<double>*>(g), ldg);
+    gram_matrix<double>(
+        *InternalContextAccessor::get(*reinterpret_cast<Context *>(ctx)), m, n,
+        reinterpret_cast<const std::complex<double> *>(w), ldw, xyz, ldxyz, wl,
+        reinterpret_cast<std::complex<double> *>(g), ldg);
   } catch (const bluebild::GenericError& e) {
     return e.error_code();
   } catch (...) {

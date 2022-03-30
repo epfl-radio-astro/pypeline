@@ -186,6 +186,30 @@ _bluebild_gram_matrix_d.argtypes = [
 _bluebild_gram_matrix_d.restypes = c_int
 
 
+_bluebild_nufft3d3_create_s = _bluebild_lib.bluebild_nufft3d3_create_s
+_bluebild_nufft3d3_create_s.argtypes = [c_void_p, c_int, c_float, c_int, c_int, c_void_p, c_void_p, c_void_p, c_int, c_void_p, c_void_p, c_void_p, ctypes.POINTER(c_void_p)]
+_bluebild_nufft3d3_create_s.restypes = c_int
+
+_bluebild_nufft3d3_destroy_s = _bluebild_lib.bluebild_nufft3d3_destroy_s
+_bluebild_nufft3d3_destroy_s.argtypes = [ctypes.POINTER(c_void_p)]
+_bluebild_nufft3d3_destroy_s.restypes = c_int
+
+_bluebild_nufft3d3_execute_s = _bluebild_lib.bluebild_nufft3d3_execute_s
+_bluebild_nufft3d3_execute_s.argtypes = [c_void_p, c_void_p, c_void_p]
+_bluebild_nufft3d3_execute_s.restypes = c_int
+
+_bluebild_nufft3d3_create_d = _bluebild_lib.bluebild_nufft3d3_create_d
+_bluebild_nufft3d3_create_d.argtypes = [c_void_p, c_int, c_double, c_int, c_int, c_void_p, c_void_p, c_void_p, c_int, c_void_p, c_void_p, c_void_p, ctypes.POINTER(c_void_p)]
+_bluebild_nufft3d3_create_d.restypes = c_int
+
+_bluebild_nufft3d3_destroy_d = _bluebild_lib.bluebild_nufft3d3_destroy_d
+_bluebild_nufft3d3_destroy_d.argtypes = [ctypes.POINTER(c_void_p)]
+_bluebild_nufft3d3_destroy_d.restypes = c_int
+
+_bluebild_nufft3d3_execute_d = _bluebild_lib.bluebild_nufft3d3_execute_d
+_bluebild_nufft3d3_execute_d.argtypes = [c_void_p, c_void_p, c_void_p]
+_bluebild_nufft3d3_execute_d.restypes = c_int
+
 class ProcessingUnit(IntEnum):
     AUTO = 0
     CPU = 1
@@ -442,4 +466,66 @@ class Context:
         if ier != 0:
             raise RuntimeError("Bluebild: Failed to execute.")
         return G
+
+
+
+class Nufft3d3:
+    def __init__(self, iflag, tol, num_trans, x, y, z, s, t, u, ctx=Context()):
+        self.plan = ctypes.c_void_p(None)
+        if x.dtype == np.float32:
+            self.dtype = np.float32
+        else:
+            self.dtype = np.float64
+
+        self.M = x.shape[0]
+        self.N = s.shape[0]
+        self.num_trans = num_trans
+
+        if x.strides[0] != x.itemsize or x.dtype != self.dtype:
+            x = np.array(x, dtype=self.dtype)
+        if y.strides[0] != y.itemsize or y.dtype != self.dtype:
+            y = np.array(y, dtype=self.dtype)
+        if z.strides[0] != z.itemsize or z.dtype != self.dtype:
+            z = np.array(z, dtype=self.dtype)
+        if s.strides[0] != s.itemsize or s.dtype != self.dtype:
+            s = np.array(s, dtype=self.dtype)
+        if t.strides[0] != t.itemsize or t.dtype != self.dtype:
+            t = np.array(t, dtype=self.dtype)
+        if u.strides[0] != u.itemsize or u.dtype != self.dtype:
+            u = np.array(u, dtype=self.dtype)
+
+        if self.dtype == np.float32:
+            ier = _bluebild_nufft3d3_create_s(ctx.ctx, iflag, tol, num_trans, self.M, x.ctypes.data,
+                    y.ctypes.data, z.ctypes.data, self.N, s.ctypes.data, t.ctypes.data, u.ctypes.data, ctypes.byref(self.plan))
+        else:
+            ier = _bluebild_nufft3d3_create_d(ctx.ctx, iflag, tol, num_trans, self.M, x.ctypes.data,
+                    y.ctypes.data, z.ctypes.data, self.N, s.ctypes.data, t.ctypes.data, u.ctypes.data, ctypes.byref(self.plan))
+        if ier != 0:
+            raise RuntimeError("Bluebild: Failed to create nufft3d3 plan.")
+
+    def __del__(self):
+        if self.plan:
+            if self.dtype == np.float32:
+                ier = _bluebild_nufft3d3_destroy_s(ctypes.byref(self.plan))
+            else:
+                ier = _bluebild_nufft3d3_destroy_d(ctypes.byref(self.plan))
+
+            if ier != 0:
+                raise RuntimeError("Bluebild: Failed to destroy nufft3d3 plan.")
+
+    def execute(self, cj):
+        c_dtype = np.complex64 if self.dtype == np.float32 else np.complex128
+        fk = np.empty(self.N * self.num_trans, dtype=c_dtype)
+
+        if cj.dtype != c_dtype or cj.strides[0] != cj.itemsize:
+            cj = np.array(cj, dtype=c_dtype, order='F')
+
+        if c_dtype == np.complex64:
+            ier = _bluebild_nufft3d3_execute_s(self.plan, cj.ctypes.data, fk.ctypes.data)
+        else:
+            ier = _bluebild_nufft3d3_execute_d(self.plan, cj.ctypes.data, fk.ctypes.data)
+
+        if ier != 0:
+            raise RuntimeError("Bluebild: Failed to execute nufft3d3 plan.")
+        return fk
 

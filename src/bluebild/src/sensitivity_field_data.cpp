@@ -3,6 +3,7 @@
 
 #include "bluebild/bluebild.h"
 #include "bluebild/config.h"
+#include "bluebild/context.hpp"
 #include "context_internal.hpp"
 #include "memory/buffer.hpp"
 #include "host/sensitivity_field_data_host.hpp"
@@ -112,9 +113,10 @@ BLUEBILD_EXPORT BluebildError bluebild_sensitivity_field_data_s(BluebildContext 
     return BLUEBILD_INVALID_HANDLE_ERROR;
   }
   try {
-    sensitivity_field_data<float>(*reinterpret_cast<ContextInternal*>(ctx), wl, m, n, nEig,
-                                      reinterpret_cast<const std::complex<float>*>(w), ldw, xyz,
-                                      ldxyz, d, reinterpret_cast<std::complex<float>*>(v), ldv);
+    sensitivity_field_data<float>(
+        *InternalContextAccessor::get(*reinterpret_cast<Context *>(ctx)), wl, m,
+        n, nEig, reinterpret_cast<const std::complex<float> *>(w), ldw, xyz,
+        ldxyz, d, reinterpret_cast<std::complex<float> *>(v), ldv);
   } catch (const bluebild::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -132,9 +134,10 @@ BLUEBILD_EXPORT BluebildError bluebild_sensitivity_field_data_d(BluebildContext 
     return BLUEBILD_INVALID_HANDLE_ERROR;
   }
   try {
-    sensitivity_field_data<double>(*reinterpret_cast<ContextInternal*>(ctx), wl, m, n, nEig,
-                                       reinterpret_cast<const std::complex<double>*>(w), ldw, xyz,
-                                       ldxyz, d, reinterpret_cast<std::complex<double>*>(v), ldv);
+    sensitivity_field_data<double>(
+        *InternalContextAccessor::get(*reinterpret_cast<Context *>(ctx)), wl, m,
+        n, nEig, reinterpret_cast<const std::complex<double> *>(w), ldw, xyz,
+        ldxyz, d, reinterpret_cast<std::complex<double> *>(v), ldv);
   } catch (const bluebild::GenericError& e) {
     return e.error_code();
   } catch (...) {
