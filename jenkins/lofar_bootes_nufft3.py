@@ -9,7 +9,6 @@ Simulation LOFAR imaging with Bluebild (NUFFT).
 """
 
 import os, sys, argparse
-#from tqdm import tqdm as ProgressBar
 import astropy.units as u
 import astropy.coordinates as coord
 import astropy.time as atime
@@ -22,7 +21,6 @@ from imot_tools.io.plot import cmap
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.bluebild.gram as bb_gr
-#import pypeline.phased_array.bluebild.field_synthesizer.fourier_domain as bb_synth
 import pypeline.phased_array.bluebild.imager.fourier_domain as bb_im
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.data_gen.source as source
@@ -82,14 +80,14 @@ vis = statistics.VisibilityGeneratorBlock(sky_model, T_integration, fs=196000, S
 time = obs_start + (T_integration * u.s) * np.arange(3595)
 obs_end = time[-1]
 
-# Imaging Parameters
+# Imaging parameters
 N_pix = 512
 N_level = 3
 precision = 'single'
 time_slice = 200
 eps = 1e-3
 w_term = True
-print("\nImaging Parameters")
+print("\nImaging parameters")
 print(f'N_pix {N_pix}\nN_level {N_level}\nprecision {precision}')
 print(f'time_slice {time_slice}\neps {eps}\nw_term {w_term}\n')
 
@@ -99,7 +97,6 @@ t1 = tt.time()
 # Parameter Estimation
 ifpe_s = tt.time()
 I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=0.95)
-#for t in ProgressBar(time[::200]):
 for t in time[::200]:
     XYZ = dev(t)
     W = mb(XYZ, wl)
@@ -118,8 +115,7 @@ IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq', 'sqr
 UVW_baselines = []
 gram_corrected_visibilities = []
 
-#for t in ProgressBar(time[::time_slice]):
-for t in time[::time_slice]: 
+for t in time[::time_slice]:
     XYZ = dev(t)
     UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
     UVW_baselines.append(UVW_baselines_t)
@@ -158,7 +154,6 @@ print(f"#@#IFIM {ifim_e-ifim_s:.3f} sec")
 # Parameter Estimation
 sfpe_s = tt.time()
 S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=0.95)
-#for t in ProgressBar(time[::200]):
 for t in time[::200]:
     XYZ = dev(t)
     W = mb(XYZ, wl)
@@ -174,7 +169,7 @@ sfim_s = tt.time()
 S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
 SV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq',))
 sensitivity_coeffs = []
-for t in time[::time_slice]: #ProgressBar(time[::time_slice]):
+for t in time[::time_slice]:
     XYZ = dev(t)
     W = mb(XYZ, wl)
     G = gram(XYZ, W, wl)
@@ -210,10 +205,9 @@ plt.figure()
 ax = plt.gca()
 I_lsq_eq.draw(catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'), show_gridlines=False, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5))
 ax.set_title(f'Bluebild least-squares, sensitivity-corrected image (NUFFT)\n'
-             f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180/np.pi)} degrees.\n'
+             f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180 / np.pi)} degrees.\n'
              f'Run time {np.floor(t2 - t1)} seconds.')
-
-fp = "test_nufft3"
+fp = "I_lsq_nufft3.png"
 if args.outdir:
     fp = os.path.join(args.outdir, fp)
 plt.savefig(fp)
@@ -224,6 +218,10 @@ I_sqrt_eq.draw(catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'
 ax.set_title(f'Bluebild sqrt, sensitivity-corrected image (NUFFT)\n'
              f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180 / np.pi)} degrees.\n'
              f'Run time {np.floor(t2 - t1)} seconds.')
+fp = "I_sqrt_nufft3.png"
+if args.outdir:
+    fp = os.path.join(args.outdir, fp)
+plt.savefig(fp)
 
 plt.figure()
 titles = ['Strong sources', 'Mild sources', 'Faint Sources']
@@ -234,3 +232,7 @@ for i in range(lsq_image.shape[0]):
     I_lsq_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'),
                   catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5), show_gridlines=False)
 plt.suptitle(f'Bluebild Eigenmaps')
+fp = "final_bb.png"
+if args.outdir:
+    fp = os.path.join(args.outdir, fp)
+plt.savefig(fp)

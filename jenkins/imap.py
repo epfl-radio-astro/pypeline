@@ -8,79 +8,37 @@ import matplotlib.font_manager as font_manager
 import getopt
 import math
 import imot_tools.io.s2image as image
+import monitoring
 
 
-def scan(dir, ignore_upto):
-    builds = {}
-    with os.scandir(dir) as it:
-        for entry in it:
-            if not entry.name.startswith('.') and entry.is_dir() and re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z_\d+", entry.name):
-                #print(entry.name)
-                info = re.split('T|Z_', entry.name)
-                build = int(info[2])
-                if build > ignore_upto:
-                    builds[build] = [info[0], info[1], entry.name, tts.copy()]
-    return builds
+def np_load(filepath):
+    if not os.path.isfile(filepath):
+        print(f"Fatal  : file {filepath} not found!")
+        sys.exit(1)
+    with open(filepath, 'rb') as f:
+        img = np.load(f, allow_pickle=True)
+    return img
 
 
-def main(argv):
-
-    indir  = ''
-    outdir = ''
-    refdir = ''
-    lastb  = -1
-    fstat  = ''
-    fromb  = 0
-
-    try:
-        opts, args = getopt.getopt(argv[1:], "hi:o:b:f:r:s:")
-    except getopt.GetoptError as e:
-        print('Error:', e)
-        print(f'{argv[0]} -i </path/to/input/directory> -r </path/to/reference/directory> -o </path/to/output/directory> [-b <last build id>]')
+def check_images_shapes(img1, img2):
+    if np.shape(img1) != np.shape(img2):
+        print(f"Fatal  : Trying to compare images of different shapes ({np.shape(img1)} vs {np.shape(img2)}.")
         sys.exit(1)
 
-    for opt, arg in opts:
-        if opt == '-h':
-            print(f'{argv[0]} -i </path/to/input/directory> -r </path/to/reference/directory> -o </path/to/output/directory> -b <last build id> -f </path/to/filestat')
-            sys.exit(1)
-        elif opt == '-i':
-            indir = arg
-        elif opt in '-o':
-            outdir = arg
-        elif opt in '-b':
-            lastb = int(arg)
-        elif opt in '-f':
-            fstat = arg
-        elif opt in '-r':
-            refdir = arg
-        elif opt in '-s':
-            fromb = int(arg)
-
-    if indir == '':
-        print(f'Fatal: argument -i </path/to/input/directory> not found.')
-        sys.exit(1)
-    if outdir == '':
-        print(f'Fatal: argument -o </path/to/output/directory> not found.')
-        sys.exit(1)
-    if refdir == '':
-        print(f'Fatal: argument -r </path/to/reference/directory> not found.')
-        sys.exit(1)
-    if fstat == '':
-        print(f'Fatal: argument -f </path/to/filestat> not found.')
+def check_grids_definitions(grd1, grd2):
+    #if not np.array_equal(grd1, grd2):
+    if not np.isclose(grd1, grd2, atol=1e-6).any():
+        print(f"Fatal  : Grids from both solutions must be the same.")
         sys.exit(1)
 
-    print(f"indir  is {indir}")
-    print(f"outdir is {outdir}")
-    print(f"refdir is {refdir}")
-    print(f"fstat  is {fstat}")
-    print(f"fromb  is {fromb}")
+def plot(plot, args):
 
+    fstats = open(args.stat_file, 'w')
+    print(f"Writing statistics to file {args.stat_file}")
 
-    fstats = open(fstat, 'w')
-    print(f"Writing statistics to file {fstat}")
+    builds = monitoring.scan(args.input_directory, args.ignore_up_to)
 
-
-    builds = scan(indir, fromb)
+    sols = plot['sols']
 
     # Issue warning if expected lastb solution is missing or if stats exceed threshold
 
@@ -89,55 +47,41 @@ def main(argv):
         print(f"\n##### {sol}")
 
         # Reference image and grid (if any)
-        file_iref = os.path.join(refdir, sols.get(sol).directory, sols.get(sol).refname)
-        print(f"image reference: {file_iref}")
-        if not os.path.isfile(file_iref):
-            print(f"Fatal. Reference solution {file_iref} not found!")
-            sys.exit(1)
-        with open(file_iref, 'rb') as f:
-            iref = np.load(f, allow_pickle=True)
-                    
-        file_gref = os.path.join(refdir, sols.get(sol).directory, sols.get(sol).refgrid)
-        if not os.path.isfile(file_gref):
-            print(f"Fatal. Reference grid {file_gref} not found!")
-            sys.exit(1)
-        with open(file_gref, 'rb') as f:
-            gref = np.load(f, allow_pickle=True)
+        file_iref = os.path.join(args.reference_directory, sols.get(sol).directory, sols.get(sol).refname)
+        file_gref = os.path.join(args.reference_directory, sols.get(sol).directory, sols.get(sol).refgrid)
+        iref = np_load(file_iref)
+        gref = np_load(file_gref)
 
+        # Solution image and grid (emit warning if missing)
+        file_isol = os.path.join(args.input_directory, builds.get(args.last_build)[2], sols.get(sol).directory, sols.get(sol).filename)
+        file_gsol = os.path.join(args.input_directory, builds.get(args.last_build)[2], sols.get(sol).directory, sols.get(sol).gridname)
 
-        # Solution image and grid
-        file_isol = os.path.join(indir, builds.get(lastb)[2], sols.get(sol).directory, sols.get(sol).filename)
-        print(f"image solution: {file_isol}")
+        # Warnings to be recovered by Jenkins to notify Slack channel
         if not os.path.isfile(file_isol):
             msg = f"{sol} solution map {file_isol} not found. _WARNING_"
             fstats.write(msg + "\n")
             print(msg)
             continue
-        with open(file_isol, 'rb') as f:
-            isol = np.load(f, allow_pickle=True)
 
-        file_gsol = os.path.join(indir, builds.get(lastb)[2], sols.get(sol).directory, sols.get(sol).gridname)
         if not os.path.isfile(file_gsol):
             msg = f"{sol} solution grid {file_gsol} not found. _WARNING_"
             fstats.write(msg + "\n")
             print(msg)
             continue
-        with open(file_gsol, 'rb') as f:
-            gsol = np.load(f, allow_pickle=True)
+
+        # Load only if file paths do exist
+        isol = np_load(file_isol)
+        gsol = np_load(file_gsol)
+
+        print(f"image reference: {file_iref}")
+        print(f"image solution : {file_isol}")
+        print("Shape of iref: ", iref.shape)
+        print("Shape of isol: ", isol.shape)
+        print("Shape of gref: ", gref.shape)
+        print("Shape of gsol: ", gsol.shape)
         
-        print("Shape of iref = ", iref.shape)
-        print("Shape of isol = ", isol.shape)
-        print("Shape of gref = ", gref.shape)
-        print("Shape of gsol = ", gsol.shape)
-
-        if np.shape(iref) != np.shape(isol):
-            print(f"Fatal. Similar i shapes expected iref is {np.shape(iref)} whereas isol is {np.shape(isol)}.")
-            sys.exit(1)
-
-        # Ref and img grid must be the same
-        if not np.array_equal(gref, gsol):
-            print(f"Fatal. Grids for iref and isol must be the same.")
-            sys.exit(1)
+        check_images_shapes(iref, isol)
+        check_grids_definitions(gref, gsol)
 
         img_ref  = image.Image(iref, gref)
         img_sol  = image.Image(isol, gref)
@@ -161,57 +105,107 @@ def main(argv):
         if sols.get(sol).show_gridlines == 0:
             show_gridlines = False
         img_sol.draw(ax=ax[0], data_kwargs = {"cmap": "GnBu_r"}, show_gridlines=show_gridlines, grid_kwargs = grid_kwargs)
-        ax[0].set_title("build " + str(lastb))
+        ax[0].set_title("build " + str(args.last_build))
         img_ref.draw(ax=ax[1], data_kwargs = {"cmap": "GnBu_r"}, show_gridlines=show_gridlines, grid_kwargs = grid_kwargs)
         ax[1].set_title("Reference")
         img_diff.draw(ax=ax[2], data_kwargs = {"cmap": color_diff}, show_gridlines=show_gridlines, grid_kwargs = grid_kwargs)
-        ax[2].set_title("Difference")
-        fig.suptitle(sols.get(sol).label + "\n\n" + sols.get(sol).directory, fontsize=20, y=0.9)
+        ax[2].set_title(f"Difference RMSE = {rmse:.3f}")
+        fig.suptitle(sols.get(sol).label, fontsize=20, y=0.8)
         plt.show()
-        fig.savefig(os.path.join(outdir, sol + ".png"))
+        fig.savefig(os.path.join(args.output_directory, sol + ".png"))
 
     fstats.close()
 
 
+def compare_one_solution_to_another(Solutions, sol1_name, build1, sol2_name, build2):
+
+    sol1 = Solutions[sol1_name]
+    sol2 = Solutions[sol2_name]
+
+    print(f"\nComparing [{sol1.label} / {build1}] to [{sol2.label} / {build2}]")
+    builds = monitoring.scan(args.input_directory, args.ignore_up_to)
+    file_isol1 = os.path.join(args.input_directory, builds.get(build1)[2], sol1.directory, sol1.filename)
+    file_gsol1 = os.path.join(args.input_directory, builds.get(build1)[2], sol1.directory, sol1.gridname)
+    file_isol2 = os.path.join(args.input_directory, builds.get(build2)[2], sol2.directory, sol2.filename)
+    file_gsol2 = os.path.join(args.input_directory, builds.get(build2)[2], sol2.directory, sol2.gridname)
+    print(f"Info   : {file_isol1}")
+    print(f"Info   : {file_isol2}")
+    isol1 = np_load(file_isol1)
+    gsol1 = np_load(file_gsol1)
+    isol2 = np_load(file_isol2)
+    gsol2 = np_load(file_gsol2)
+    check_images_shapes(isol1, isol2)
+    check_grids_definitions(gsol1, gsol2)
+    img1 = image.Image(isol1, gsol1)
+    img2 = image.Image(isol2, gsol2)
+    img_diff = image.Image(isol2 - isol1, gsol1)
+    rmse = np.sqrt(((img_diff.data) ** 2).mean())
+
+    # Produce a plot img ref diff
+    fig, ax = plt.subplots(1, 3, figsize=(11.7, 8.3))
+    fig.tight_layout(rect=(0,0,0.95,0.95))
+    grid_kwargs = {"ticks": False}
+    color_diff = "RdBu"
+    show_gridlines = True
+    if sol1.show_gridlines == 0 : show_gridlines = False
+    img1.draw(ax=ax[0], data_kwargs = {"cmap": "GnBu_r"}, show_gridlines=show_gridlines, grid_kwargs = grid_kwargs)
+    ax[0].set_title(sol1.label + "\n\n" + "build " + str(build1))
+    img2.draw(ax=ax[1], data_kwargs = {"cmap": "GnBu_r"}, show_gridlines=show_gridlines, grid_kwargs = grid_kwargs)
+    ax[1].set_title(sol2.label + "\n\n" + "build " + str(build2))
+    img_diff.draw(ax=ax[2], data_kwargs = {"cmap": color_diff}, show_gridlines=show_gridlines, grid_kwargs = grid_kwargs)
+    ax[2].set_title(f"Difference\n\nRMSE = {rmse:.3f}")
+    plt.show()
+    figname = 'img_' + sol1_name + "_" + str(build1) + "_vs_" + sol2_name + "_" + str(build2)
+    fig.savefig(os.path.join(args.output_directory, figname + ".png"))
+
+
 if __name__ == "__main__":
 
-    tts = {}
+    args = monitoring.check_cl_arguments()
 
-    # Define matrix of solutions to monitor for image differences
-    #TODO@EO: should be defined separatly to be shared with tts.py
-    Solution = collections.namedtuple('Solution', ['directory', 'label', 'filename', 'refname',
-                                                   'gridname', 'refgrid', 'show_gridlines'])
+    if args.reference_directory == None:
+        print("Error  : you must pass a reference directory when using ", sys.argv[0])
 
-    SC   = Solution(directory='test_standard_cpu', label='Standard Synthesizer - CPU',
-                    filename='stats_combined.npy', gridname='grid.npy', refname='stats_combined.npy', refgrid='grid.npy',
-                    show_gridlines=1)
-    
-    SG   = Solution(directory='test_standard_gpu', label='Standard Synthesizer - GPU', 
-                    filename='stats_combined.npy', gridname='grid.npy', refname='stats_combined.npy', refgrid='grid.npy',
-                    show_gridlines=1)
-    
-    LBSS = Solution(directory='lofar_bootes_ss', label='Lofar Bootes SS - intensity field imaging',
-                    filename='I_lsq_eq_data.npy', gridname='I_lsq_eq_grid.npy', refname='I_lsq_eq_data.npy', refgrid='I_lsq_eq_grid.npy',
-                    show_gridlines=0)
+    Solutions = monitoring.define_solutions()
 
-    LBN  = Solution(directory='lofar_bootes_nufft_small_fov', label='Bluebild least-squares, sensitivity-corrected image (NUFFT)',
-                    filename='I_lsq_eq_data.npy', gridname='I_lsq_eq_grid.npy', refname='I_lsq_eq_data.npy', refgrid='I_lsq_eq_grid.npy',
-                    show_gridlines=0)
-
-    LBN3 = Solution(directory='lofar_bootes_nufft3', label='Bluebild least-squares, sensitivity-corrected image (NUFFT3)',
-                   filename='I_lsq_eq_data.npy', gridname='I_lsq_eq_grid.npy', refname='I_lsq_eq_data.npy', refgrid='I_lsq_eq_grid.npy',
-                   show_gridlines=0)
-
-    # Solutions to plot
     sols = {
-        'SC': SC,
-        'SG': SG,
-        'LBSS': LBSS,
-        'LBN': LBN,
-        'LBN3': LBN3
+        'img_SC'      : Solutions['SC'],
+        'img_SG'      : Solutions['SG'],
+        'img_LBSSt'   : Solutions['LBSSt'],
+        'img_LBNt'    : Solutions['LBNt'],
+        'img_LBN3t'   : Solutions['LBN3t'],
+        'img_LBN3cct' : Solutions['LBN3cct'],
+        'img_LBN3cgt' : Solutions['LBN3cgt']
     }
-    for sol in sorted(sols.keys()):
-        print(sols.get(sol))
+    #sols = {
+    #    'G' : Solutions['LBN3cgt']
+    #}
+
+    plots = (
+        {'sols': sols},
+    )
+
+    # Generating maps and stats of last build vs reference
+    for plot_ in plots:
+        plot(plot_, args)
+
+    # Comparing pairs of solutions
+    compare_one_solution_to_another(Solutions, 'LBN3cct', args.last_build, 'LBN3cgt', args.last_build)
+    compare_one_solution_to_another(Solutions, 'LBN3cct', args.last_build, 'LBN3t',   args.last_build)
+    compare_one_solution_to_another(Solutions, 'LBSSt', args.last_build,   'LBN3t',   args.last_build)
+    compare_one_solution_to_another(Solutions, 'LBSSt', args.last_build,   'LBN3cgt', args.last_build)
+    #compare_one_solution_to_another('LBN3cct', args.last_build, 'LBSSt',  args.last_build)
 
 
-    main(sys.argv)
+# To test locally
+# ---------------
+"""
+cd to pypeline
+
+conda activate pype-111
+
+export BUILD_ID=21 GIT_BRANCH=ci-master OUTPUT_DIR=/tmp/ TEST_FSTAT_RT=/tmp/file_rt.tst TEST_IGNORE_UPTO=0 WORK_DIR=/work/backup/ska/ci-jenkins/izar-ska/ REF_DIR=/work/backup/ska/ci-jenkins/references/ TEST_DIR=.
+
+python ./jenkins/imap.py --input_directory ${WORK_DIR}/${GIT_BRANCH}  --output_directory $OUTPUT_DIR --stat_file $TEST_FSTAT_RT  --last_build $BUILD_ID --ignore_up_to $TEST_IGNORE_UPTO --reference_directory /work/backup/ska/ci-jenkins/references
+
+"""

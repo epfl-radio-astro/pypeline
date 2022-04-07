@@ -29,3 +29,7 @@ python setup.py build_sphinx
 # Copy the doc to /work build's directory
 echo WORKSPACE = ${WORKSPACE}
 cp -rv ${WORKSPACE}/build/html ${DOC_DIR}
+
+
+# To test on the command line
+# $ WORKSPACE="." DOC_DIR="/tmp" sh jenkins/build_documentation.sh

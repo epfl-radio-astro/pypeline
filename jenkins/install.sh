@@ -3,8 +3,8 @@
 set -e
 
 
-echo "Warning: early exit. Re-enable if a new installation is required."
-exit 0
+#echo "Warning: early exit. Re-enable if a new installation is required."
+#exit 0
 
 
 # Install Miniconda in batch mode the first time
@@ -49,11 +49,28 @@ pip --version
 which python
 python -V
 
+pip install bluebild-tools
 
-# Install non-conda packages
-pip install cupy-cuda110
 exit 0
 
+# Installing c++ port of data processing classes
+#
+module load gcc cuda/11.0 fftw cmake openblas
+pwd
+ls -l
+cd src/bluebild
+pwd
+pip install --no-deps .     ## install bluebild
+cd -
+pip install --no-deps -e .  ## install pypeline in editable mode (not necessary for Jenkins but mimics normal installation)
+
+exit 0
+
+
+# Install non-conda packages
+pip install pbr
+pip install scikit-build
+pip install cupy-cuda110
 pip install cupy-cuda111
 pip install pycsou --no-deps
 pip install pyFFS --no-deps

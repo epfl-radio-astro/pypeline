@@ -3,12 +3,15 @@
 __all__ = ["bluebild"]
 __version__ = "0.1"
 
+import sys
+import os
 import numpy as np
 from enum import IntEnum
 import ctypes
 from pathlib import Path
 from ctypes import c_void_p, c_int, c_float, c_double
 import platform
+import skbuild
 
 if platform.system() == 'Darwin':
     _bluebild_lib_name = 'libbluebild.dylib'
@@ -20,14 +23,31 @@ _bluebild_lib_paths = ['', 'lib', 'lib64', '../', '../lib', '../lib64', '../..',
 _bluebild_lib = None
 _bluebild_module_loc = str(Path(__file__).absolute().parent.as_posix())
 
+
 # try to find library installed with module
 for p in _bluebild_lib_paths:
     if _bluebild_lib:
         break
     try:
+        #print("try_1: ", _bluebild_module_loc + '/' + p + '/' + _bluebild_lib_name)
         _bluebild_lib = ctypes.cdll.LoadLibrary(_bluebild_module_loc + '/' + p + '/' + _bluebild_lib_name)
     except Exception:
         pass
+
+# try local scikit build directory in case of installation in editable mode
+if not _bluebild_lib:
+    bblp = os.path.join(skbuild.constants.SKBUILD_DIR(),'cmake-install/lib64', _bluebild_lib_name)
+    try:
+        _bluebild_lib = ctypes.cdll.LoadLibrary(bblp)
+    except Exception:
+        #print("Info: try_2 also failed to load from ", bblp)
+        pass
+
+# try Conda
+if not _bluebild_lib and os.environ['CONDA_PREFIX']:
+    bblp = os.path.join(os.environ['CONDA_PREFIX'], 'lib64', _bluebild_lib_name)
+    print("Found conda active environment. Will load ", bblp)
+    _bluebild_lib = ctypes.cdll.LoadLibrary(bblp)
 
 # try to find library in default system shared library search paths as fallback
 if not _bluebild_lib:

@@ -8,11 +8,12 @@
 Simulation LOFAR imaging with Bluebild (NUFFT).
 """
 
-from tqdm import tqdm as ProgressBar
+import os, sys, argparse
 import astropy.units as u
 import astropy.coordinates as coord
 import astropy.time as atime
 import imot_tools.io.s2image as s2image
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as constants
 import bluebild
@@ -20,7 +21,6 @@ from imot_tools.io.plot import cmap
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.bluebild.data_processor as bb_dp
 from pypeline.phased_array.bluebild.gram import GramMatrix
-import pypeline.phased_array.bluebild.field_synthesizer.fourier_domain as bb_synth
 import pypeline.phased_array.bluebild.imager.fourier_domain as bb_im
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.data_gen.source as source
@@ -32,15 +32,38 @@ import imot_tools.io.s2image as im
 import imot_tools.io.plot as implt
 import time as tt
 
-import matplotlib
-matplotlib.use('agg')
-import matplotlib.pyplot as plt
+
+np.random.seed(0)
+
+
+# Dump data to args.outdir if defined
+def dump_data(stats, filename):
+    if args.outdir:
+        fp = os.path.join(args.outdir, filename + '.npy')
+        with open(fp, 'wb') as f:
+            np.save(f, stats)
+            print("Wrote ", fp)
+
+jkt0_s = tt.time()
+
+
+# Check arguments
+parser = argparse.ArgumentParser()
+parser.add_argument("--outdir",   help="Path to dumping location (no dumps if not set)")
+args = parser.parse_args()
+if args.outdir:
+    if not os.path.exists(args.outdir):
+        print('fatal: --outdir ('+args.outdir+') must exists if defined.')
+        sys.exit(1)
+    print("Dumping directory: ", args.outdir)        
+else:
+    print("Will not dump anything, --outdir not set.")
 
 
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
 field_center = coord.SkyCoord(ra=218 * u.deg, dec=34.5 * u.deg, frame="icrs")
-FoV, frequency = np.deg2rad(10), 145e6
+FoV, frequency = np.deg2rad(8), 145e6
 wl = constants.speed_of_light / frequency
 
 # Instrument
@@ -56,22 +79,26 @@ vis = statistics.VisibilityGeneratorBlock(sky_model, T_integration, fs=196000, S
 time = obs_start + (T_integration * u.s) * np.arange(3595)
 obs_end = time[-1]
 
-# Imaging
+# Imaging parameters
 N_pix = 512
+N_level = 3
+precision = 'single'
+time_slice = 200
 eps = 1e-3
 w_term = True
-precision = 'single'
+print("\nImaging parameters")
+print(f'N_pix {N_pix}\nN_level {N_level}\nprecision {precision}')
+print(f'time_slice {time_slice}\neps {eps}\nw_term {w_term}\n')
 
 t1 = tt.time()
-N_level = 3
-time_slice = 25
 
 ctx = bluebild.Context(bluebild.ProcessingUnit.AUTO)
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
+ifpe_s = tt.time()
 I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=0.95)
-for t in ProgressBar(time[::200]):
+for t in time[::time_slice]:
     XYZ = dev(t)
     W = mb(XYZ, wl)
     G = GramMatrix(data=ctx.gram_matrix(XYZ.data, W.data, wl), beam_idx=W.index[1])
@@ -79,14 +106,17 @@ for t in ProgressBar(time[::200]):
     I_est.collect(S, G)
 
 N_eig, c_centroid = I_est.infer_parameters()
+ifpe_e = tt.time()
+print(f"#@#IFPE {ifpe_e-ifpe_s:.3f} sec")
 
 # Imaging
+ifim_s = tt.time()
 I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
 IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq', 'sqrt'))
 UVW_baselines = []
 gram_corrected_visibilities = []
 
-for t in ProgressBar(time[::time_slice]):
+for t in time[::time_slice]:
     XYZ = dev(t)
     UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
     UVW_baselines.append(UVW_baselines_t)
@@ -118,23 +148,30 @@ nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pi
                                       n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
 print(nufft_imager._synthesizer._inner_fft_sizes)
 lsq_image, sqrt_image = nufft_imager(gram_corrected_visibilities)
+ifim_e = tt.time()
+print(f"#@#IFIM {ifim_e-ifim_s:.3f} sec")
+
 
 ### Sensitivity Field =========================================================
 # Parameter Estimation
+sfpe_s = tt.time()
 S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=0.95)
-for t in ProgressBar(time[::200]):
+for t in time[::time_slice]:
     XYZ = dev(t)
     W = mb(XYZ, wl)
     G = GramMatrix(data=ctx.gram_matrix(XYZ.data, W.data, wl), beam_idx=W.index[1])
 
     S_est.collect(G)
 N_eig = S_est.infer_parameters()
+sfpe_e = tt.time()
+print(f"#@#SFPE {sfpe_e-sfpe_s:.3f} sec")
 
 # Imaging
+sfim_s = tt.time()
 S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
 SV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq',))
 sensitivity_coeffs = []
-for t in ProgressBar(time[::time_slice]):
+for t in time[::time_slice]:
     XYZ = dev(t)
     W = mb(XYZ, wl)
 
@@ -151,16 +188,32 @@ print(nufft_imager._synthesizer._inner_fft_sizes)
 sensitivity_image = nufft_imager(sensitivity_coeffs)
 
 I_lsq_eq = s2image.Image(lsq_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
+dump_data(I_lsq_eq.data, 'I_lsq_eq_data')
+dump_data(I_lsq_eq.grid, 'I_lsq_eq_grid')
+
 I_sqrt_eq = s2image.Image(sqrt_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
+
+sfim_e = tt.time()
+print(f"#@#SFIM {sfim_e-sfim_s:.3f} sec")
+
 t2 = tt.time()
 print(f'Elapsed time: {t2 - t1} seconds.')
 
+jkt0_e = tt.time()
+print(f"#@#TOT {jkt0_e-jkt0_s:.3f} sec\n")
+
+
+### Plotting section
 plt.figure()
 ax = plt.gca()
 I_lsq_eq.draw(catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'), show_gridlines=False, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5))
 ax.set_title(f'Bluebild least-squares, sensitivity-corrected image (NUFFT)\n'
              f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180 / np.pi)} degrees.\n'
              f'Run time {np.floor(t2 - t1)} seconds.')
+fp = "I_lsq_nufft3.png"
+if args.outdir:
+    fp = os.path.join(args.outdir, fp)
+plt.savefig(fp)
 
 plt.figure()
 ax = plt.gca()
@@ -168,6 +221,10 @@ I_sqrt_eq.draw(catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'
 ax.set_title(f'Bluebild sqrt, sensitivity-corrected image (NUFFT)\n'
              f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180 / np.pi)} degrees.\n'
              f'Run time {np.floor(t2 - t1)} seconds.')
+fp = "I_sqrt_nufft3.png"
+if args.outdir:
+    fp = os.path.join(args.outdir, fp)
+plt.savefig(fp)
 
 plt.figure()
 titles = ['Strong sources', 'Mild sources', 'Faint Sources']
@@ -177,7 +234,8 @@ for i in range(lsq_image.shape[0]):
     plt.title(titles[i])
     I_lsq_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'),
                   catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5), show_gridlines=False)
-
 plt.suptitle(f'Bluebild Eigenmaps')
-#  plt.show()
-plt.savefig('final_bb.png')
+fp = "final_bb.png"
+if args.outdir:
+    fp = os.path.join(args.outdir, fp)
+plt.savefig(fp)

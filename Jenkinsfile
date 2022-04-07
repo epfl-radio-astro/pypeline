@@ -14,9 +14,9 @@ pipeline {
         OUT_DIR  = "${env.WORK_DIR}/${env.GIT_BRANCH}/${env.UTC_TAG}_${env.BUILD_ID}"
 
         // Set to "1" to run corresponding profiling
-        PROFILE_CPROFILE = "1"
-        PROFILE_NSIGHT   = "1"
-        PROFILE_VTUNE    = "1"
+        PROFILE_CPROFILE = "0"
+        PROFILE_NSIGHT   = "0"
+        PROFILE_VTUNE    = "0"
         PROFILE_ADVISOR  = "0" // can be very time-consuming
     }
 
@@ -61,6 +61,41 @@ pipeline {
 
         // vtune hpc-performance needs to run on debug node!
 
+        stage('lofar_bootes_nufft3_cpp_cpu') {
+            environment {
+                TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_nufft3_cpp_cpu"
+                CUPY_PYFFS = "0"
+                BLUEBILD_GPU = "OFF"
+            }
+            steps {
+                sh "mkdir -pv ${env.TEST_DIR}"
+                sh "srun --partition debug --time 00-00:30:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft3_cpp_data_proc.sh"
+            }
+        }
+
+        stage('lofar_bootes_nufft3_cpp_gpu') {
+            environment {
+                TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_nufft3_cpp_gpu"
+                CUPY_PYFFS = "0"
+                BLUEBILD_GPU = "CUDA"
+            }
+            steps {
+                sh "mkdir -pv ${env.TEST_DIR}"
+                sh "srun --partition debug --time 00-00:30:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft3_cpp_data_proc.sh"
+            }
+        }
+
+        stage('lofar_bootes_nufft3') {
+            environment {
+                TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_nufft3"
+                CUPY_PYFFS = "0"
+            }
+            steps {
+                sh "mkdir -pv ${env.TEST_DIR}"
+                sh "srun --partition debug --time 00-00:30:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft3.sh"
+            }
+        }
+
         stage('Standard CPU') {
             environment {
                 TEST_DIR  = "${env.OUT_DIR}/test_standard_cpu"
@@ -100,17 +135,6 @@ pipeline {
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"
                 sh "srun --partition debug --time 00-00:30:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_ss.sh"
-            }
-        }
-
-        stage('lofar_bootes_nufft3') {
-            environment {
-                TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_nufft3"
-                CUPY_PYFFS = "0"
-            }
-            steps {
-                sh "mkdir -pv ${env.TEST_DIR}"
-                sh "srun --partition debug --time 00-00:30:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 1 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_lofar_bootes_nufft3.sh"
             }
         }
 

@@ -9,6 +9,12 @@ Real-data LOFAR imaging with Bluebild (PeriodicSynthesis).
 Compare Bluebild image with WSCLEAN image.
 """
 
+import os
+if os.getenv('OMP_NUM_THREADS') == None : os.environ['OMP_NUM_THREADS'] = "1"
+
+import bluebild_tools.cupy_util as bbt_cupy
+use_cupy = bbt_cupy.is_cupy_usable()
+
 from tqdm import tqdm as ProgressBar
 import astropy.units as u
 import imot_tools.io.fits as ifits
@@ -16,14 +22,12 @@ import imot_tools.io.s2image as s2image
 import imot_tools.math.sphere.grid as grid
 import matplotlib.pyplot as plt
 import numpy as np
-import cupy as cp
 import scipy.constants as constants
-import sys, time
+import time
 import finufft
 
 import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.bluebild.gram as bb_gr
-#import pypeline.phased_array.bluebild.imager.fourier_domain as bb_fd
 import pypeline.phased_array.bluebild.imager.spatial_domain as bb_sd
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.data_gen.source as source
@@ -33,6 +37,12 @@ import imot_tools.math.sphere.transform as transform
 import pycsou.linop as pyclop
 from imot_tools.math.func import SphericalDirichlet
 import joblib as job
+
+
+# For CuPy agnostic code
+# ----------------------
+xp = bbt_cupy.cupy if use_cupy else np
+
 
 start_time = time.process_time()
 
@@ -106,16 +116,17 @@ for t, f, S in ProgressBar(
 
     #_ = I_mfs(D, V, XYZ.data, W.data, c_idx)
 
-    XYZ_gpu = cp.asarray(XYZ.data)
-    W_gpu  = cp.asarray(W.data.toarray())
-    V_gpu  = cp.asarray(V)
+    XYZ = xp.asarray(XYZ.data)
+    W   = xp.asarray(W.data.toarray())
+    V   = xp.asarray(V)
 
-    _ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
+    _ = I_mfs(D, V, XYZ, W, c_idx)
     
 I_std, I_lsq = I_mfs.as_image()
 
 end_time = time.process_time()
 print("Time elapsed: {0}s".format(end_time - start_time))
+
 
 ### Sensitivity Field =========================================================
 # Parameter Estimation

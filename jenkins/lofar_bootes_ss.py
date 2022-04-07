@@ -27,6 +27,7 @@ import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.data_gen.source as source
 import pypeline.phased_array.data_gen.statistics as statistics
 import pypeline.phased_array.instrument as instrument
+from pypeline.util import frame
 import time as tt
 
 
@@ -60,7 +61,7 @@ else:
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
 field_center = coord.SkyCoord(ra=218 * u.deg, dec=34.5 * u.deg, frame="icrs")
-FoV, frequency = np.deg2rad(8), 145e6 #EO was 5
+FoV, frequency = np.deg2rad(8), 145e6
 wl = constants.speed_of_light / frequency
 
 # Instrument
@@ -77,18 +78,25 @@ vis = statistics.VisibilityGeneratorBlock(sky_model, T_integration, fs=196000, S
 time = obs_start + (T_integration * u.s) * np.arange(3595)
 print(time.size)
 
-# Imaging
-N_level = 3 #4
-N_bits = 32 # 32
-time_slice = 200 #36 #25
-_, _, px_colat, px_lon = grid.equal_angle(
-    N=dev.nyquist_rate(wl), direction=field_center.cartesian.xyz.value, FoV=FoV
-)
+# Imaging parameters
+N_pix = 512
+N_level = 3
+N_bits = 32
+time_slice = 200
 
-px_grid = transform.pol2cart(1, px_colat, px_lon)
-print("px_grid=",px_grid.shape)
+###_, _, px_colat, px_lon = grid.equal_angle(
+###    N=dev.nyquist_rate(wl), direction=field_center.cartesian.xyz.value, FoV=FoV
+###)
+###px_grid = transform.pol2cart(1, px_colat, px_lon)
+###print("px_grid=",px_grid.shape)
 
-#sys.exit(0)
+lim = np.sin(FoV / 2)
+grid_slice = np.linspace(-lim, lim, N_pix)
+l_grid, m_grid = np.meshgrid(grid_slice, grid_slice)
+n_grid = np.sqrt(1 - l_grid ** 2 - m_grid ** 2)  # No -1 if r on the sphere !
+lmn_grid = np.stack((l_grid, m_grid, n_grid), axis=0)
+uvw_frame = frame.uvw_basis(field_center)
+px_grid = np.tensordot(uvw_frame, lmn_grid, axes=1)
 
 t1 = tt.time()
 
@@ -96,19 +104,16 @@ t1 = tt.time()
 # Parameter Estimation
 ifpe_s = tt.time()
 I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=0.95)
-idx = 0
-for t in time[::200]:  #ProgressBar(time[::200]):
+for t in time[::time_slice]:
     XYZ = dev(t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
     G = gram(XYZ, W, wl)
     I_est.collect(S, G)
-    idx += 1
 
 N_eig, c_centroid = I_est.infer_parameters()
 ifpe_e = tt.time()
 print(f"#@#IFPE {ifpe_e-ifpe_s:.3f} sec")
-
 
 # Imaging
 ifim_s = tt.time()
@@ -127,12 +132,12 @@ I_std, I_lsq = I_mfs.as_image()
 ifim_e = tt.time()
 print(f"#@#IFIM {ifim_e-ifim_s:.3f} sec")
 
+
 ### Sensitivity Field =========================================================
 # Parameter Estimation
 sfpe_s = tt.time()
 S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=0.95)
-#for t in ProgressBar(time[::200]):
-for t in time[::200]:
+for t in time[::time_slice]:
     XYZ = dev(t)
     W = mb(XYZ, wl)
     G = gram(XYZ, W, wl)
@@ -146,7 +151,6 @@ print(f"#@#SFPE {sfpe_e-sfpe_s:.3f} sec")
 sfim_s = tt.time()
 S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
 S_mfs = bb_sd.Spatial_IMFS_Block(wl, px_grid, 1, N_bits)
-#for t in ProgressBar(time[::time_slice]):
 for t in time[::time_slice]:
     XYZ = dev(t)
     W = mb(XYZ, wl)

@@ -13,7 +13,6 @@ import astropy.units as u
 import astropy.coordinates as coord
 import astropy.time as atime
 import imot_tools.io.s2image as s2image
-import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as constants
 import finufft
@@ -32,6 +31,11 @@ from mpl_toolkits.mplot3d import Axes3D
 import imot_tools.io.s2image as im
 import imot_tools.io.plot as implt
 import time as tt
+
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
+
 
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
@@ -172,3 +176,5 @@ for i in range(lsq_image.shape[0]):
                   catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5), show_gridlines=False)
 
 plt.suptitle(f'Bluebild Eigenmaps')
+
+plt.savefig('final.png')

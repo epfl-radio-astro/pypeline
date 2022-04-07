@@ -25,10 +25,13 @@ echo
 # fail fast with set -e, outdir must exist
 ls $OUTPUT_DIR
 
-python ./jenkins/tts.py -i ${WORK_DIR}/${GIT_BRANCH}  -o $OUTPUT_DIR -f $TEST_FSTAT_RT  -b $BUILD_ID -s $TEST_IGNORE_UPTO
+python ./jenkins/tts.py  --input_directory ${WORK_DIR}/${GIT_BRANCH} --output_directory $OUTPUT_DIR --stat_file $TEST_FSTAT_RT --last_build $BUILD_ID  --ignore_up_to $TEST_IGNORE_UPTO
 
-python ./jenkins/imap.py -i ${WORK_DIR}/${GIT_BRANCH} -o $OUTPUT_DIR -f $TEST_FSTAT_IMG -b $BUILD_ID -s $TEST_IGNORE_UPTO -r $REF_DIR
+python ./jenkins/imap.py --input_directory ${WORK_DIR}/${GIT_BRANCH} --output_directory $OUTPUT_DIR --stat_file $TEST_FSTAT_IMG --last_build $BUILD_ID  --ignore_up_to $TEST_IGNORE_UPTO --reference_directory $REF_DIR
 
-#EO: to test locally
-#conda activate pype-111
-#BUILD_ID=1 GIT_BRANCH=eo_jenkins OUT_DIR=/tmp/ TEST_FSTAT_IMG=/tmp/file.tst TEST_IGNORE_UPTO=0 WORK_DIR=/work/backup/ska/ci-jenkins/izar-ska/ REF_DIR=/work/backup/ska/ci-jenkins/references/ bash jenkins/slurm_monitoring.sh
+
+# To test locally
+# ---------------
+#cd to pypeline
+#export BUILD_ID=21 GIT_BRANCH=ci-master OUTPUT_DIR=/tmp/ TEST_FSTAT_RT=/tmp/file_rt.tst TEST_FSTAT_IMG=/tmp/file_img.tst TEST_IGNORE_UPTO=0 WORK_DIR=/work/backup/ska/ci-jenkins/izar-ska/ REF_DIR=/work/backup/ska/ci-jenkins/references/ TEST_DIR=.
+#sh ./jenkins/slurm_monitoring.sh
