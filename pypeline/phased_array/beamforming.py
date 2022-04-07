@@ -316,7 +316,11 @@ class MatchedBeamformerBlock(BeamformerBlock):
         XYZ = data.loc[:, ["X", "Y", "Z"]].values
         F_XYZ = data.loc[:, ["F_X", "F_Y", "F_Z"]].values
         similarity = np.squeeze(XYZ.reshape(-1, 1, 3) @ F_XYZ.reshape(-1, 3, 1), axis=(1, 2))
+        #print('similarity', similarity)
+        #similarity = np.ones(similarity.shape)
+        #print('new similarity', similarity)
         W = np.exp((-1j * 2 * np.pi) * similarity)
+
 
         df = pd.DataFrame(
             dict(STATION_ID=data.STATION_ID, ANTENNA_ID=data.ANTENNA_ID, BEAM_ID=data.BEAM_ID, W=W)

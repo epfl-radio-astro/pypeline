@@ -201,6 +201,7 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
             broken_row_id = np.flatnonzero(
                 np.isclose(np.sum(S.data, axis=0), np.sum(S.data, axis=1))
             )
+
             working_row_id = list(set(np.arange(N_beam)) - set(broken_row_id))
             idx = np.ix_(working_row_id, working_row_id)
             S, G = S.data[idx], G.data[idx]

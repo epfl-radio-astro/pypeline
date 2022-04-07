@@ -377,11 +377,18 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
 
         itrs_layout = coord.CartesianRepresentation(layout)
         itrs_position = coord.SkyCoord(itrs_layout, obstime=time, frame="itrs")
-        icrs_position = r * (itrs_position.transform_to("icrs").cartesian.xyz)
+        print("test InstrumentGeometry0",itrs_position.transform_to("icrs"))
+        print("test InstrumentGeometry01",itrs_position.transform_to("icrs").cartesian.xyz.T)
+        icrs_position = r* (itrs_position.transform_to("icrs").cartesian.xyz) # r*
+        print("test InstrumentGeometry",icrs_position.T)
         icrs_layout = pd.DataFrame(
             data=icrs_position.T, index=self._layout.index, columns=("X", "Y", "Z")
         )
-        return _as_InstrumentGeometry(icrs_layout)
+
+        print("test InstrumentGeometry",icrs_layout)
+        res= _as_InstrumentGeometry(icrs_layout)
+        print("test InstrumentGeometry2",res)
+        return res
 
     def baselines(self, t: time.Time, uvw: bool = False,
                   field_center: typ.Optional[coord.SkyCoord] = None) -> np.ndarray:

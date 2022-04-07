@@ -65,7 +65,7 @@ N_bits = 32
 #px_grid = transform.pol2cart(1, px_colat, px_lon)
 px_grid = cl_pix_icrs
 time_slice = 200
-print("Grid size is:", px_colat.shape, px_lon.shape)
+print("Grid size is:", cl_pix_icrs.shape)
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
@@ -92,7 +92,7 @@ I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
 #I_mfs = bb_fd.Fourier_IMFS_Block(wl, pix_colat, pix_lon, N_FS, T_kernel, R, N_level, N_bits)
 I_mfs = bb_sd.Spatial_IMFS_Block(wl, px_grid, N_level, N_bits)
 for t, f, S in ProgressBar(
-        ms.visibilities(channel_id=[channel_id], time_id=slice(0, 10, 1), column="DATA")
+        ms.visibilities(channel_id=[channel_id], time_id=slice(0, 1, 1), column="DATA")
 ):
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
@@ -101,10 +101,40 @@ for t, f, S in ProgressBar(
     S, W = measurement_set.filter_data(S, W)
 
     D, V, c_idx = I_dp(S, G)
-    print(c_idx)
+    print(V.shape, D.shape, S.shape, G.shape)
     c_idx = [0,1,2,3]
 
+    fig, ax = plt.subplots(ncols=2, nrows=1, figsize=(10, 5))
+    p=ax[0].imshow(np.abs(S.data))
+
+    p2=ax[1].imshow(np.abs(G.data))
+    ax[0].set_title('original visibilities')
+    ax[1].set_title('Gram matrix')
+    plt.colorbar(p, ax=ax[0])
+    plt.colorbar(p2, ax = ax[1])
+    plt.savefig("visibility_matrix")
+
+    fig, ax = plt.subplots(ncols=len(D), nrows=1, figsize=(10, 3))
+    plt.tight_layout(w_pad = 2)
+    for i,d in enumerate(D):
+        mask = np.zeros(D.shape)
+        mask[i] = 1
+        D_corr = D*mask
+        S_corrected = (V @ np.diag(D_corr)) @ V.transpose().conj()
+        p=ax[i].imshow(np.abs(S_corrected))
+        ax[i].set_title('eigen visibilities {0}'.format(i))
+        plt.colorbar(p, ax=ax[i], fraction=0.046)
+        
+    plt.savefig("eigen_visibilities")
+
     #_ = I_mfs(D, V, XYZ.data, W.data, c_idx)
+
+    S_corrected = G.data@ V @ np.diag(D) @ V.transpose().conj()
+    fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 10))
+    p=ax.imshow(np.abs(S_corrected))
+    ax.set_title('corrected visibilities')
+    plt.colorbar(p)
+    plt.savefig("corrected_visibility_matrix")
 
     XYZ_gpu = cp.asarray(XYZ.data)
     W_gpu  = cp.asarray(W.data.toarray())
@@ -147,15 +177,15 @@ for t, f, S in ProgressBar(
 _, S = S_mfs.as_image()'''
 
 # Plot Results ================================================================
-fig, ax = plt.subplots(ncols=N_level, nrows=2)
+fig, ax = plt.subplots(ncols=N_level, nrows=1)
 I_std_eq = s2image.Image(I_std.data, I_std.grid) #  / S.data
 I_lsq_eq = s2image.Image(I_lsq.data, I_lsq.grid) # / S.data
 
 for i in range(N_level):
-    I_std_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax[0,i])
-    ax[0,i].set_title("Standardized Image Level = {0}".format(i))
-    I_lsq_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax[1,i])
-    ax[1,i].set_title("Least-Squares Image Level = {0}".format(i))
+    #I_std_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax[0,i])
+    #ax[0,i].set_title("Standardized Image Level = {0}".format(i))
+    I_lsq_eq.draw(index=i, ax=ax[i])
+    ax[i].set_title("Level = {0}".format(i))
 #fig.show()
 #plt.show()
 #sys.exit()
