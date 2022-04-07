@@ -30,15 +30,11 @@ import astropy.coordinates as aspy
 class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
     """
     Field synthesizer based on PeriodicSynthesis.
-
     Examples
     --------
     Assume we are imaging a portion of the Bootes field with LOFAR's 24 core stations.
-
     The short script below shows how to use :py:class:`~pypeline.phased_array.bluebild.field_synthesizer.fourier_domain.FourierFieldSynthesizerBlock` to form continuous energy level estimates.
-
     .. testsetup::
-
        import numpy as np
        import astropy.units as u
        import astropy.time as atime
@@ -54,11 +50,8 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
        from pypeline.phased_array.data_gen.statistics import VisibilityGeneratorBlock
        from imot_tools.math.sphere.grid import equal_angle
        from imot_tools.math.sphere.transform import pol2cart
-
        np.random.seed(0)
-
     .. doctest::
-
        ### Experiment setup ================================================
        # Observation
        >>> obs_start = atime.Time(56879.54171302732, scale='utc', format='mjd')
@@ -66,20 +59,17 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
        >>> field_of_view = np.deg2rad(5)
        >>> frequency = 145e6
        >>> wl = constants.speed_of_light / frequency
-
        # instrument
        >>> N_station = 24
        >>> dev = LofarBlock(N_station)
        >>> mb = MatchedBeamformerBlock([(_, _, field_center) for _ in range(N_station)])
        >>> gram = GramBlock()
-
        # Visibility generation
        >>> sky_model=from_tgss_catalog(field_center, field_of_view, N_src=10)
        >>> vis = VisibilityGeneratorBlock(sky_model,
        ...                                T=8,
        ...                                fs=196000,
        ...                                SNR=np.inf)
-
        ### Energy-level imaging ============================================
        # Kernel parameters
        >>> t_img = obs_start + np.arange(200) * 8 * u.s  # fine-grained snapshots
@@ -87,12 +77,10 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
        >>> R = dev.icrs2bfsf_rot(obs_start, obs_end)
        >>> N_FS = dev.bfsf_kernel_bandwidth(wl, obs_start, obs_end)
        >>> T_kernel = np.deg2rad(10)
-
        # Pixel grid: make sure to generate it in BFSF coordinates by applying R.
        >>> _, _, px_colat, px_lon = equal_angle(N=dev.nyquist_rate(wl),
        ...                                      direction=np.dot(R, field_center.transform_to('icrs').cartesian.xyz.value),
        ...                                      FoV=field_of_view)
-
        >>> I_dp = IntensityFieldDataProcessorBlock(N_eig=7,  # assumed obtained from IntensityFieldParameterEstimator.infer_parameters()
        ...                                         cluster_centroids=[124.927,  65.09 ,  38.589,  23.256])
        >>> I_fs = FourierFieldSynthesizerBlock(wl, px_colat, px_lon, N_FS, T_kernel, R)
@@ -106,26 +94,20 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
        ...
        ...     # (N_eig, N_height, N_FS+Q) energy levels (compact descriptor, not the same thing as [D, V]).
        ...     field_stat = I_fs(V, XYZ.data, W.data)
-
        # (N_eig, N_height, N_width) energy levels
        # These are the actual field values. Depending on the implementation of FieldSynthesizerBlock, `field_stat` and `field` may differ.
        >>> field = I_fs.synthesize(field_stat)
-
     In the example above, individual snapshots were not added together, hence the final image is just the last field snapshot and can be quite noisy:
-
     .. doctest::
-
        from imot_tools.io.s2image import Image
        # Transform grid to ICRS coordinates before plotting.
        px_grid = np.tensordot(R.T, pol2cart(1, px_colat, px_lon), axes=1)
        I_snapshot = Image(data=field, grid=px_grid)
-
        ax = I_snapshot.draw(index=slice(None),  # Collapse all energy levels
                             catalog=sky_model.xyz.T,
                             data_kwargs=dict(cmap='cubehelix'),
                             catalog_kwargs=dict(s=600))
        ax.get_figure().show()
-
     .. image:: _img/bluebild_FourierFieldSynthesizer_snapshot_example.png
     """
 
@@ -158,9 +140,7 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             (3, 3) ICRS -> BFSF rotation matrix.
         precision : int
             Numerical accuracy of floating-point operations.
-
             Must be 32 or 64.
-
         Notes
         -----
         * `grid_colat` and `grid_lon` should be generated using :py:func:`~imot_tools.math.sphere.grid.equal_angle`.
@@ -231,18 +211,15 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
     def __call__(self, V, XYZ, W):
         """
         Compute instantaneous field statistics.
-
         Parameters
         ----------
         V : :py:class:`~numpy.ndarray`
             (N_beam, N_eig) complex-valued eigenvectors.
         XYZ : :py:class:`~numpy.ndarray`
             (N_antenna, 3) Cartesian instrument geometry.
-
             `XYZ` must be given in ICRS.
         W : :py:class:`~numpy.ndarray` or :py:class:`~scipy.sparse.csr_matrix` or :py:class:`~scipy.sparse.csc_matrix`
             (N_antenna, N_beam) synthesis beamweights.
-
         Returns
         -------
         stat : :py:class:`~numpy.ndarray`
@@ -349,12 +326,10 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
     def synthesize(self, stat):
         """
         Compute field values from statistics.
-
         Parameters
         ----------
         stat : :py:class:`~numpy.ndarray`
             (N_level, N_height, N_FS + Q) field statistics.
-
         Returns
         -------
         field : :py:class:`~numpy.ndarray`
@@ -386,14 +361,11 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
     def _phase_shift(self, XYZ):
         """
         Angular shift w.r.t kernel antenna coordinates.
-
         Parameters
         ----------
         XYZ : :py:class:`~numpy.ndarray`
             (N_antenna, 3) Cartesian instrument geometry.
-
             `XYZ` must be given in BFSF.
-
         Returns
         -------
         theta : float
@@ -418,12 +390,10 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
     def _regen_kernel(self, XYZ, use_cupy, xp):
         """
         Compute kernel.
-
         Parameters
         ----------
         XYZ : :py:class:`~numpy.ndarray`
             (N_antenna, 3) Cartesian instrument geometry.
-
             `XYZ` must be given in BFSF.
         """
 
@@ -480,11 +450,9 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
     _precision_mappings = dict(single=dict(complex=np.complex64, real=np.float32, dtype='float32'),
                                double=dict(complex=np.complex128, real=np.float64, dtype='float64'))
 
-    def __init__(self, wl: float, UVW: np.ndarray, grid_size: int = 0, FoV: float = 0, field_center: aspy.SkyCoord,
-                 xyz_grid: np.ndarray = None,
+    def __init__(self, wl: float, UVW: np.ndarray, field_center: aspy.SkyCoord, xyz_grid: np.ndarray = None, grid_size: int = 0, FoV: float = 0, 
                  eps: float = 1e-6, w_term: bool = True, n_trans: int = 1, precision: str = 'double'):
         r"""
-
         Parameters
         ----------
         wl: float
@@ -509,17 +477,18 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         self._precision = precision
         UVW = np.array(UVW, copy=False)
         self._UVW = (2 * np.pi * UVW.reshape(3, -1) / wl).astype(self._precision_mappings[self._precision]['real'])
-
+        self._FoV = FoV
         self._field_center = field_center
-        if grid_size == 0 and FoV == 0:
+        if grid_size > 0 and FoV > 0:
+          self._grid_size = grid_size
+          self.lmn_grid, self.xyz_grid = self._make_grids()
+        elif xyz_grid != None:
             uvw_frame = frame.uvw_basis(self._field_center)
             self.xyz_grid = xyz_grid       # pass a grid instead of calculating it
             self.lmn_grid = np.tensordot(np.linalg.inv(uvw_frame), self.xyz_grid, axes=1)
-        elif xyz_grid == None and grid_size > 0 and FoV > 0:
-            self._grid_size = grid_size
-            self.lmn_grid, self.xyz_grid = self._make_grids()
         else:
-          raise RuntimeError("Please supply an either A) an xyz grid or B) FoV and grid size so that NUFFT can define the imaging grid")
+          raise RuntimeError("Incorred grid parameters for NUFFTFieldSynthesizerBlock")
+            
 
         self._lmn_grid = self.lmn_grid.reshape(3, -1).astype(self._precision_mappings[self._precision]['real'])
         self._n_trans = n_trans
@@ -551,7 +520,6 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
     def _make_grids(self) -> typ.Tuple[np.ndarray, np.ndarray]:
         r"""
         Imaging grid.
-
         Returns
         -------
         lmn_grid, xyz_grid: Tuple[np.ndarray, np.ndarray]
@@ -569,7 +537,6 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
     def __call__(self, V: np.ndarray) -> np.ndarray:
         r"""
         Synthesize a set of virtual visibilities.
-
         Parameters
         ----------
         V: np.ndarray

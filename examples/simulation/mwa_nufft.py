@@ -150,7 +150,7 @@ print(UVW_baselines.shape, gram_corrected_visibilities.shape)
 # NUFFT Synthesis
 print("Running NUFFT on the CPU")
 t = time.process_time()
-nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
+nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, xyz_grid = cl_pix_icrs,
                                       field_center=field_center, eps=eps, w_term=w_term,
                                       n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
 #print(nufft_imager._synthesizer._inner_fft_sizes)
