@@ -23,6 +23,8 @@ Only positional information is modeled at the moment, and can be accessed throug
 import pathlib
 
 import astropy.coordinates as coord
+from astropy.coordinates import EarthLocation
+import astropy.units as u
 import astropy.time as time
 import imot_tools.math.linalg as pylinalg
 import imot_tools.math.special as sp
@@ -328,7 +330,44 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
         """
         super().__init__(XYZ, N_station)
 
-    @chk.check("time", chk.is_instance(time.Time))
+
+    # adapted from https://ska-telescope.gitlab.io/external/rascil/_modules/rascil/processing_components/util/coordinate_support.html#xyz_to_uvw
+    def uvw(self, ha, dec):
+        """
+        Rotate :math:`(x,y,z)` positions in earth coordinates to
+        :math:`(u,v,w)` coordinates relative to astronomical source
+        position :math:`(ha, dec)`. Can be used for both antenna positions
+        as well as for baselines.
+
+        Hour angle and declination can be given as single values or arrays
+        of the same length. Angles can be given as radians or astropy
+        quantities with a valid conversion.
+
+        :param xyz: :math:`(x,y,z)` co-ordinates of antennas in array
+        :param ha: hour angle of phase tracking centre (:math:`ha = ra - lst`)
+        :param dec: declination of phase tracking centre.
+        """
+
+        # return eci_to_uvw(xyz, ha, dec)
+        #x, y, z = numpy.hsplit(xyz, 3)  # pylint: disable=unbalanced-tuple-unpacking
+        x, y, z = np.array(self._layout['X']),np.array(self._layout['Y']), np.array(self._layout['Z'])
+
+        # Two rotations:
+        #  1. by 'ha' along the z axis
+        #  2. by '90-dec' along the u axis
+        u = x * np.cos(ha)  - y  * np.sin(ha)
+        v0= x * np.sin(ha)  + y  * np.cos(ha)
+        w = z * np.sin(dec) - v0 * np.cos(dec)
+        v = z * np.cos(dec) + v0 * np.sin(dec)
+
+        uvw = np.vstack([u, v, w])
+        uvw_layout = pd.DataFrame(
+            data=uvw.T, index=self._layout.index, columns=("X", "Y", "Z")
+        )
+        res= _as_InstrumentGeometry(uvw_layout)
+        return res
+
+
     def __call__(self, time):
         """
         Determine instrument antenna positions in ICRS.
@@ -372,12 +411,27 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
                   [ 1620400.53, -3497583.69,  5064544.37],
                   [ 1620405.5 , -3497583.23,  5064543.11]])
         """
-        layout = self._layout.loc[:, ["X", "Y", "Z"]].values.T
+        '''layout = self._layout.loc[:, ["X", "Y", "Z"]].values.T
         r = linalg.norm(layout, axis=0)
 
         itrs_layout = coord.CartesianRepresentation(layout)
         itrs_position = coord.SkyCoord(itrs_layout, obstime=time, frame="itrs")
         icrs_position = r* (itrs_position.transform_to("icrs").cartesian.xyz) # r*
+        icrs_layout = pd.DataFrame(
+            data=icrs_position.T, index=self._layout.index, columns=("X", "Y", "Z")
+        )
+        res= _as_InstrumentGeometry(icrs_layout)
+        return res'''
+
+        layout = self._layout.loc[:, ["X", "Y", "Z"]].values.T
+        r = linalg.norm(layout, axis=0)
+
+        print('r',r)
+
+        x, y, z = np.array(self._layout['X']),np.array(self._layout['Y']), np.array(self._layout['Z'])
+        itrs_layout = EarthLocation.from_geocentric(x,y,z,u.m)
+        itrs_position = coord.SkyCoord(itrs_layout.get_itrs(time), frame="itrs")
+        icrs_position = (itrs_position.transform_to("icrs").cartesian.xyz)
         icrs_layout = pd.DataFrame(
             data=icrs_position.T, index=self._layout.index, columns=("X", "Y", "Z")
         )

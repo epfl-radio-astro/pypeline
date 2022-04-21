@@ -36,10 +36,10 @@ start_time = time.process_time()
 
 
 # Instrument
-cl_WCS = ifits.wcs("/work/ska/MWA_1086366992/wsclean-mwa-chan100-dirty.fits")
+cl_WCS = ifits.wcs("/work/ska/MWA_1086366992/wsclean-mwa-2-dirty.fits")
 ms_file = "/work/ska/MWA_1086366992/1086366992.ms"
 ms = measurement_set.MwaMeasurementSet(ms_file) # stations 1 - N_station 
-out_str = "mwa_galaxy_test"
+out_str = "mwa_galaxy_test2" 
 
 #cl_WCS = ifits.wcs("/work/ska/gauss4/gauss4-image-pb.fits")
 #ms_file = '/work/ska/gauss4/gauss4_t201806301100_SBL180.MS'
@@ -54,7 +54,10 @@ cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10))) # downsamp
 cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame
 N_cl_lon, N_cl_lat = cl_pix_icrs.shape[-2:]
 
-print("Reading {0}\n".format(ms_file))
+print("Reading data from MS file {0}".format(ms_file))
+print('Using WCS info with grid center at: ',cl_pix_icrs[:, int(N_cl_lon/2),int(N_cl_lat/2)])
+
+
 
 # Observation
 channel_id = 100
@@ -64,24 +67,69 @@ wl = constants.speed_of_light / frequency.to_value(u.Hz)
 obs_start, obs_end = ms.time["TIME"][[0, -1]]
 
 print("obs start: {0}, end: {1}".format(obs_start, obs_end))
-print(ms.time["TIME"])
+print("The MS field center is:", ms.field_center)
+print("  ...cartesian:", ms.field_center.cartesian.xyz)
 
 location=EarthLocation.of_site('mwa')
 site = Observer(location=location)
 ha = site.target_hour_angle(obs_start, ms.field_center).wrap_at("180d")
+dec = ms.field_center.dec.rad
 
-print("instrument location", location)
+print("EarthLocation of the instrument from astroplan:", location)
+itrs_position = coord.SkyCoord(location.get_itrs(obs_start), frame="itrs") 
+icrs_position = itrs_position.transform_to("icrs")
+print(" ...in ICRS at obs time:", icrs_position)
+#print("instrument central location ICRS cart", icrs_position.cartesian.xyz)
+print(" ... ICRS at obs time (unit norm)", icrs_position.cartesian.xyz/np.linalg.norm(icrs_position.cartesian.xyz))
+
+print("...checking MS antenna coordinates...")
+x, y, z = np.array(ms.instrument._layout['X']),np.array(ms.instrument._layout['Y']), np.array(ms.instrument._layout['Z'])
+
+print("Raw ITRS coords of antenna 1:",x[0],y[0],z[0])
+testloc = EarthLocation.from_geocentric(x[0],y[0],z[0],u.m)
+print("EarthLocation of antenna 1",testloc)
+test_itrs_position = coord.SkyCoord(testloc.get_itrs(obs_start), frame="itrs")
+test_icrs_position = test_itrs_position.transform_to("icrs")
+print(" ... ICRS at obs time ",test_icrs_position.cartesian.xyz)
+print(" ... ICRS at obs time (unit norm)",test_icrs_position.cartesian.xyz/np.linalg.norm(test_icrs_position.cartesian.xyz))
+
+print("...checking BB ICRS coordinates...")
+XYZ = ms.instrument(obs_start)
+print("instrument location (bb) ICRS XYZ antenna 1", XYZ.data[0,:])
+print("instrument location (bb) ICRS XYZ antenna 1 norm", XYZ.data[0,:]/np.linalg.norm(XYZ.data[0,:]))
+print("instrument location (bb) ICRS XYZ antenna 128", XYZ.data[-1,:])
+print("instrument location (bb) ICRS XYZ antenna 128 norm", XYZ.data[-1,:]/np.linalg.norm(XYZ.data[-1,:]))
+
+print("Double checking BB calculation of ICRS coords...")
+layout = ms.instrument._layout.loc[:, ["X", "Y", "Z"]].values.T
+ant1 = layout[:,0]
+r = np.linalg.norm(ant1, axis=0)
+
+print(" antenna 1 ITRS", ant1)
+
+print("BB calc")
+itrs_layout1 = coord.CartesianRepresentation(ant1)
+itrs_position1 = coord.SkyCoord(itrs_layout1, obstime=obs_start, frame="itrs")
+icrs_position1 = (itrs_position1.transform_to("icrs").cartesian.xyz) # r*
+print(" antenna 1 ICRS raw", icrs_position1)
+print(" antenna 1 ICRS scaled", r*icrs_position1)
+
+print("Emma's calc")
+itrs_layout2 = EarthLocation.from_geocentric(ant1[0],ant1[1],ant1[2],u.m)
+print(itrs_layout2)
+itrs_position2 = coord.SkyCoord(itrs_layout2.get_itrs(obs_start), frame="itrs")
+icrs_position2 = (itrs_position2.transform_to("icrs").cartesian.xyz) # r*
+print(" antenna 1 ICRS raw", icrs_position2)
+icrs_position2 = icrs_position2/np.linalg.norm(icrs_position2)
+print(" antenna 1 ICRS norm", icrs_position2)
+print(" antenna 1 ICRS scaled", r*icrs_position2)
+
+#sys.exit()
 
 print("HA", ha)
 
-print("field_center", ms.field_center)
 #ms._field_center = coord.SkyCoord(ra= (263.4737555)*u.deg, dec= -26.69648899 *u.deg, frame="icrs")
 #print("field_center", ms.field_center)
-
-itrs_layout = coord.CartesianRepresentation(ms.instrument._layout.loc[:, ["X", "Y", "Z"]].values.T)
-itrs_position = coord.SkyCoord(itrs_layout, obstime=obs_start, frame="itrs")
-print("itrs_position", itrs_position)
-print("icrs_position", itrs_position.transform_to("icrs"))
 
 # Imaging
 N_level = 4
@@ -107,14 +155,27 @@ for t, f, S in ProgressBar(
     print('TEST', np.sum(S.data), S.data.shape)
 
     XYZ = ms.instrument(t)
-    print('XYZ',XYZ.data)
+    XYZ*= -1
+    print('XYZ',XYZ.shape)
+    #XYZ = ms.instrument.uvw(ha,dec)
+    print('XYZ-uvw',XYZ.shape)
     print('px_grid',px_grid)
 
-    for i in range(N_cl_lat):
+    '''for i in range(N_cl_lat):
         pix_gpu = px_grid[:,:,i]
         b  = np.matmul(XYZ.data, pix_gpu)
         print(b.shape,N_cl_lat)
-        print('inner product ' , i, b)
+        print('inner product ' , i, b)'''
+
+    b = np.tensordot(XYZ.data, px_grid, axes=1)
+    print(XYZ.shape, px_grid.shape, b.shape)
+
+    for i in range(0,XYZ.shape[0],20):
+        print(XYZ.data[i,:])
+        fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 5))
+        p=ax.imshow(np.abs(b[i,:]))
+        ax.set_title('Phase for antenna at x = {0}, y = {1}, z = {2}'.format(*XYZ.data[i,:]))
+        plt.savefig("antenna_response_{0}".format(i))
 
     #sys.exit()
 
@@ -139,6 +200,7 @@ for t, f, S in ProgressBar(
 ):
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
+    #XYZ = ms.instrument.uvw(ha,dec)
 
     W = ms.beamformer(XYZ, wl)
     G = gram(XYZ, W, wl)
@@ -152,7 +214,7 @@ for t, f, S in ProgressBar(
     #_ = I_mfs(D, V, XYZ.data, W.data, c_idx)
 
     XYZ_gpu = cp.asarray(XYZ.data)
-    W_gpu  = cp.asarray(W.data.toarray())
+    W_gpu  = cp.asarray(W.data)
     V_gpu  = cp.asarray(V)
     _ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
     
