@@ -332,7 +332,7 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
 
 
     # adapted from https://ska-telescope.gitlab.io/external/rascil/_modules/rascil/processing_components/util/coordinate_support.html#xyz_to_uvw
-    def uvw(self, ha, dec):
+    def uvw(self, ha, dec, lat):
         """
         Rotate :math:`(x,y,z)` positions in earth coordinates to
         :math:`(u,v,w)` coordinates relative to astronomical source
@@ -351,14 +351,25 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
         # return eci_to_uvw(xyz, ha, dec)
         #x, y, z = numpy.hsplit(xyz, 3)  # pylint: disable=unbalanced-tuple-unpacking
         x, y, z = np.array(self._layout['X']),np.array(self._layout['Y']), np.array(self._layout['Z'])
+        print('itrs coords', x[0],y[0],z[0])
+
+
+
+        lat2 = np.pi / 2 - lat
+        y2 = -z * np.sin(lat2) + y * np.cos(lat2)
+        z2 =  z * np.cos(lat2) + y * np.sin(lat2)
+
+
 
         # Two rotations:
         #  1. by 'ha' along the z axis
         #  2. by '90-dec' along the u axis
-        u = x * np.cos(ha)  - y  * np.sin(ha)
-        v0= x * np.sin(ha)  + y  * np.cos(ha)
-        w = z * np.sin(dec) - v0 * np.cos(dec)
-        v = z * np.cos(dec) + v0 * np.sin(dec)
+        u = x * np.cos(ha)  - y2  * np.sin(ha)
+        v0= x * np.sin(ha)  + y2  * np.cos(ha)
+        w = z2 * np.sin(dec) - v0 * np.cos(dec)
+        v = z2 * np.cos(dec) + v0 * np.sin(dec)
+
+        print('uvw coords',u[0],v[0],w[0])
 
         uvw = np.vstack([u, v, w])
         uvw_layout = pd.DataFrame(
@@ -367,8 +378,32 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
         res= _as_InstrumentGeometry(uvw_layout)
         return res
 
+    def uvw2(self, t, location, field_center):
 
-    def __call__(self, time):
+        #x, y, z = np.array(ms.instrument._layout['X']),np.array(ms.instrument._layout['Y']), np.array(ms.instrument._layout['Z'])
+        x, y, z = np.array(self._layout['X']),np.array(self._layout['Y']), np.array(self._layout['Z'])
+
+        # Format antenna positions and VLA center as EarthLocation.
+        antpos_ap = coord.EarthLocation(x=x*u.m, y=y*u.m, z=z*u.m)
+        tel_site_p, tel_site_v = location.get_gcrs_posvel(t)
+        antpos_c_ap = coord.GCRS(antpos_ap.get_gcrs_posvel(t)[0],
+                obstime=t, obsgeoloc=tel_site_p, obsgeovel=tel_site_v)
+
+        #frame_uvw = pointing_direction.skyoffset_frame() # ICRS
+        frame_uvw = field_center.transform_to(antpos_c_ap).skyoffset_frame() # GCRS
+
+        # Rotate antenna positions into UVW frame.
+        antpos_uvw_ap = antpos_c_ap.transform_to(frame_uvw).cartesian
+
+        ant_uvw = np.array([antpos_uvw_ap.y,antpos_uvw_ap.z,antpos_uvw_ap.x]).T
+
+        uvw_layout = pd.DataFrame(
+            data=ant_uvw, index=self._layout.index, columns=("X", "Y", "Z")
+        )
+        res= _as_InstrumentGeometry(uvw_layout)
+        return res
+
+    def __call__(self, time, angle = 0):
         """
         Determine instrument antenna positions in ICRS.
 
@@ -411,32 +446,31 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
                   [ 1620400.53, -3497583.69,  5064544.37],
                   [ 1620405.5 , -3497583.23,  5064543.11]])
         """
-        '''layout = self._layout.loc[:, ["X", "Y", "Z"]].values.T
-        r = linalg.norm(layout, axis=0)
-
-        itrs_layout = coord.CartesianRepresentation(layout)
-        itrs_position = coord.SkyCoord(itrs_layout, obstime=time, frame="itrs")
-        icrs_position = r* (itrs_position.transform_to("icrs").cartesian.xyz) # r*
-        icrs_layout = pd.DataFrame(
-            data=icrs_position.T, index=self._layout.index, columns=("X", "Y", "Z")
-        )
-        res= _as_InstrumentGeometry(icrs_layout)
-        return res'''
 
         layout = self._layout.loc[:, ["X", "Y", "Z"]].values.T
         r = linalg.norm(layout, axis=0)
 
-        print('r',r)
+        itrs_layout = coord.CartesianRepresentation(layout)
+        itrs_position = coord.SkyCoord(itrs_layout, obstime=time, frame="itrs")
+        icrs_position = itrs_position.transform_to("icrs")
+        #icrs_position_rot = icrs_position.spherical_offsets_by(d_lon = angle, d_lat = 0*u.rad)
 
-        x, y, z = np.array(self._layout['X']),np.array(self._layout['Y']), np.array(self._layout['Z'])
-        itrs_layout = EarthLocation.from_geocentric(x,y,z,u.m)
-        itrs_position = coord.SkyCoord(itrs_layout.get_itrs(time), frame="itrs")
-        icrs_position = (itrs_position.transform_to("icrs").cartesian.xyz)
+        #icrs_position_rot = coord.SkyOffsetFrame(angle, 0*u.rad, origin=icrs_position.frame[0]).transform_to(icrs_position)
+        #print(icrs_position.frame[0])
+        #print(icrs_position_rot)
+        z_rotation = np.array([[ np.cos(angle), -np.sin(angle), 0 ],
+                               [ np.sin(angle), np.cos(angle), 0 ],
+                               [0, 0, 1 ]])
+        icrs_position = r * (icrs_position.cartesian.xyz)
+        print('orig pos',icrs_position[:,1])
+        icrs_position_rot = z_rotation@icrs_position
+        print('after rot',icrs_position_rot[:,1])
+        icrs_position = icrs_position_rot
         icrs_layout = pd.DataFrame(
             data=icrs_position.T, index=self._layout.index, columns=("X", "Y", "Z")
         )
-        res= _as_InstrumentGeometry(icrs_layout)
-        return res
+        return _as_InstrumentGeometry(icrs_layout)
+
 
     def baselines(self, t: time.Time, uvw: bool = False,
                   field_center: typ.Optional[coord.SkyCoord] = None) -> np.ndarray:

@@ -26,158 +26,121 @@ import pypeline.phased_array.bluebild.imager.spatial_domain as bb_sd
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.data_gen.source as source
 import pypeline.phased_array.measurement_set as measurement_set
-#import imot_tools.math.sphere.interpolate as interpolate
-#import imot_tools.math.sphere.transform as transform
+import imot_tools.math.sphere.interpolate as interpolate
+import imot_tools.math.sphere.transform as transform
 #import pycsou.linop as pyclop
 #from imot_tools.math.func import SphericalDirichlet
 import joblib as job
 
 start_time = time.process_time()
 
-
+angle_deg = 0
+use_fits_coords = True
+use_uvw = True
+rotation = np.deg2rad(angle_deg)*u.rad
+out_str = "skalow_small_uvw{1}_{2}".format(angle_deg, use_uvw, 'wcs' if use_fits_coords else 'rot{0}'.format(angle_deg))
 # Instrument
-cl_WCS = ifits.wcs("/work/ska/MWA_1086366992/wsclean-mwa-2-dirty.fits")
-ms_file = "/work/ska/MWA_1086366992/1086366992.ms"
-ms = measurement_set.MwaMeasurementSet(ms_file) # stations 1 - N_station 
-out_str = "mwa_galaxy_test2" 
-
-#cl_WCS = ifits.wcs("/work/ska/gauss4/gauss4-image-pb.fits")
-#ms_file = '/work/ska/gauss4/gauss4_t201806301100_SBL180.MS'
-#ms = measurement_set.LofarMeasurementSet(ms_file) 
+cl_WCS = ifits.wcs("/work/ska/results_rascil_skalow_small/wsclean-image.fits")
+ms_file = "/work/ska/results_rascil_skalow_small/ska-pipeline_simulation.ms"
+ms = measurement_set.SKALowMeasurementSet(ms_file) # stations 1 - N_station 
+print("Reading {0}\n".format(ms_file))
 
 gram = bb_gr.GramBlock()
-print(cl_WCS.to_header())
-cl_WCS = cl_WCS.sub(['celestial'])
-cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10))) # downsample!
-cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame
-N_cl_lon, N_cl_lat = cl_pix_icrs.shape[-2:]
-
-print("Reading data from MS file {0}".format(ms_file))
-print('Using WCS info with grid center at: ',cl_pix_icrs[:, int(N_cl_lon/2),int(N_cl_lat/2)])
 
 # Observation
-channel_id = 100
+FoV = np.deg2rad(5)
+channel_id = 0
 frequency = ms.channels["FREQUENCY"][channel_id]
 wl = constants.speed_of_light / frequency.to_value(u.Hz)
 #sky_model = source.from_tgss_catalog(ms.field_center, FoV, N_src=4)
 obs_start, obs_end = ms.time["TIME"][[0, -1]]
 
 print("obs start: {0}, end: {1}".format(obs_start, obs_end))
-print("The MS field center is:", ms.field_center)
-print("  ...cartesian:", ms.field_center.cartesian.xyz)
+print("field center", ms.field_center, ms.field_center.cartesian.xyz)
 
-location=EarthLocation.of_site('mwa')
-site = Observer(location=location)
-ha = site.target_hour_angle(obs_start, ms.field_center).wrap_at("180d")
-dec = ms.field_center.dec.rad
-
-print("EarthLocation of the instrument from astroplan:", location)
-itrs_position = coord.SkyCoord(location.get_itrs(obs_start), frame="itrs") 
-icrs_position = itrs_position.transform_to("icrs")
-print(" ...in ICRS at obs time:", icrs_position)
-#print("instrument central location ICRS cart", icrs_position.cartesian.xyz)
-print(" ... ICRS at obs time (unit norm)", icrs_position.cartesian.xyz/np.linalg.norm(icrs_position.cartesian.xyz))
-
-print("...checking MS antenna coordinates...")
-x, y, z = np.array(ms.instrument._layout['X']),np.array(ms.instrument._layout['Y']), np.array(ms.instrument._layout['Z'])
-
-print("Raw ITRS coords of antenna 1:",x[0],y[0],z[0])
-testloc = EarthLocation.from_geocentric(x[0],y[0],z[0],u.m)
-print("EarthLocation of antenna 1",testloc)
-test_itrs_position = coord.SkyCoord(testloc.get_itrs(obs_start), frame="itrs")
-test_icrs_position = test_itrs_position.transform_to("icrs")
-print(" ... ICRS at obs time ",test_icrs_position.cartesian.xyz)
-print(" ... ICRS at obs time (unit norm)",test_icrs_position.cartesian.xyz/np.linalg.norm(test_icrs_position.cartesian.xyz))
-
-print("...checking BB ICRS coordinates...")
-XYZ = ms.instrument(obs_start)
-print("instrument location (bb) ICRS XYZ antenna 1", XYZ.data[0,:])
-print("instrument location (bb) ICRS XYZ antenna 1 norm", XYZ.data[0,:]/np.linalg.norm(XYZ.data[0,:]))
-print("instrument location (bb) ICRS XYZ antenna 128", XYZ.data[-1,:])
-print("instrument location (bb) ICRS XYZ antenna 128 norm", XYZ.data[-1,:]/np.linalg.norm(XYZ.data[-1,:]))
-
-print("Double checking BB calculation of ICRS coords...")
-layout = ms.instrument._layout.loc[:, ["X", "Y", "Z"]].values.T
-ant1 = layout[:,0]
-r = np.linalg.norm(ant1, axis=0)
-
-print(" antenna 1 ITRS", ant1)
-
-print("BB calc")
-itrs_layout1 = coord.CartesianRepresentation(ant1)
-itrs_position1 = coord.SkyCoord(itrs_layout1, obstime=obs_start, frame="itrs")
-icrs_position1 = (itrs_position1.transform_to("icrs").cartesian.xyz) # r*
-print(" antenna 1 ICRS raw", icrs_position1)
-print(" antenna 1 ICRS scaled", r*icrs_position1)
-
-print("Emma's calc")
-itrs_layout2 = EarthLocation.from_geocentric(ant1[0],ant1[1],ant1[2],u.m)
-print(itrs_layout2)
-itrs_position2 = coord.SkyCoord(itrs_layout2.get_itrs(obs_start), frame="itrs")
-icrs_position2 = (itrs_position2.transform_to("icrs").cartesian.xyz) # r*
-print(" antenna 1 ICRS raw", icrs_position2)
-icrs_position2 = icrs_position2/np.linalg.norm(icrs_position2)
-print(" antenna 1 ICRS norm", icrs_position2)
-print(" antenna 1 ICRS scaled", r*icrs_position2)
-
-#sys.exit()
-
-print("HA", ha)
-
-#ms._field_center = coord.SkyCoord(ra= (263.4737555)*u.deg, dec= -26.69648899 *u.deg, frame="icrs")
-#print("field_center", ms.field_center)
+#field_center_rot = ms.field_center.spherical_offsets_by(d_lon = rotation, d_lat = 0 * u.rad)
+field_center_rot = coord.SkyCoord(ms.field_center.ra + angle_deg*u.deg, ms.field_center.dec, unit="deg")
+print("field rotated", field_center_rot, field_center_rot.cartesian.xyz)
+ms._field_center = field_center_rot
+location = EarthLocation(lon=116.76444824 * u.deg, lat=-26.824722084 * u.deg, height=300.0)
 
 # Imaging
 N_level = 4
 N_bits = 32
 
-
-#N_FS, T_kernel = ms.instrument.bfsf_kernel_bandwidth(wl, obs_start, obs_end), np.deg2rad(10)
-#px_grid = transform.pol2cart(1, px_colat, px_lon).reshape(3, -1)
-px_grid = cl_pix_icrs
-time_slice = 10
+if use_fits_coords:
+    cl_WCS = cl_WCS.sub(['celestial'])
+    cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10))) # downsample!
+    px_grid = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame
+    N_cl_lon, N_cl_lat = px_grid.shape[-2:]
+else:
+    _, _, px_colat, px_lon = grid.equal_angle(
+        N=ms.instrument.nyquist_rate(wl), direction=ms.field_center.cartesian.xyz.value, FoV=FoV
+    )
+    px_grid = transform.pol2cart(1, px_colat, px_lon)
+    N_cl_lon, N_cl_lat = px_grid.shape[-2:]
 print("Grid size is:", px_grid.shape)
+#px_grid = px_grid[:,::10,::10]# downsample!
+print("Downsampled to:", px_grid.shape)
+
+print("===================")
+
+
+x, y, z = np.array(ms.instrument._layout['X']),np.array(ms.instrument._layout['Y']), np.array(ms.instrument._layout['Z'])
+
+# Format antenna positions and VLA center as EarthLocation.
+antpos_ap = coord.EarthLocation(x=x*u.m, y=y*u.m, z=z*u.m)
+# Convert antenna pos terrestrial to celestial.  For astropy use
+# get_gcrs_posvel(t)[0] rather than get_gcrs(t) because if a velocity
+# is attached to the coordinate astropy will not allow us to do additional
+# transformations with it (https://github.com/astropy/astropy/issues/6280)
+tel_site_p, tel_site_v = location.get_gcrs_posvel(obs_start)
+antpos_c_ap = coord.GCRS(antpos_ap.get_gcrs_posvel(obs_start)[0],
+        obstime=obs_start, obsgeoloc=tel_site_p, obsgeovel=tel_site_v)
+
+#frame_uvw = pointing_direction.skyoffset_frame() # ICRS
+frame_uvw = ms.field_center.transform_to(antpos_c_ap).skyoffset_frame() # GCRS
+
+# Rotate antenna positions into UVW frame.
+antpos_uvw_ap = antpos_c_ap.transform_to(frame_uvw).cartesian
+
+ant_uvw = np.array([antpos_uvw_ap.y,antpos_uvw_ap.z,antpos_uvw_ap.x]).T
+
+print(ant_uvw.shape)
+print(ant_uvw[0,:])
+
+print("===================")
+
+#px_grid = cl_pix_icrs
+time_slice = 10
+
+
+site = Observer(location=location)
+ha = site.target_hour_angle(obs_start, ms.field_center).wrap_at("180d")
+dec = ms.field_center.dec.rad
+lat = location.geodetic[1].to("rad").value
+
+print("HA", ha)
+
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
 I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=0.95)
 for t, f, S in ProgressBar(
         ms.visibilities(
-            channel_id=[channel_id], time_id=slice(0, None, 10), column="DATA"
+            channel_id=[channel_id], time_id=slice(0, None, 200), column="DATA"
         )
 ):
     wl = constants.speed_of_light / f.to_value(u.Hz)
 
-    print('TEST', np.sum(S.data), S.data.shape)
-
-    XYZ = ms.instrument(t)
-    XYZ*= -1
-    print('XYZ',XYZ.shape)
-    #XYZ = ms.instrument.uvw(ha,dec)
-    print('XYZ-uvw',XYZ.shape)
-    print('px_grid',px_grid)
-
-    '''for i in range(N_cl_lat):
-        pix_gpu = px_grid[:,:,i]
-        b  = np.matmul(XYZ.data, pix_gpu)
-        print(b.shape,N_cl_lat)
-        print('inner product ' , i, b)'''
-
-    b = np.tensordot(XYZ.data, px_grid, axes=1)
-    print(XYZ.shape, px_grid.shape, b.shape)
-
-    for i in range(0,XYZ.shape[0],20):
-        print(XYZ.data[i,:])
-        fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 5))
-        p=ax.imshow(np.abs(b[i,:]))
-        ax.set_title('Phase for antenna at x = {0}, y = {1}, z = {2}'.format(*XYZ.data[i,:]))
-        plt.savefig("antenna_response_{0}".format(i))
-
-    #sys.exit()
-
+    if use_uvw:
+        #XYZ = ms.instrument.uvw(ha,dec,lat)
+        XYZ = ms.instrument.uvw2(t, location, ms.field_center)
+    else:
+        XYZ = ms.instrument(t, rotation)
+    print('  uvw after call: ',XYZ.data[0,:])
+    
     W = ms.beamformer(XYZ, wl)
-
-    #print('W:',W.data)
     G = gram(XYZ, W, wl)
     S, _ = measurement_set.filter_data(S, W)
 
@@ -195,13 +158,16 @@ for t, f, S in ProgressBar(
         ms.visibilities(channel_id=[channel_id], time_id=slice(None, None, time_slice), column="DATA")
 ):
     wl = constants.speed_of_light / f.to_value(u.Hz)
-    XYZ = ms.instrument(t)
-    #XYZ = ms.instrument.uvw(ha,dec)
 
+    if use_uvw:
+        #XYZ = ms.instrument.uvw(ha,dec,lat)
+        XYZ = ms.instrument.uvw2(t,location, ms.field_center)
+    else:
+        XYZ = ms.instrument(t, rotation)
+    #XYZ = ms.instrument(t,rotation)
     W = ms.beamformer(XYZ, wl)
     G = gram(XYZ, W, wl)
     S, W = measurement_set.filter_data(S, W)
-
 
     D, V, c_idx = I_dp(S, G)
     print(c_idx)
@@ -250,7 +216,7 @@ for t, f, S in ProgressBar(
 _, S = S_mfs.as_image()'''
 
 # Plot Results ================================================================
-fig, ax = plt.subplots(ncols=N_level, nrows=2, figsize=(16, 10))
+fig, ax = plt.subplots(ncols=N_level+1, nrows=2, figsize=(16, 8))
 #I_std_eq = s2image.Image(I_std.data / S.data, I_std.grid) 
 #I_lsq_eq = s2image.Image(I_lsq.data / S.data, I_lsq.grid) 
 I_std_eq = s2image.Image(I_std.data, I_std.grid) 
@@ -261,12 +227,16 @@ for i in range(N_level):
     ax[0,i].set_title("Standardized Image Level = {0}".format(i))
     I_lsq_eq.draw(index=i, ax=ax[1,i])
     ax[1,i].set_title("Least-Squares Image Level = {0}".format(i))
+I_std_eq.draw(ax=ax[0,N_level])
+ax[0,N_level].set_title("Standardized Image".format(i))
+I_lsq_eq.draw(ax=ax[1,N_level])
+ax[1,N_level].set_title("Least-Squares Image".format(i))
 
 plt.savefig(out_str)
 
 # 5. Store the interpolated Bluebild image in standard-compliant FITS for view
 # in AstroPy/DS9.
-
+sys.exit()
 f_interp = (I_lsq_eq.data  # We need to transpose axes due to the FORTRAN
             .reshape(N_level, N_cl_lon, N_cl_lat)  # indexing conventions of the FITS standard.
             .transpose(0, 2, 1))
@@ -274,9 +244,9 @@ f_interp = (I_lsq_eq.data  # We need to transpose axes due to the FORTRAN
 #f_interp = np.rot90(f_interp, 2, axes=(1,2))
 #f_interp = np.flip(f_interp, axis=2)
 I_lsq_eq_interp = s2image.WCSImage(np.sum(f_interp,axis=0), cl_WCS)
-I_lsq_eq_interp.to_fits('bluebild_ss_{0}_combined-test.fits'.format(out_str))
+I_lsq_eq_interp.to_fits('bluebild_{0}_combined-test.fits'.format(out_str))
 I_lsq_eq_interp = s2image.WCSImage(f_interp, cl_WCS)
-I_lsq_eq_interp.to_fits('bluebild_ss_{0}_levels-test.fits'.format(out_str))
+I_lsq_eq_interp.to_fits('bluebild_{0}_levels-test.fits'.format(out_str))
 
 end_interp_time = time.process_time()
 
