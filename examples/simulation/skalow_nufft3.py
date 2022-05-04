@@ -37,7 +37,7 @@ import joblib as job
 
 start_time = time.process_time()
 
-read_coords_from_ms = True
+read_coords_from_ms = False
 
 # Instrument
 #ms_file = "/home/etolley/rascil_ska_sim/results_test/ska-pipeline_simulation.ms"
@@ -52,17 +52,22 @@ if read_coords_from_ms:
     ##cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10)))  # downsample, too high res!
     cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame
     N_cl_lon, N_cl_lat = cl_pix_icrs.shape[-2:]
+
+    width_px, height_px= 2*cl_WCS.wcs.crpix 
+    cdelt_x, cdelt_y = cl_WCS.wcs.cdelt 
+    FoV = np.deg2rad(abs(cdelt_x*width_px) )
+    field_center = ms.field_center
 else:
     field_center = coord.SkyCoord(ra=+15.0 * u.deg, dec=-45.0 * u.deg, frame='icrs', equinox='J2000')
-    FoV = np.deg2rad(20)
-    wl = constants.speed_of_light / frequency
+    FoV = np.deg2rad(5)
+    
 
 print("Reading {0}\n".format(ms_file))
 
-# Observation
-#FoV = np.deg2rad(5)
 channel_id = 0
-frequency = ms.channels["FREQUENCY"][channel_id]
+frequency = 1e8
+wl = constants.speed_of_light / frequency
+freq_ms = ms.channels["FREQUENCY"][channel_id]
 assert freq_ms.to_value(u.Hz) == frequency
 obs_start, obs_end = ms.time["TIME"][[0, -1]]
 print("obs start: {0}, end: {1}".format(obs_start, obs_end))
@@ -73,7 +78,7 @@ eps = 1e-5
 w_term = True
 N_level = 4
 precision = 'single'
-time_slice = slice(0, 5, 1)
+time_slice = slice(None, None, 10)
 
 
 ### Intensity Field ===========================================================
@@ -126,9 +131,14 @@ gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=-3).res
 # NUFFT Synthesis
 print("Running NUFFT on the CPU")
 t = time.process_time()
-nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
-                                      field_center=field_center, eps=eps, w_term=w_term,
-                                      n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
+if read_coords_from_ms:
+    nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
+                                          field_center=field_center, eps=eps, w_term=w_term,
+                                          n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
+else:
+    nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T,  grid_size=N_pix, FoV=FoV,
+                                          field_center=field_center, eps=eps, w_term=w_term,
+                                          n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
 #print(nufft_imager._synthesizer._inner_fft_sizes)
 lsq_image, sqrt_image = nufft_imager(gram_corrected_visibilities)
 
@@ -145,7 +155,7 @@ for t in ProgressBar(ms.time["TIME"][::200]):
 
     S_est.collect(G)
 N_eig = S_est.infer_parameters()
-
+'''
 print("Running sensitivity imaging")
 # Imaging
 S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
@@ -167,16 +177,21 @@ for t, f, S in ProgressBar(
 sensitivity_coeffs = np.stack(sensitivity_coeffs, axis=0).reshape(-1)
 print("Running NUFFT on the CPU")
 t = time.process_time()
-nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
-                                      field_center=field_center, eps=eps, w_term=w_term,
-                                      n_trans=1, precision=precision)
+if read_coords_from_ms:
+    nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
+                                          field_center=field_center, eps=eps, w_term=w_term,
+                                          n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
+else:
+    nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T,  grid_size=N_pix, FoV=FoV,
+                                          field_center=field_center, eps=eps, w_term=w_term,
+                                          n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
 sensitivity_image = nufft_imager(sensitivity_coeffs)
-print("time elapsed: {0}".format(time.process_time() - t))
+print("time elapsed: {0}".format(time.process_time() - t))'''
 
 # Plot Results ================================================================
 fig, ax    = plt.subplots(ncols=N_level, nrows=2, figsize=(16, 10))
-I_lsq_eq   = s2image.Image(lsq_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
-I_std_eq   = s2image.Image(sqrt_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
+I_lsq_eq   = s2image.Image(lsq_image, nufft_imager._synthesizer.xyz_grid)
+I_std_eq   = s2image.Image(sqrt_image, nufft_imager._synthesizer.xyz_grid)
 
 for i in range(N_level):
     I_std_eq.draw(index=i, ax=ax[0,i])
@@ -186,8 +201,9 @@ for i in range(N_level):
 #fig.show()
 #plt.show()
 #sys.exit()
-plt.savefig("skalow_nufft_new")
+plt.savefig("skalow_nufft_mscoords{0}".format(read_coords_from_ms))
 
+if not read_coords_from_ms: sys.exit()
 # 5. Store the interpolated Bluebild image in standard-compliant FITS for view
 # in AstroPy/DS9.
 N_cl_lon, N_cl_lat = nufft_imager._synthesizer.xyz_grid.shape[-2:]
