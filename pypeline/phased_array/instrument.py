@@ -351,13 +351,14 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
         # return eci_to_uvw(xyz, ha, dec)
         #x, y, z = numpy.hsplit(xyz, 3)  # pylint: disable=unbalanced-tuple-unpacking
         x, y, z = np.array(self._layout['X']),np.array(self._layout['Y']), np.array(self._layout['Z'])
-        print('itrs coords', x[0],y[0],z[0])
+        print('original coords', x[0],y[0],z[0])
 
 
 
         lat2 = np.pi / 2 - lat
         y2 = -z * np.sin(lat2) + y * np.cos(lat2)
         z2 =  z * np.cos(lat2) + y * np.sin(lat2)
+        print('rotated coords', x[0],y2[0],z2[0])
 
 
 
@@ -380,7 +381,6 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
 
     def uvw2(self, t, location, field_center):
 
-        #x, y, z = np.array(ms.instrument._layout['X']),np.array(ms.instrument._layout['Y']), np.array(ms.instrument._layout['Z'])
         x, y, z = np.array(self._layout['X']),np.array(self._layout['Y']), np.array(self._layout['Z'])
 
         # Format antenna positions and VLA center as EarthLocation.

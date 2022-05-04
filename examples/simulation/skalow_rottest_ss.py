@@ -1,4 +1,3 @@
-
 """
 Simulated SKA-LOW imaging with Bluebild (PeriodicSynthesis).
 Compare Bluebild image with WSCLEAN image.
