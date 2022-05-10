@@ -59,7 +59,8 @@ if read_coords_from_ms:
     field_center = ms.field_center
 else:
     field_center = coord.SkyCoord(ra=+15.0 * u.deg, dec=-45.0 * u.deg, frame='icrs', equinox='J2000')
-    FoV = np.deg2rad(5)
+    #field_center = coord.SkyCoord(ra=90.0 * u.deg, dec=-45.0 * u.deg, frame='icrs', equinox='J2000')
+    FoV = np.deg2rad(10)
     
 
 print("Reading {0}\n".format(ms_file))
@@ -121,7 +122,11 @@ for t, f, S in ProgressBar(
     G = gram(XYZ, W, wl)
     S, W = measurement_set.filter_data(S, W)
 
+    print(S)
+
     D, V, c_idx = I_dp(S, G)
+    print(c_idx)
+    #print(c_idx)
     S_corrected = IV_dp(D, V, W, c_idx)
     gram_corrected_visibilities.append(S_corrected)
 
@@ -192,7 +197,7 @@ print("time elapsed: {0}".format(time.process_time() - t))'''
 fig, ax    = plt.subplots(ncols=N_level, nrows=2, figsize=(16, 10))
 I_lsq_eq   = s2image.Image(lsq_image, nufft_imager._synthesizer.xyz_grid)
 I_std_eq   = s2image.Image(sqrt_image, nufft_imager._synthesizer.xyz_grid)
-
+print(lsq_image.shape)
 for i in range(N_level):
     I_std_eq.draw(index=i, ax=ax[0,i])
     ax[0,i].set_title("Standardized Image Level = {0}".format(i))

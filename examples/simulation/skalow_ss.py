@@ -58,7 +58,7 @@ print("obs start: {0}, end: {1}".format(obs_start, obs_end))
 print(ms.time["TIME"])
 
 # Imaging
-N_level = 4
+N_level = 1
 N_bits = 32
 #R = ms.instrument.icrs2bfsf_rot(obs_start, obs_end)
 #colat_idx, lon_idx, pix_colat, pix_lon = grid.equal_angle(
@@ -112,7 +112,7 @@ for t, f, S in ProgressBar(
 
     D, V, c_idx = I_dp(S, G)
     print(c_idx)
-    c_idx = [0,1,2,3]
+    #c_idx = [0,1,2,3]
 
     XYZ_gpu = cp.asarray(XYZ.data)
     W_gpu  = cp.asarray(W.data)
@@ -162,10 +162,12 @@ I_std_eq = s2image.Image(I_std.data, I_std.grid)
 I_lsq_eq = s2image.Image(I_lsq.data, I_lsq.grid) 
 
 for i in range(N_level):
-    I_std_eq.draw(index=i, ax=ax[0,i])
-    ax[0,i].set_title("Standardized Image Level = {0}".format(i))
-    I_lsq_eq.draw(index=i, ax=ax[1,i])
-    ax[1,i].set_title("Least-Squares Image Level = {0}".format(i))
+    top_plot = ax[0] if N_level == 1 else ax[0,i]
+    bottom_plot = ax[1] if N_level == 1 else ax[1,i]
+    I_std_eq.draw(index=i, ax= top_plot)
+    top_plot.set_title("Standardized Image Level = {0}".format(i))
+    I_lsq_eq.draw(index=i, ax=bottom_plot)
+    bottom_plot.set_title("Least-Squares Image Level = {0}".format(i))
 
 plt.savefig("skalow_standard_new")
 
