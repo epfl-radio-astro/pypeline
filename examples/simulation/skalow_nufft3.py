@@ -60,7 +60,7 @@ if read_coords_from_ms:
 else:
     field_center = coord.SkyCoord(ra=+15.0 * u.deg, dec=-45.0 * u.deg, frame='icrs', equinox='J2000')
     #field_center = coord.SkyCoord(ra=90.0 * u.deg, dec=-45.0 * u.deg, frame='icrs', equinox='J2000')
-    FoV = np.deg2rad(10)
+    FoV = np.deg2rad(5.5)
     
 
 print("Reading {0}\n".format(ms_file))
@@ -77,7 +77,7 @@ print("obs start: {0}, end: {1}".format(obs_start, obs_end))
 N_pix = 512
 eps = 1e-5
 w_term = True
-N_level = 4
+N_level = 1
 precision = 'single'
 time_slice = slice(None, None, 10)
 
@@ -122,7 +122,13 @@ for t, f, S in ProgressBar(
     G = gram(XYZ, W, wl)
     S, W = measurement_set.filter_data(S, W)
 
-    print(S)
+    print(S.shape)
+    plt.clf()
+    plt.imshow(np.absolute(S.data))
+    plt.savefig("skalow_nufft_new_visM")
+    plt.imshow(np.angle(S.data))
+    plt.clf()
+    plt.savefig("skalow_nufft_new_visphi")
 
     D, V, c_idx = I_dp(S, G)
     print(c_idx)
@@ -199,13 +205,12 @@ I_lsq_eq   = s2image.Image(lsq_image, nufft_imager._synthesizer.xyz_grid)
 I_std_eq   = s2image.Image(sqrt_image, nufft_imager._synthesizer.xyz_grid)
 print(lsq_image.shape)
 for i in range(N_level):
-    I_std_eq.draw(index=i, ax=ax[0,i])
-    ax[0,i].set_title("Standardized Image Level = {0}".format(i))
-    I_lsq_eq.draw(index=i, ax=ax[1,i])
-    ax[1,i].set_title("Least-Squares Image Level = {0}".format(i))
-#fig.show()
-#plt.show()
-#sys.exit()
+    top_plot = ax[0] if N_level == 1 else ax[0,i]
+    bottom_plot = ax[1] if N_level == 1 else ax[1,i]
+    I_std_eq.draw(index=i, ax= top_plot)
+    top_plot.set_title("Standardized Image Level = {0}".format(i))
+    I_lsq_eq.draw(index=i, ax=bottom_plot)
+    bottom_plot.set_title("Least-Squares Image Level = {0}".format(i))
 plt.savefig("skalow_nufft_mscoords{0}".format(read_coords_from_ms))
 
 if not read_coords_from_ms: sys.exit()
