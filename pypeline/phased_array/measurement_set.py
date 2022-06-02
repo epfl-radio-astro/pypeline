@@ -222,14 +222,30 @@ class MeasurementSet:
         """
         raise NotImplementedError
 
+    '''def UVW(self,  channel_id, t):
+        channel_id = self.channels["CHANNEL_ID"][channel_id]
+        time_id = slice(0,  1, 1)
+        N_time = len(self.time)
+        time_start, time_stop, time_step = time_id.indices(N_time)
+        query = (
+            f"select * from {self._msf} where TIME in "
+            f"(select unique TIME from {self._msf} limit {time_start}:{time_stop}:{time_step})"
+        )
+        table = ct.taql(query)
+        for sub_table in table.iter("TIME", sort=True):
+            tms = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
+            if tms!=t: continue
+            data = sub_table.getcol("UVW")  # (N_entry, N_channel, 4)
+            return data
+
     @chk.check(
         dict(
             channel_id=chk.accept_any(chk.has_integers, chk.is_instance(slice)),
             time_id=chk.accept_any(chk.is_integer, chk.is_instance(slice)),
             column=chk.is_instance(str),
         )
-    )
-    def visibilities(self, channel_id, time_id, column):
+    )'''
+    def visibilities(self, channel_id, time_id, column, return_UVW = False):
         """
         Extract visibility matrices.
 
@@ -281,6 +297,7 @@ class MeasurementSet:
             beam_id_1 = sub_table.getcol("ANTENNA2")  # (N_entry,)
             data_flag = sub_table.getcol("FLAG")  # (N_entry, N_channel, 4)
             data = sub_table.getcol(column)  # (N_entry, N_channel, 4)
+            uvw = sub_table.getcol("UVW")
 
             # We only want XX and YY correlations
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
@@ -324,10 +341,17 @@ class MeasurementSet:
             t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
             f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
+            print(beam_id, beam_idx)
             for ch_id in channel_id:
                 v = _series2array(S[ch_id].rename("S", inplace=True))
                 visibility = vis.VisibilityMatrix(v, beam_idx)
-                yield t, f[ch_id], visibility
+                if return_UVW:
+                    UVW_baselines = np.zeros((15, 15, 3))
+                    UVW_baselines[np.triu_indices(15, 0)] = uvw
+                    UVW_baselines[np.tril_indices(15, -1)] = np.transpose(UVW_baselines,(1,0,2))[np.tril_indices(15, -1)]
+                    yield t, f[ch_id], visibility, UVW_baselines
+                else:  
+                    yield t, f[ch_id], visibility
 
 
 def _series2array(visibility: pd.Series) -> np.ndarray:

@@ -519,6 +519,8 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             self.xyz_grid = xyz_grid       # pass a grid instead of calculating it
             self.lmn_grid = np.tensordot(np.linalg.inv(uvw_frame), self.xyz_grid, axes=1)
 
+        print("LMN grid", self.lmn_grid)
+
         self._lmn_grid = self.lmn_grid.reshape(3, -1).astype(self._precision_mappings[self._precision]['real'])
         self._n_trans = n_trans
         if w_term:

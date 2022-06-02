@@ -163,16 +163,16 @@ for t, f, S, uvw in ProgressBar(
     #uvw = ms.UVW([channel_id], t)
     #print('uvw',uvw.shape)
     #print('uvw',uvw)
-    UVW = (uvw_frame.transpose() @ XYZ.data.transpose()).transpose()
+    #UVW = (uvw_frame.transpose() @ XYZ.data.transpose()).transpose()
     #print('XYZ-uvw',UVW.shape)
-    UVW_baselines_t = (UVW[:, None, :] - UVW[None, ...])
-    print('bb uvw baselines',UVW_baselines_t.shape)
+    #UVW_baselines_t = (UVW[:, None, :] - UVW[None, ...])
+    #print('bb uvw baselines',UVW_baselines_t.shape)
     UVW_baselines_t = uvw
-    print('xyz',XYZ.shape) 
+    #print('xyz',XYZ.shape) 
 
-    UVW_baselines_t = np.zeros((15, 15, 3))
-    UVW_baselines_t[np.triu_indices(15, 0)] = uvw
-    UVW_baselines_t[np.tril_indices(15, -1)] = np.transpose(UVW_baselines_t,(1,0,2))[np.tril_indices(15, -1)]
+    #UVW_baselines_t = np.zeros((15, 15, 3))
+    #UVW_baselines_t[np.triu_indices(15, 0)] = uvw
+    #UVW_baselines_t[np.tril_indices(15, -1)] = np.transpose(UVW_baselines_t,(1,0,2))[np.tril_indices(15, -1)]
 
     ICRS_baselines_t = (XYZ.data[:, None, :] - XYZ.data[None, ...])
     UVW_baselines.append(baseline_rescaling * UVW_baselines_t)
