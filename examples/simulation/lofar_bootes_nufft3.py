@@ -92,6 +92,14 @@ for t in ProgressBar(time[::time_slice]):
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
     G = gram(XYZ, W, wl)
+
+    plt.clf()
+    plt.imshow(np.absolute(S.data))
+    plt.savefig("lofar_nufft_ref_visM")
+    plt.imshow(np.angle(S.data))
+    plt.savefig("lofar_nufft_ref_visphi")
+    plt.clf()
+
     D, V, c_idx = I_dp(S, G)
     S_corrected = IV_dp(D, V, W, c_idx)
     gram_corrected_visibilities.append(S_corrected)

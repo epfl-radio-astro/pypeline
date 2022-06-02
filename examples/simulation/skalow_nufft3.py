@@ -37,7 +37,7 @@ import joblib as job
 
 start_time = time.process_time()
 
-read_coords_from_ms = False
+read_coords_from_ms = True
 
 # Instrument
 #ms_file = "/home/etolley/rascil_ska_sim/results_test/ska-pipeline_simulation.ms"
@@ -121,17 +121,16 @@ for t, f, S in ProgressBar(
     W = ms.beamformer(XYZ, wl)
     G = gram(XYZ, W, wl)
     S, W = measurement_set.filter_data(S, W)
-
-    print(S.shape)
     plt.clf()
     plt.imshow(np.absolute(S.data))
     plt.savefig("skalow_nufft_new_visM")
     plt.imshow(np.angle(S.data))
-    plt.clf()
     plt.savefig("skalow_nufft_new_visphi")
+    plt.clf()
+
 
     D, V, c_idx = I_dp(S, G)
-    print(c_idx)
+    print(V.shape, D.shape, len(c_idx))
     #print(c_idx)
     S_corrected = IV_dp(D, V, W, c_idx)
     gram_corrected_visibilities.append(S_corrected)
@@ -142,6 +141,8 @@ gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=-3).res
 # NUFFT Synthesis
 print("Running NUFFT on the CPU")
 t = time.process_time()
+
+
 if read_coords_from_ms:
     nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
                                           field_center=field_center, eps=eps, w_term=w_term,
@@ -213,14 +214,15 @@ for i in range(N_level):
     bottom_plot.set_title("Least-Squares Image Level = {0}".format(i))
 plt.savefig("skalow_nufft_mscoords{0}".format(read_coords_from_ms))
 
-if not read_coords_from_ms: sys.exit()
-# 5. Store the interpolated Bluebild image in standard-compliant FITS for view
-# in AstroPy/DS9.
-N_cl_lon, N_cl_lat = nufft_imager._synthesizer.xyz_grid.shape[-2:]
-f_interp = (I_lsq_eq.data  # We need to transpose axes due to the FORTRAN
-            .reshape(N_level, N_cl_lon, N_cl_lat)  # indexing conventions of the FITS standard.
-            .transpose(0, 2, 1))
-I_lsq_eq_interp = s2image.WCSImage(np.sum(f_interp,axis=0), cl_WCS)
-I_lsq_eq_interp.to_fits('bluebild_nufft3_skalow_combined-test.fits')
-I_lsq_eq_interp = s2image.WCSImage(f_interp, cl_WCS)
-I_lsq_eq_interp.to_fits('bluebild_nufft3_skalow_levels-test.fits')
+sys.exit()
+if read_coords_from_ms:
+    # 5. Store the interpolated Bluebild image in standard-compliant FITS for view
+    # in AstroPy/DS9.
+    N_cl_lon, N_cl_lat = nufft_imager._synthesizer.xyz_grid.shape[-2:]
+    f_interp = (I_lsq_eq.data  # We need to transpose axes due to the FORTRAN
+                .reshape(N_level, N_cl_lon, N_cl_lat)  # indexing conventions of the FITS standard.
+                .transpose(0, 2, 1))
+    I_lsq_eq_interp = s2image.WCSImage(np.sum(f_interp,axis=0), cl_WCS)
+    I_lsq_eq_interp.to_fits('bluebild_nufft3_skalow_combined-test.fits')
+    I_lsq_eq_interp = s2image.WCSImage(f_interp, cl_WCS)
+    I_lsq_eq_interp.to_fits('bluebild_nufft3_skalow_levels-test.fits')
