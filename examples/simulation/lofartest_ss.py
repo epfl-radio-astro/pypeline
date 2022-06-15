@@ -35,8 +35,8 @@ start_time = time.process_time()
 cl_WCS = ifits.wcs("/home/etolley/rascil_ska_sim/results_lofar_time/imaging_dirty.fits")
 ms_file = "/home/etolley/rascil_ska_sim/results_lofar_time/lofar-pipeline_simulation.ms"
 
-cl_WCS = ifits.wcs("/work/ska/lofar30MHz_256/lofar30MHz256-image.fits")
-ms_file = "/work/ska/lofar30MHz_256/lofar30MHz_t201806301100_SBH256.MS"
+#cl_WCS = ifits.wcs("/work/ska/lofar30MHz_256/lofar30MHz256-image.fits")
+#ms_file = "/work/ska/lofar30MHz_256/lofar30MHz_t201806301100_SBH256.MS"
 ms = measurement_set.SKALowMeasurementSet(ms_file) # stations 1 - N_station 
 out_str = "skalow_small"
 
@@ -181,9 +181,6 @@ plt.savefig("lofartest_standard_new")
 f_interp = (I_lsq_eq.data  # We need to transpose axes due to the FORTRAN
             .reshape(N_level, N_cl_lon, N_cl_lat)  # indexing conventions of the FITS standard.
             .transpose(0, 2, 1))
-#f_interp = I_lsq_eq.data 
-#f_interp = np.rot90(f_interp, 2, axes=(1,2))
-#f_interp = np.flip(f_interp, axis=2)
 I_lsq_eq_interp = s2image.WCSImage(np.sum(f_interp,axis=0), cl_WCS)
 I_lsq_eq_interp.to_fits('bluebild_ss_lofartest_combined-test.fits')
 I_lsq_eq_interp = s2image.WCSImage(f_interp, cl_WCS)

@@ -168,7 +168,8 @@ for t, f, S, uvw in ProgressBar(
     #UVW_baselines_t = (UVW[:, None, :] - UVW[None, ...])
     #print('bb uvw baselines',UVW_baselines_t.shape)
     UVW_baselines_t = uvw
-    #print('xyz',XYZ.shape) 
+    print('UVW_baselines_t',UVW_baselines_t) 
+
 
     #UVW_baselines_t = np.zeros((15, 15, 3))
     #UVW_baselines_t[np.triu_indices(15, 0)] = uvw
@@ -180,19 +181,34 @@ for t, f, S, uvw in ProgressBar(
 
     print(S.shape, uvw.shape)
 
+    print('\n raw visibilities',S)
+
+    plt.imshow(np.absolute(S.data))
+    plt.savefig("skalow_nufft_new_visraw_mag")
+    plt.imshow(np.angle(S.data))
+    plt.savefig("skalow_nufft_new_visraw_phi")
+
     W = ms.beamformer(XYZ, wl)
     G = gram(XYZ, W, wl)
     S, W = measurement_set.filter_data(S, W)
     W = W.data
     D, V, _ = I_dp(S, G)
     S_corrected = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
+    #S_corrected = S.data
     gram_corrected_visibilities.append(S_corrected)
+    print('\n final visibilities',S_corrected)
+
+    plt.imshow(np.absolute(S_corrected))
+    plt.savefig("skalow_nufft_new_visfinal_mag")
+    plt.imshow(np.angle(S_corrected))
+    plt.savefig("skalow_nufft_new_visfinal_phi")
 
 UVW_baselines = np.stack(UVW_baselines, axis=0)
 ICRS_baselines = np.stack(ICRS_baselines, axis=0).reshape(-1, 3)
 gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=0).reshape(-1)
 
 print('baselines', UVW_baselines.shape, 'visibilities', gram_corrected_visibilities.shape)
+print(gram_corrected_visibilities)
 
 # UVW_baselines = UVW_baselines.reshape((UVW_baselines.shape[0], -1, 3))
 #
@@ -217,7 +233,7 @@ print('baselines', UVW_baselines.shape, 'visibilities', gram_corrected_visibilit
 
 UVW_baselines=UVW_baselines.reshape(-1,3)
 
-plt.scatter(UVW_baselines_t[:,:,0], UVW_baselines_t[:,:,1])
+plt.plot(UVW_baselines_t[:,:,0], UVW_baselines_t[:,:,1], ".", color = "b", markersize = 0.2)
 plt.savefig("skalow_nufft_new_baselinesUV")
 
 w_correction = np.exp(1j * UVW_baselines[:, -1])

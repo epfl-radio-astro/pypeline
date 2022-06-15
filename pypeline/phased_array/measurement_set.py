@@ -297,11 +297,14 @@ class MeasurementSet:
             beam_id_1 = sub_table.getcol("ANTENNA2")  # (N_entry,)
             data_flag = sub_table.getcol("FLAG")  # (N_entry, N_channel, 4)
             data = sub_table.getcol(column)  # (N_entry, N_channel, 4)
-            uvw = sub_table.getcol("UVW")
+            #print('\nraw data',data.shape, data[:,:,-1])
+            uvw = -1*sub_table.getcol("UVW")
 
             # We only want XX and YY correlations
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
             data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
+
+            #print('data after averaging',data)
 
             # Set broken visibilities to 0
             data[data_flag] = 0
@@ -341,14 +344,16 @@ class MeasurementSet:
             t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
             f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
-            print(beam_id, beam_idx)
+            #print(beam_id, beam_idx)
             for ch_id in channel_id:
+                #print("vis", S[ch_id])
                 v = _series2array(S[ch_id].rename("S", inplace=True))
                 visibility = vis.VisibilityMatrix(v, beam_idx)
+                #print("visibility", visibility)
                 if return_UVW:
                     UVW_baselines = np.zeros((15, 15, 3))
                     UVW_baselines[np.triu_indices(15, 0)] = uvw
-                    UVW_baselines[np.tril_indices(15, -1)] = np.transpose(UVW_baselines,(1,0,2))[np.tril_indices(15, -1)]
+                    UVW_baselines[np.tril_indices(15, -1)] = -1*np.transpose(UVW_baselines,(1,0,2))[np.tril_indices(15, -1)]
                     yield t, f[ch_id], visibility, UVW_baselines
                 else:  
                     yield t, f[ch_id], visibility

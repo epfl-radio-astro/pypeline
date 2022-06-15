@@ -156,13 +156,13 @@ ICRS_baselines = []
 gram_corrected_visibilities = []
 baseline_rescaling = 2 * np.pi / wl
 
-for t, f, S, uvw in ProgressBar(
-        ms.visibilities(channel_id=[channel_id], time_id=slice(0, None, None), column="DATA", return_UVW=True)
+for t, f, S in ProgressBar(
+        ms.visibilities(channel_id=[channel_id], time_id=slice(0, None, None), column="DATA", return_UVW=False)
 ):
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
     #uvw = ms.UVW([channel_id], t)
-    print(uvw.shape)
+
     UVW = (uvw_frame.transpose() @ XYZ.data.transpose()).transpose()
     UVW_baselines_t = (UVW[:, None, :] - UVW[None, ...])
 
@@ -170,7 +170,6 @@ for t, f, S, uvw in ProgressBar(
     UVW_baselines.append(baseline_rescaling * UVW_baselines_t)
     ICRS_baselines.append(baseline_rescaling * ICRS_baselines_t)
 
-    print(uvw.shape)
     print(UVW_baselines[-1].shape)
     W = ms.beamformer(XYZ, wl)
     G = gram(XYZ, W, wl)
