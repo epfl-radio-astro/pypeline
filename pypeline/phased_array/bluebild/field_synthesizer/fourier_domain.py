@@ -524,8 +524,10 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         self._lmn_grid = self.lmn_grid.reshape(3, -1).astype(self._precision_mappings[self._precision]['real'])
         self._n_trans = n_trans
         if w_term:
+
             grid_center = self._lmn_grid.mean(axis=-1)
             self._lmn_grid -= grid_center[:, None]
+            print('debug 0', grid_center[:, None].shape, self._UVW.shape)
             self._prephasing = np.exp(1j * np.sum(grid_center[:, None] * self._UVW, axis=0)).squeeze().astype(
                 self._precision_mappings[self._precision]['complex'])
             self._plan = finufft.Plan(nufft_type=3, n_modes_or_dim=3, eps=eps, isign=1, n_trans=n_trans,
@@ -595,6 +597,7 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
                 out = np.real(self._plan.execute(
                     V))  # NUFFT are evaluated in parallel (not clear if multi-threaded or multi-processed?)
         else:
+            print('nufft debug',V.shape,self._prephasing.shape )
             out = np.real(self._plan.execute(V * self._prephasing))
         return out
 

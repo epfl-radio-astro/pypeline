@@ -60,7 +60,7 @@ obs_end = time[-1]
 # Imaging
 N_pix = 256
 eps = 1e-4
-w_term = False
+w_term = True
 precision = 'single'
 
 t1 = tt.time()

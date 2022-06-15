@@ -141,12 +141,11 @@ gram_corrected_visibilities *= w_correction
 scalingx = 2 * lim / N_pix
 scalingy = 2 * lim / N_pix
 
-'''
 bb_image = finufft.nufft2d1(x=scalingx * UVW_baselines[:, 1],
                             y=scalingy * UVW_baselines[:, 0],
                             c=gram_corrected_visibilities,
                             n_modes=N_pix, eps=1e-4)
-'''
+
 
 bb_image = np.real(bb_image)
 
