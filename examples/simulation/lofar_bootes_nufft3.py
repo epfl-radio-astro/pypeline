@@ -40,7 +40,7 @@ import matplotlib.pyplot as plt
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
 field_center = coord.SkyCoord(ra=218 * u.deg, dec=34.5 * u.deg, frame="icrs")
-FoV, frequency = np.deg2rad(10), 145e6
+FoV, frequency = np.deg2rad(8), 145e6
 wl = constants.speed_of_light / frequency
 
 # Instrument
@@ -52,20 +52,20 @@ gram = bb_gr.GramBlock()
 
 # Data generation
 T_integration = 8
-sky_model = source.from_tgss_catalog(field_center, FoV, N_src=40)
+sky_model = source.from_tgss_catalog(field_center, FoV, N_src=30)
 vis = statistics.VisibilityGeneratorBlock(sky_model, T_integration, fs=196000, SNR=30)
 time = obs_start + (T_integration * u.s) * np.arange(3595)
 obs_end = time[-1]
 
 # Imaging
-N_pix = 512
-eps = 1e-3
-w_term = True
+N_pix = 256
+eps = 1e-4
+w_term = False
 precision = 'single'
 
 t1 = tt.time()
-N_level = 3
-time_slice = 25
+N_level = 1
+time_slice = 100
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
@@ -122,7 +122,7 @@ gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=-3).res
 nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
                                       field_center=field_center, eps=eps, w_term=w_term,
                                       n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
-print(nufft_imager._synthesizer._inner_fft_sizes)
+#print(nufft_imager._synthesizer._inner_fft_sizes)
 lsq_image, sqrt_image = nufft_imager(gram_corrected_visibilities)
 
 ### Sensitivity Field =========================================================
@@ -152,7 +152,7 @@ sensitivity_coeffs = np.stack(sensitivity_coeffs, axis=0).reshape(-1)
 nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
                                       field_center=field_center, eps=eps, w_term=w_term,
                                       n_trans=1, precision=precision)
-print(nufft_imager._synthesizer._inner_fft_sizes)
+#print(nufft_imager._synthesizer._inner_fft_sizes)
 sensitivity_image = nufft_imager(sensitivity_coeffs)
 
 I_lsq_eq = s2image.Image(lsq_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
