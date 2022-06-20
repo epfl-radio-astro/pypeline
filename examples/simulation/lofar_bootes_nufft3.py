@@ -40,7 +40,7 @@ import matplotlib.pyplot as plt
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
 field_center = coord.SkyCoord(ra=218 * u.deg, dec=34.5 * u.deg, frame="icrs")
-FoV, frequency = np.deg2rad(8), 145e6
+FoV, frequency = np.deg2rad(10), 145e6
 wl = constants.speed_of_light / frequency
 
 # Instrument
@@ -52,7 +52,7 @@ gram = bb_gr.GramBlock()
 
 # Data generation
 T_integration = 8
-sky_model = source.from_tgss_catalog(field_center, FoV, N_src=30)
+sky_model = source.from_tgss_catalog(field_center, FoV, N_src=40)
 vis = statistics.VisibilityGeneratorBlock(sky_model, T_integration, fs=196000, SNR=30)
 time = obs_start + (T_integration * u.s) * np.arange(3595)
 obs_end = time[-1]
@@ -63,8 +63,8 @@ eps = 1e-3
 precision = 'single'
 
 t1 = tt.time()
-N_level = 1
-time_slice = 100
+N_level = 3
+time_slice = 25
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
