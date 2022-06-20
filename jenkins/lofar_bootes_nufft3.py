@@ -86,10 +86,9 @@ N_level = 3
 precision = 'single'
 time_slice = 200
 eps = 1e-3
-w_term = True
 print("\nImaging parameters")
 print(f'N_pix {N_pix}\nN_level {N_level}\nprecision {precision}')
-print(f'time_slice {time_slice}\neps {eps}\nw_term {w_term}\n')
+print(f'time_slice {time_slice}\neps {eps}\n')
 
 t1 = tt.time()
 
@@ -112,40 +111,21 @@ print(f"#@#IFPE {ifpe_e-ifpe_s:.3f} sec")
 ifim_s = tt.time()
 I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
 IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq', 'sqrt'))
-UVW_baselines = []
-gram_corrected_visibilities = []
+nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
+                                      field_center=field_center, eps=eps,
+                                      n_trans=1, precision=precision)
 
 for t in time[::time_slice]:
     XYZ = dev(t)
     UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
-    UVW_baselines.append(UVW_baselines_t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    G = gram(XYZ, W, wl)
-    D, V, c_idx = I_dp(S, G)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
     S_corrected = IV_dp(D, V, W, c_idx)
-    gram_corrected_visibilities.append(S_corrected)
-
-UVW_baselines = np.stack(UVW_baselines, axis=0).reshape(-1, 3)
-gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=-3).reshape(*S_corrected.shape[:2], -1)
-
-# fig = plt.figure()
-# # ax = Axes3D(fig)
-# # ax.scatter3D(UVW_baselines[::N_station, 0], UVW_baselines[::N_station, 1], UVW_baselines[::N_station, -1], s=.01)
-# # plt.xlabel('u')
-# # plt.ylabel('v')
-# # ax.set_zlabel('w')
-# plt.figure()
-# plt.scatter(UVW_baselines[:, 0], UVW_baselines[:, 1], s=0.01)
-# plt.xlabel('u')
-# plt.ylabel('v')
+    nufft_imager.collect(UVW_baselines_t, S_corrected)
 
 # NUFFT Synthesis
-nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
-                                      field_center=field_center, eps=eps, w_term=w_term,
-                                      n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
-print(nufft_imager._synthesizer._inner_fft_sizes)
-lsq_image, sqrt_image = nufft_imager(gram_corrected_visibilities)
+lsq_image, sqrt_image = nufft_imager.get_statistic()
 ifim_e = tt.time()
 print(f"#@#IFIM {ifim_e-ifim_s:.3f} sec")
 
@@ -168,21 +148,18 @@ print(f"#@#SFPE {sfpe_e-sfpe_s:.3f} sec")
 sfim_s = tt.time()
 S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
 SV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq',))
-sensitivity_coeffs = []
+nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
+                                      field_center=field_center, eps=eps,
+                                      n_trans=1, precision=precision)
 for t in time[::time_slice]:
     XYZ = dev(t)
+    UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
     W = mb(XYZ, wl)
-    G = gram(XYZ, W, wl)
-    D, V = S_dp(G)
+    D, V = S_dp(XYZ, W, wl)
     S_sensitivity = SV_dp(D, V, W, cluster_idx=np.zeros(N_eig, dtype=int))
-    sensitivity_coeffs.append(S_sensitivity)
+    nufft_imager.collect(UVW_baselines_t, S_sensitivity)
 
-sensitivity_coeffs = np.stack(sensitivity_coeffs, axis=0).reshape(-1)
-nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
-                                      field_center=field_center, eps=eps, w_term=w_term,
-                                      n_trans=1, precision=precision)
-print(nufft_imager._synthesizer._inner_fft_sizes)
-sensitivity_image = nufft_imager(sensitivity_coeffs)
+sensitivity_image = nufft_imager.get_statistic()[0]
 
 I_lsq_eq = s2image.Image(lsq_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
 dump_data(I_lsq_eq.data, 'I_lsq_eq_data')

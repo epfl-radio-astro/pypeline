@@ -3,11 +3,13 @@ set(BLUEBILD_SOURCE_FILES
 	gram_matrix.cpp
 	intensitiy_field_data.cpp
 	sensitivity_field_data.cpp
+	nufft_3d3.cpp
 	context.cpp
 	host/eigensolver_host.cpp
 	host/gram_matrix_host.cpp
 	host/sensitivity_field_data_host.cpp
 	host/intensity_field_data_host.cpp
+	host/nufft_3d3_host.cpp
 	)
 
 if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
@@ -16,6 +18,7 @@ if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
 		gpu/sensitivity_field_data_gpu.cpp
 		gpu/intensity_field_data_gpu.cpp
 		gpu/gram_matrix_gpu.cpp
+		gpu/nufft_3d3_gpu.cpp
 		gpu/kernels/reverse.cu
 		gpu/kernels/inv_square.cu
 		gpu/kernels/min_diff.cu
@@ -120,7 +123,7 @@ configure_file(${PROJECT_SOURCE_DIR}/cmake/BLUEBILDTargets.cmake
 )
 
 # installation commands
-if(BLUEBILD_INSTALL)
+if(BLUEBILD_INSTALL STREQUAL "LIB")
 	install(TARGETS bluebild DESTINATION ${CMAKE_INSTALL_LIBDIR} EXPORT BLUEBILDTargets)
 	install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/bluebild DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp" PATTERN "*.f90")
 	install(FILES ${PROJECT_BINARY_DIR}/bluebild/config.h "${PROJECT_BINARY_DIR}/bluebild/bluebild_export.h" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/bluebild)

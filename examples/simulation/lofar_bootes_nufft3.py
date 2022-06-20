@@ -58,9 +58,8 @@ time = obs_start + (T_integration * u.s) * np.arange(3595)
 obs_end = time[-1]
 
 # Imaging
-N_pix = 256
-eps = 1e-4
-w_term = False
+N_pix = 512
+eps = 1e-3
 precision = 'single'
 
 t1 = tt.time()
@@ -82,48 +81,22 @@ N_eig, c_centroid = I_est.infer_parameters()
 # Imaging
 I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
 IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq', 'sqrt'))
-UVW_baselines = []
-gram_corrected_visibilities = []
 
+nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
+                                      field_center=field_center, eps=eps,
+                                      n_trans=1, precision=precision)
 for t in ProgressBar(time[::time_slice]):
     XYZ = dev(t)
     UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
-    UVW_baselines.append(UVW_baselines_t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    G = gram(XYZ, W, wl)
-
-    plt.clf()
-    plt.imshow(np.absolute(S.data))
-    plt.savefig("lofar_nufft_ref_visM")
-    plt.imshow(np.angle(S.data))
-    plt.savefig("lofar_nufft_ref_visphi")
-    plt.clf()
-
-    D, V, c_idx = I_dp(S, G)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
     S_corrected = IV_dp(D, V, W, c_idx)
-    gram_corrected_visibilities.append(S_corrected)
+    nufft_imager.collect(UVW_baselines_t, S_corrected)
 
-UVW_baselines = np.stack(UVW_baselines, axis=0).reshape(-1, 3)
-gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=-3).reshape(*S_corrected.shape[:2], -1)
-
-# fig = plt.figure()
-# # ax = Axes3D(fig)
-# # ax.scatter3D(UVW_baselines[::N_station, 0], UVW_baselines[::N_station, 1], UVW_baselines[::N_station, -1], s=.01)
-# # plt.xlabel('u')
-# # plt.ylabel('v')
-# # ax.set_zlabel('w')
-# plt.figure()
-# plt.scatter(UVW_baselines[:, 0], UVW_baselines[:, 1], s=0.01)
-# plt.xlabel('u')
-# plt.ylabel('v')
 
 # NUFFT Synthesis
-nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
-                                      field_center=field_center, eps=eps, w_term=w_term,
-                                      n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
-#print(nufft_imager._synthesizer._inner_fft_sizes)
-lsq_image, sqrt_image = nufft_imager(gram_corrected_visibilities)
+lsq_image, sqrt_image = nufft_imager.get_statistic()
 
 ### Sensitivity Field =========================================================
 # Parameter Estimation
@@ -137,23 +110,20 @@ for t in ProgressBar(time[::200]):
 N_eig = S_est.infer_parameters()
 
 # Imaging
+nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
+                                      field_center=field_center, eps=eps,
+                                      n_trans=1, precision=precision)
 S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
 SV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq',))
-sensitivity_coeffs = []
 for t in ProgressBar(time[::time_slice]):
     XYZ = dev(t)
+    UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
     W = mb(XYZ, wl)
-    G = gram(XYZ, W, wl)
-    D, V = S_dp(G)
+    D, V = S_dp(XYZ, W, wl)
     S_sensitivity = SV_dp(D, V, W, cluster_idx=np.zeros(N_eig, dtype=int))
-    sensitivity_coeffs.append(S_sensitivity)
+    nufft_imager.collect(UVW_baselines_t, S_sensitivity)
 
-sensitivity_coeffs = np.stack(sensitivity_coeffs, axis=0).reshape(-1)
-nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
-                                      field_center=field_center, eps=eps, w_term=w_term,
-                                      n_trans=1, precision=precision)
-#print(nufft_imager._synthesizer._inner_fft_sizes)
-sensitivity_image = nufft_imager(sensitivity_coeffs)
+sensitivity_image = nufft_imager.get_statistic()[0]
 
 I_lsq_eq = s2image.Image(lsq_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
 I_sqrt_eq = s2image.Image(sqrt_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
@@ -184,5 +154,4 @@ for i in range(lsq_image.shape[0]):
                   catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5), show_gridlines=False)
 
 plt.suptitle(f'Bluebild Eigenmaps')
-
-plt.savefig('lofar_nufftclass_{0}'.format('wterm' if w_term else 'notw'))
+plt.savefig('final.png')

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -e
-
+set +x
 
 #echo "Warning: early exit. Re-enable if a new installation is required."
 #exit 0
@@ -49,23 +49,100 @@ pip --version
 which python
 python -V
 
+
+# Set environment
+# ---------------
+PWD=`pwd`
+export NINJA_DIR=$PWD/ninja
+export FINUFFT_ROOT=$PWD/finufft
+export CUFINUFFT_ROOT=$PWD/cufinufft
+export PATH=$NINJA_DIR:$FINUFFT_ROOT:$CUFINUFFT_ROOT:$PATH
+echo "PATH = $PATH"
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$FINUFFT_ROOT/lib:$CUFINUFFT_ROOT/lib
+echo "LD_LIBRARY_PATH = $LD_LIBRARY_PATH"
+echo
+
+# Function to install FINUFTT
+# Note: GCC 8 not recommended, but fftw not available for GCC 9...
+#       EO: I did not observe any perf degradation when comparing GCC 8 and 9
+#----------------------------------------------------------------------------
+function install_finufft {
+    module load gcc cuda/11.0 fftw cmake openblas
+    pwd
+    if [ -d finufft ]; then
+        echo "A finufft directory already exits. Will clean, pull, and recompile."
+        cd finufft
+        make clean
+        git pull
+    else
+        git clone https://github.com/flatironinstitute/finufft.git
+        cd finufft
+    fi
+    # Only if you want to have debug symbol/info included in bin
+    echo "CXXFLAGS += -g -DFFTW_PLAN_SAFE" > make.inc
+    make test -j
+    ###make perftest
+    make python
+    cd ..
+}
+
+# Function to install CUFINUFFT from Simon's fork
+# -----------------------------------------------
+function install_cufinufft {
+    module load gcc cuda/11.0 fftw cmake openblas
+    pwd
+    ls -l
+    [ -d cufinufft ] && rm -rf ./cufinufft
+    git clone https://github.com/AdhocMan/cufinufft.git
+    cd cufinufft
+    pwd
+    git branch
+    git fetch --all
+    git checkout t3_d3
+    git branch
+    echo "CXXFLAGS  += -g" > make.inc
+    echo "NVCCFLAGS += -g" >> make.inc
+    cat make.inc
+    make all -j
+    cd ..
+    module purge
+}
+
+function install_ninja {
+    [ -d $NINJA_DIR ] || mkdir -pv $NINJA_DIR
+    cd $NINJA_DIR
+    rm -f *
+    wget https://github.com/ninja-build/ninja/releases/download/v1.11.0/ninja-linux.zip
+    unzip ninja-linux.zip
+    cd -
+}
+
+function install_bluebild {
+    module load gcc cuda/11.0 fftw cmake openblas
+    pwd
+    ls -l
+    cd src/bluebild
+    pwd
+    pip install --no-deps .     ## install bluebild
+    cd -
+    pip install --no-deps -e .  ## install pypeline in editable mode (not necessary for Jenkins but mimics normal installation)
+}
+
+# Actions list
+# ------------
+#install_ninja
+#install_finufft
+#install_cufinufft
+install_bluebild
+
+exit 0
+
+
+
+
 pip install bluebild-tools
 
 exit 0
-
-# Installing c++ port of data processing classes
-#
-module load gcc cuda/11.0 fftw cmake openblas
-pwd
-ls -l
-cd src/bluebild
-pwd
-pip install --no-deps .     ## install bluebild
-cd -
-pip install --no-deps -e .  ## install pypeline in editable mode (not necessary for Jenkins but mimics normal installation)
-
-exit 0
-
 
 # Install non-conda packages
 pip install pbr
@@ -91,24 +168,6 @@ fi
 pip install --no-deps .
 cd ..
 
-# Install FINUFTT (CPU) from source
-# !!! GCC 8 not recommended !!! but fftw not available for GCC 9...
-module load gcc fftw
-if [ -d finufft ]; then
-    echo "A finufft directory already exits. Will clean, pull, and recompile."
-    cd finufft
-    make clean
-    git pull
-else
-    git clone https://github.com/flatironinstitute/finufft.git
-    cd finufft
-fi
-# Only if you want to have debug symbol/info included in bin
-echo "CXXFLAGS += -g -DFFTW_PLAN_SAFE" > make.inc
-make test -j
-###make perftest
-make python
-cd ..
 
 # Install pypeline locally in editable mode
 pip install --no-deps -e .

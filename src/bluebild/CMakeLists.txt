@@ -1,7 +1,8 @@
-cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
-project(bluebild LANGUAGES CXX VERSION 0.1.0)
+cmake_minimum_required(VERSION 3.11 FATAL_ERROR)
+file(READ "VERSION" BLUEBILD_VERSION)
+string(STRIP ${BLUEBILD_VERSION} BLUEBILD_VERSION)
+project(bluebild LANGUAGES CXX VERSION "${BLUEBILD_VERSION}")
 set(BLUEBILD_SO_VERSION 1)
-set(BLUEBILD_VERSION ${PROJECT_VERSION})
 
 # allow {module}_ROOT variables to be set
 if(POLICY CMP0074)
@@ -32,13 +33,18 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
 
 # Options
 option(BLUEBILD_BUILD_TESTS "Build tests" OFF)
-option(BLUEBILD_INSTALL "Enable CMake install commands" ON)
+option(BLUEBILD_PYTHON "Build python module" ON)
+option(BLUEBILD_PYBIND11_DOWNLOAD "Download pybind11 instead of looking for installation" OFF)
 
 set(BLUEBILD_GPU "OFF" CACHE STRING "GPU backend")
 set_property(CACHE BLUEBILD_GPU PROPERTY STRINGS
 	"OFF" "CUDA" "ROCM"
 	)
 set(BUILD_SHARED_LIBS "ON" CACHE STRING "Build as shared library") # default to shared
+set(BLUEBILD_INSTALL "LIB" CACHE STRING "Install the librariy (LIB), the python module (PYTHON) or nothing (OFF)")
+set_property(CACHE BLUEBILD_INSTALL PROPERTY STRINGS
+	"LIB" "PYTHON" "OFF"
+	)
 
 # Options combination check
 set(BLUEBILD_CUDA OFF)
@@ -51,6 +57,10 @@ if(BLUEBILD_GPU)
 	else()
 		message(FATAL_ERROR "Invalid GPU backend")
 	endif()
+endif()
+
+if(BLUEBILD_INSTALL STREQUAL "PYTHON")
+	set(BLUEBILD_PYTHON ON)
 endif()
 
 # CUDA
@@ -111,6 +121,19 @@ if(NOT TARGET LAPACK::LAPACK)
 endif()
 list(APPEND BLUEBILD_EXTERNAL_LIBS LAPACK::LAPACK)
 
+find_package(FINUFFT REQUIRED)
+list(APPEND BLUEBILD_EXTERNAL_LIBS FINUFFT::finufft)
+# finufft has fftw in interface headers
+find_package(FFTW REQUIRED)
+find_package(FFTWF REQUIRED)
+list(APPEND BLUEBILD_EXTERNAL_LIBS FFTW::FFTW FFTWF::FFTWF)
+
+
+if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
+	find_package(CUFINUFFT REQUIRED)
+	list(APPEND BLUEBILD_EXTERNAL_LIBS CUFINUFFT::cufinufft)
+endif()
+
 # check if C api is available for blas and lapack
 # include(CheckCXXSymbolExists)
 set(CMAKE_REQUIRED_LIBRARIES ${BLUEBILD_EXTERNAL_LIBS})
@@ -133,6 +156,10 @@ list(APPEND BLUEBILD_INCLUDE_DIRS ${PROJECT_BINARY_DIR})
 # All include dirs and definitions must be set before sub-directory is added!
 #############################################################################
 add_subdirectory(src)
+
+if(BLUEBILD_PYTHON)
+	add_subdirectory(python)
+endif()
 
 # add tests for developement
 if(BLUEBILD_BUILD_TESTS)

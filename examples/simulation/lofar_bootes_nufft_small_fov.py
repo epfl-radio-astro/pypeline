@@ -124,9 +124,8 @@ for t in ProgressBar(time[0:25]):
     ICRS_baselines.append(baseline_rescaling * ICRS_baselines_t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    G = gram(XYZ, W, wl)
     W = W.data
-    D, V, _ = I_dp(S, G)
+    D, V, _ = I_dp(S, XYZ, W, wl)
     S_corrected = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
     gram_corrected_visibilities.append(S_corrected)
 
@@ -168,9 +167,8 @@ sensitivity_coeffs = []
 for t in ProgressBar(time[0:25]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
-    G = gram(XYZ, W, wl)
     W = W.data
-    D, V = S_dp(G)
+    D, V = S_dp(XYZ, W, wl)
     S_sensitivity = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
     sensitivity_coeffs.append(S_sensitivity)
 

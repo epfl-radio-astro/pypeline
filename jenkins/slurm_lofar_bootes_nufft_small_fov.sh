@@ -10,6 +10,7 @@
 set -e
 
 module load gcc
+module load cuda/11.0
 module load fftw
 module list
 

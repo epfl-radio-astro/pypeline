@@ -111,8 +111,7 @@ for i_t, ti in enumerate(ProgressBar(time)):
     W = ms.beamformer(XYZ, wl)
     S, _ = measurement_set.filter_data(S, W)
     
-    G = gram(XYZ, W, wl)
-    D, V, c_idx = I_dp(S, G)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
     c_idx = list(range(N_level))        # bypass c_idx
     t.end_time("Synthesis: prep input matrices & fPCA")
     
@@ -156,8 +155,7 @@ for i_t, ti in enumerate(ProgressBar(time)):
     XYZ = ms.instrument(tobs)
     
     W = ms.beamformer(XYZ, wl)
-    G = gram(XYZ, W, wl)
-    D, V = S_dp(G)
+    D, V = S_dp(XYZ, W, wl)
 
     if(use_cupy):
         XYZ_gpu = xp.asarray(XYZ.data)

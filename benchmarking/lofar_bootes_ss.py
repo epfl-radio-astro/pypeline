@@ -103,9 +103,8 @@ for t in ProgressBar(imaging_timesteps):
     XYZ = dev(t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    G = gram(XYZ, W, wl)
 
-    D, V, c_idx = I_dp(S, G)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
 
     timer.start_time("Intensity field imager call")
     __  = I_mfs(D, V, XYZ.data, W.data, c_idx)

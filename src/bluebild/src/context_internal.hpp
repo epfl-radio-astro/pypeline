@@ -6,6 +6,7 @@
 #include "bluebild/bluebild.h"
 #include "bluebild/config.h"
 #include "bluebild/exceptions.hpp"
+#include "bluebild/context.hpp"
 #include "memory/allocator_collection.hpp"
 
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
@@ -15,6 +16,7 @@
 #endif
 
 namespace bluebild {
+
 
 class ContextInternal {
   public:
@@ -103,6 +105,13 @@ class ContextInternal {
     std::unique_ptr<gpu::blas::HandleType, std::function<void(gpu::blas::HandleType*)>> gpuBlasHandle_;
     std::unique_ptr<cusolverDnHandle_t, std::function<void(cusolverDnHandle_t*)>> gpuSolverHandle_;
 #endif
+};
+
+
+struct InternalContextAccessor {
+  static auto get(const Context& ctx) -> const std::shared_ptr<ContextInternal>& {
+    return ctx.ctx_;
+  }
 };
 
 }  // namespace bluebild

@@ -12,7 +12,6 @@ import numexpr as ne
 import numpy as np
 import scipy.linalg as linalg
 import scipy.sparse as sparse
-import nvtx
 import sys
 
 import pypeline.phased_array.bluebild.field_synthesizer as synth
@@ -223,32 +222,25 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         XYZ = XYZ - XYZ.mean(axis=0)
         #P = xp.zeros((N_antenna, N_height, N_width), dtype=self._cp)
 
-        with nvtx.annotate(message="s_d/E alloc", color="fuchsia"):
-            E = xp.zeros((N_eig, N_height, N_width), dtype=self._cp)
+        E = xp.zeros((N_eig, N_height, N_width), dtype=self._cp)
 
         a = 1j * 2 * np.pi / self._wl
 
         self.mark(self.timer_tag + "Synthesizer matmuls")
 
         for i in range(N_width):
-            with nvtx.annotate(message="s_d/pix", color="grey"):
-                pix = xp.asarray(self._grid[:,:,i])
-            with nvtx.annotate(message="s_d/b", color="green"):
-                b  = xp.matmul(XYZ, pix)
-            with nvtx.annotate(message="s_d/P", color="yellow"):
-                P  = xp.exp(a*b)
-            with nvtx.annotate(message="s_d/PW", color="cyan"):
-                if xp == np and (isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix)):
-                    PW = W.T @ P
-                else:
-                    PW = xp.matmul(W.T, P)
-            with nvtx.annotate(message="s_d/E", color="chocolate"):
-                E[:,:,i]  = xp.matmul(V.T, PW)
+            pix = xp.asarray(self._grid[:,:,i])
+            b  = xp.matmul(XYZ, pix)
+            P  = xp.exp(a*b)
+            if xp == np and (isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix)):
+                PW = W.T @ P
+            else:
+                PW = xp.matmul(W.T, P)
+            E[:,:,i]  = xp.matmul(V.T, PW)
 
         self.unmark(self.timer_tag + "Synthesizer matmuls")
 
-        with nvtx.annotate(message="s_d/I", color="lavender"):
-            I = E.real ** 2 + E.imag ** 2
+        I = E.real ** 2 + E.imag ** 2
 
         self.unmark(self.timer_tag + "Synthesizer call")
 
