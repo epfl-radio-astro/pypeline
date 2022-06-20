@@ -60,7 +60,7 @@ obs_end = time[-1]
 # Imaging
 N_pix = 256
 eps = 1e-4
-w_term = True
+w_term = False
 precision = 'single'
 
 t1 = tt.time()
@@ -185,4 +185,4 @@ for i in range(lsq_image.shape[0]):
 
 plt.suptitle(f'Bluebild Eigenmaps')
 
-plt.savefig('final.png')
+plt.savefig('lofar_nufftclass_{0}'.format('wterm' if w_term else 'notw'))
