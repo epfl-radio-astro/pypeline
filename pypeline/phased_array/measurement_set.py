@@ -222,14 +222,30 @@ class MeasurementSet:
         """
         raise NotImplementedError
 
+    '''def UVW(self,  channel_id, t):
+        channel_id = self.channels["CHANNEL_ID"][channel_id]
+        time_id = slice(0,  1, 1)
+        N_time = len(self.time)
+        time_start, time_stop, time_step = time_id.indices(N_time)
+        query = (
+            f"select * from {self._msf} where TIME in "
+            f"(select unique TIME from {self._msf} limit {time_start}:{time_stop}:{time_step})"
+        )
+        table = ct.taql(query)
+        for sub_table in table.iter("TIME", sort=True):
+            tms = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
+            if tms!=t: continue
+            data = sub_table.getcol("UVW")  # (N_entry, N_channel, 4)
+            return data
+
     @chk.check(
         dict(
             channel_id=chk.accept_any(chk.has_integers, chk.is_instance(slice)),
             time_id=chk.accept_any(chk.is_integer, chk.is_instance(slice)),
             column=chk.is_instance(str),
         )
-    )
-    def visibilities(self, channel_id, time_id, column):
+    )'''
+    def visibilities(self, channel_id, time_id, column, return_UVW = False):
         """
         Extract visibility matrices.
 
@@ -281,10 +297,14 @@ class MeasurementSet:
             beam_id_1 = sub_table.getcol("ANTENNA2")  # (N_entry,)
             data_flag = sub_table.getcol("FLAG")  # (N_entry, N_channel, 4)
             data = sub_table.getcol(column)  # (N_entry, N_channel, 4)
+            #print('\nraw data',data.shape, data[:,:,-1])
+            uvw = -1*sub_table.getcol("UVW")
 
             # We only want XX and YY correlations
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
             data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
+
+            #print('data after averaging',data)
 
             # Set broken visibilities to 0
             data[data_flag] = 0
@@ -324,10 +344,19 @@ class MeasurementSet:
             t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
             f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
+            #print(beam_id, beam_idx)
             for ch_id in channel_id:
+                #print("vis", S[ch_id])
                 v = _series2array(S[ch_id].rename("S", inplace=True))
                 visibility = vis.VisibilityMatrix(v, beam_idx)
-                yield t, f[ch_id], visibility
+                #print("visibility", visibility)
+                if return_UVW:
+                    UVW_baselines = np.zeros((15, 15, 3))
+                    UVW_baselines[np.triu_indices(15, 0)] = uvw
+                    UVW_baselines[np.tril_indices(15, -1)] = -1*np.transpose(UVW_baselines,(1,0,2))[np.tril_indices(15, -1)]
+                    yield t, f[ch_id], visibility, UVW_baselines
+                else:  
+                    yield t, f[ch_id], visibility
 
 
 def _series2array(visibility: pd.Series) -> np.ndarray:
@@ -478,6 +507,80 @@ class LofarMeasurementSet(MeasurementSet):
 class MwaMeasurementSet(MeasurementSet):
     """
     Murchison Widefield Array (MWA) Measurement Set reader.
+    """
+
+    @chk.check("file_name", chk.is_instance(str))
+    def __init__(self, file_name):
+        """
+        Parameters
+        ----------
+        file_name : str
+            Name of the MS file.
+        """
+        super().__init__(file_name)
+
+    @property
+    def instrument(self):
+        """
+        Returns
+        -------
+        :py:class:`~pypeline.phased_array.instrument.EarthBoundInstrumentGeometryBlock`
+            Instrument position computer.
+        """
+        if self._instrument is None:
+            # Following the MS file specification from https://casa.nrao.edu/casadocs/casa-5.1.0/reference-material/measurement-set,
+            # the ANTENNA sub-table specifies the antenna geometry.
+            # Some remarks on the required fields:
+            # - POSITION: absolute station positions in ITRF coordinates.
+            # - ANTENNA_ID: equivalent to STATION_ID field `InstrumentGeometry.index[0]`
+            #               This field is NOT present in the ANTENNA sub-table, but is given
+            #               implicitly by its row-ordering.
+            #               In other words, the station corresponding to ANTENNA1=k in the MAIN
+            #               table is described by the k-th row of the ANTENNA sub-table.
+            query = f"select POSITION from {self._msf}::ANTENNA"
+            table = ct.taql(query)
+            station_mean = table.getcol("POSITION")
+
+            N_station = len(station_mean)
+            station_id = np.arange(N_station)
+            cfg_idx = pd.MultiIndex.from_product(
+                [station_id, [0]], names=("STATION_ID", "ANTENNA_ID")
+            )
+            cfg = pd.DataFrame(data=station_mean, columns=("X", "Y", "Z"), index=cfg_idx)
+
+            XYZ = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
+
+            self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ)
+
+        return self._instrument
+
+    @property
+    def beamformer(self):
+        """
+        Each dataset has been beamformed in a specific way.
+        This property outputs the correct beamformer to compute the beamforming weights.
+
+        Returns
+        -------
+        :py:class:`~pypeline.phased_array.beamforming.MatchedBeamformerBlock`
+            Beamweight computer.
+        """
+        if self._beamformer is None:
+            # MWA does not do any beamforming.
+            # Given the single-antenna station model in MS files from MWA, this can be seen as
+            # Matched-Beamforming, with a single beam output per station.
+            XYZ = self.instrument._layout
+            beam_id = np.unique(XYZ.index.get_level_values("STATION_ID"))
+
+            direction = self.field_center
+            beam_config = [(_, _, direction) for _ in beam_id]
+            self._beamformer = beamforming.MatchedBeamformerBlock(beam_config)
+
+        return self._beamformer
+
+class SKALowMeasurementSet(MeasurementSet):
+    """
+    SKA Low Measurement Set reader.
     """
 
     @chk.check("file_name", chk.is_instance(str))

@@ -78,23 +78,11 @@ lmn_grid = np.stack((Lpix, Mpix, Jpix), axis=0)
 pix_xyz = np.tensordot(uvw_frame, lmn_grid, axes=1)
 _, pix_lat, pix_lon = transform.cart2eq(*pix_xyz)
 
-# ax.scatter3D(pix_xyz[0].flatten(), pix_xyz[1].flatten(), pix_xyz[-1].flatten())
-
-# plt.figure()
-# plt.scatter(lmn_grid[0], lmn_grid[1], s=2)
-# plt.xlabel('x')
-# plt.ylabel('y')
-# plt.figure()
-# plt.scatter(pix_lon * 180 / np.pi, pix_lat * 180 / np.pi, s=2)
-# plt.scatter(field_center_lon * 180 / np.pi, field_center_lat * 180 / np.pi, c='r', s=10)
-# plt.xlabel('RA')
-# plt.ylabel('DEC')
-
 # Imaging Parameters
 t1 = tt.time()
-N_level = 4
+N_level = 1
 N_bits = 32
-time_slice = 100
+time_slice = 20
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
@@ -115,7 +103,7 @@ ICRS_baselines = []
 gram_corrected_visibilities = []
 baseline_rescaling = 2 * np.pi / wl
 
-for t in ProgressBar(time[0:25]):
+for t in ProgressBar(time[::150]):
     XYZ = dev(t)
     UVW = (uvw_frame.transpose() @ XYZ.data.transpose()).transpose()
     UVW_baselines_t = (UVW[:, None, :] - UVW[None, ...])
@@ -124,8 +112,9 @@ for t in ProgressBar(time[0:25]):
     ICRS_baselines.append(baseline_rescaling * ICRS_baselines_t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
+    G = gram(XYZ, W, wl)
     W = W.data
-    D, V, _ = I_dp(S, XYZ, W, wl)
+    D, V, _ = I_dp(S, G)
     S_corrected = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
     gram_corrected_visibilities.append(S_corrected)
 
@@ -133,69 +122,77 @@ UVW_baselines = np.stack(UVW_baselines, axis=0)
 ICRS_baselines = np.stack(ICRS_baselines, axis=0).reshape(-1, 3)
 gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=0).reshape(-1)
 
-
 UVW_baselines=UVW_baselines.reshape(-1,3)
 w_correction = np.exp(1j * UVW_baselines[:, -1])
 gram_corrected_visibilities *= w_correction
-scalingx = 2 * lim / N_pix
-scalingy = 2 * lim / N_pix
 
-bb_image = finufft.nufft2d1(x=scalingx * UVW_baselines[:, 1],
-                            y=scalingy * UVW_baselines[:, 0],
-                            c=gram_corrected_visibilities,
-                            n_modes=N_pix, eps=1e-4)
+lmn_grid = lmn_grid.reshape(3, -1)
+grid_center = lmn_grid.mean(axis=-1)
+lmn_grid -= grid_center[:, None]
+lmn_grid = lmn_grid.reshape(3, -1)
 
+#UVW_baselines = 2 * np.pi * UVW_baselines.T.reshape(3, -1) / wl
+UVW_baselines =  UVW_baselines.T.reshape(3, -1) 
+ 
 
-bb_image = np.real(bb_image)
+do3D=True
+doPlan = True
+outfilename = 'test_nufft_'
 
-print(bb_image.shape,bb_image[0,0])
+if do3D:
+    outfilename += "3D"
+    if doPlan:
+        outfilename += "_plan"
+        plan = finufft.Plan(nufft_type=3, n_modes_or_dim=3, eps=1e-4, isign=1)
+        plan.setpts(x= UVW_baselines[0], y=UVW_baselines[1], z=UVW_baselines[2],
+                                s=lmn_grid[0], t=lmn_grid[1],u=lmn_grid[2])
+        V = gram_corrected_visibilities #*prephasing
+        bb_image = np.real(plan.execute(V)) 
+        bb_image = bb_image.reshape(pix_xyz.shape[1:])
+    else:
+        ##########################################################################################
+        bb_image = finufft.nufft3d3(x= UVW_baselines[0],
+                                y= UVW_baselines[1],
+                                z= UVW_baselines[2],
+                                s=lmn_grid[0],
+                                t=lmn_grid[1],
+                                u=lmn_grid[2],
+                                c=gram_corrected_visibilities, eps=1e-4)
+        bb_image = np.real(bb_image)
+        bb_image = bb_image.reshape(pix_xyz.shape[1:])
+        ##########################################################################################
+else:
+    outfilename += "2D"
+    scaling = 2 * lim / N_pix  
+    if doPlan:
+        outfilename += "_plan"
+        ##########################################################################################
+        plan = finufft.Plan(nufft_type=1, n_modes_or_dim= (N_pix, N_pix), eps=1e-4, isign=1)
+        plan.setpts(x=scaling * UVW_baselines[1], y=scaling * UVW_baselines[0])  
+        V = gram_corrected_visibilities
+        bb_image = np.real(plan.execute(V))  
+        ########################################################################################## 
+    else:
+        ##########################################################################################
+        bb_image = finufft.nufft2d1(x=scaling * UVW_baselines[1],
+                                    y=scaling * UVW_baselines[0],
+                                    c=gram_corrected_visibilities,
+                                    n_modes=N_pix, eps=1e-4)
+        bb_image = np.real(bb_image)
+        ##########################################################################################
 
-### Sensitivity Field =========================================================
-# Parameter Estimation
-S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=0.95)
-for t in ProgressBar(time[::200]):
-    XYZ = dev(t)
-    W = mb(XYZ, wl)
-    G = gram(XYZ, W, wl)
-
-    S_est.collect(G)
-N_eig = S_est.infer_parameters()
-
-# Imaging
-S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
-sensitivity_coeffs = []
-for t in ProgressBar(time[0:25]):
-    XYZ = dev(t)
-    W = mb(XYZ, wl)
-    W = W.data
-    D, V = S_dp(XYZ, W, wl)
-    S_sensitivity = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
-    sensitivity_coeffs.append(S_sensitivity)
-
-sensitivity_coeffs = np.stack(sensitivity_coeffs, axis=0).reshape(-1)
-sensitivity_coeffs *= w_correction
-sensitivity_image = finufft.nufft2d1(x=scalingx * UVW_baselines[:, 1],
-                                     y=scalingy * UVW_baselines[:, 0],
-                                     c=sensitivity_coeffs,
-                                     n_modes=N_pix, eps=1e-4)
-
-sensitivity_image = np.real(sensitivity_image)
-
-print(sensitivity_image.shape,sensitivity_image[0,0])
-
-I_lsq_eq = s2image.Image(bb_image / sensitivity_image, pix_xyz)
+I_lsq_eq = s2image.Image(bb_image, pix_xyz)
 t2 = tt.time()
 print(f'Elapsed time: {t2 - t1} seconds.')
 
 plt.figure()
 ax = plt.gca()
 I_lsq_eq.draw(catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'), show_gridlines=False)
-ax.set_title(f'Bluebild Least-squares, sensitivity-corrected image (NUFFT)\n'
+ax.set_title(f'Bluebild Least-squares, sensitivity-corrected image (NUFFT3D)\n'
              f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180/np.pi)} degrees.\n'
              f'Run time {np.floor(t2 - t1)} seconds.')
 
-plt.savefig("test2_nufft")
-
+plt.savefig(outfilename)
 
 gaussian=np.exp(-(Lpix ** 2 + Mpix ** 2)/(4*lim))
 gridded_visibilities=np.sqrt(np.abs(np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(gaussian*bb_image)))))
