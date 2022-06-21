@@ -124,8 +124,7 @@ for t in time[::time_slice]:
     XYZ = dev(t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    G = gram(XYZ, W, wl)
-    D, V, c_idx = I_dp(S, G)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
     _ = I_mfs(D, V, XYZ.data, W.data, c_idx)
 
 I_std, I_lsq = I_mfs.as_image()
@@ -154,8 +153,7 @@ S_mfs = bb_sd.Spatial_IMFS_Block(wl, px_grid, 1, N_bits)
 for t in time[::time_slice]:
     XYZ = dev(t)
     W = mb(XYZ, wl)
-    G = gram(XYZ, W, wl)
-    D, V = S_dp(G)
+    D, V = S_dp(XYZ, W, wl)
     _ = S_mfs(D, V, XYZ.data, W.data, cluster_idx=np.zeros(N_eig, dtype=int))
 _, S = S_mfs.as_image()
 

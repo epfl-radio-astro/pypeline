@@ -157,9 +157,8 @@ for ti in ProgressBar(time[timeslice]):
     XYZ = dev(ti)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    G = gram(XYZ, W, wl)
 
-    D, V, c_idx = I_dp(S, G)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
     t.end_time("Synthesis: prep input matrices & fPCA")
 
     t.start_time("Periodic Synthesis")
@@ -237,9 +236,8 @@ for ti in ProgressBar(time[timeslice]):
 
     XYZ = dev(ti)
     W = mb(XYZ, wl)
-    G = gram(XYZ, W, wl)
 
-    D, V = S_dp(G)
+    D, V = S_dp(XYZ, W, wl)
     W = W.data
 
     _ = S_mfs_ps(D, V, XYZ.data, W, cluster_idx=np.zeros(N_eig, dtype=int))

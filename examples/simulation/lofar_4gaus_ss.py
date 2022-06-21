@@ -114,10 +114,9 @@ for t, f, S in ProgressBar(
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
     W = ms.beamformer(XYZ, wl)
-    G = gram(XYZ, W, wl)
     S, W = measurement_set.filter_data(S, W)
 
-    D, V, c_idx = I_dp(S, G)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
     print(c_idx)
     c_idx = [0,1,2,3]
 

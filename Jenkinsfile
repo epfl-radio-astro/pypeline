@@ -14,10 +14,19 @@ pipeline {
         OUT_DIR  = "${env.WORK_DIR}/${env.GIT_BRANCH}/${env.UTC_TAG}_${env.BUILD_ID}"
 
         // Set to "1" to run corresponding profiling
+        //
         PROFILE_CPROFILE = "0"
         PROFILE_NSIGHT   = "0"
         PROFILE_VTUNE    = "0"
         PROFILE_ADVISOR  = "0" // can be very time-consuming
+
+        // To compile C++ port of bluebild
+        //
+        NINJA_ROOT = "${env.WORKSPACE}/ninja"
+        PATH = "${env.PATH}:${env.NINJA_ROOT}"
+        FINUFFT_ROOT    = "${env.WORKSPACE}/finufft"
+        CUFINUFFT_ROOT  = "${env.WORKSPACE}/cufinufft"
+        LD_LIBRARY_PATH = "${env.LD_LIBRARY_PATH}:${env.FINUFFT_ROOT}/lib:${env.CUFINUFFT_ROOT}/lib"
     }
 
     stages {
@@ -39,8 +48,8 @@ pipeline {
 
                 // Run the installation script (conda + env + non-conda deps + ref sol)
                 // 
-                sh 'echo REMINDER: installation \\(./jenkins/install.sh\\) disabled'
-                //sh 'sh ./jenkins/install.sh'
+                //sh 'echo REMINDER: installation \\(./jenkins/install.sh\\) disabled'
+                sh 'sh ./jenkins/install.sh'
 
                 // Cleanup of aborted runs
                 //
@@ -119,7 +128,9 @@ pipeline {
 
         stage('lofar_bootes_nufft_small_fov') {
             environment {
-                TEST_DIR  = "${env.OUT_DIR}/lofar_bootes_nufft_small_fov"
+                TEST_DIR     = "${env.OUT_DIR}/lofar_bootes_nufft_small_fov"
+                MUST_CUPY    = "-1"
+                BLUEBILD_GPU = "OFF"
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"

@@ -87,6 +87,11 @@ echo "PY_SCRIPT = $PY_SCRIPT"; echo
 pwd
 cd src/bluebild
 echo env BLUEBILD_GPU set to $BLUEBILD_GPU
+echo env FINUFFT_ROOT set to $FINUFFT_ROOT
+echo env LD_LIBRARY_PATH set to $LD_LIBRARY_PATH
+echo
+[ -f CMakeCache.txt ] && rm -v  CMakeCache.txt
+[ -d CMakeFiles ]     && rm -rv CMakeFiles
 ###ls -l
 ###[ -d _skbuild ] && rm -r _skbuild
 ###ls -l
@@ -139,6 +144,7 @@ ls -rtl $TEST_DIR
 #
 #export BLUEBILD_GPU=CUDA; export TMPOUT=/scratch/izar/orliac/test_nufft3_cpp; mkdir -pv $TMPOUT; PROFILE_NSIGHT=0 PROFILE_VTUNE=0 PROFILE_CPROFILE=0 TEST_SEFF=0 TEST_DIR=$TMPOUT CUPY_PYFFS=0 srun --partition gpu --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1  ./jenkins/slurm_lofar_bootes_nufft3_cpp_data_proc.sh
 
+#export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/SKA/epfl-radio-astro/finufft/lib:~/SKA/epfl-radio-astro/cufinufft/lib; export FINUFFT_ROOT=~/SKA/epfl-radio-astro/finufft; export CUFINUFFT_ROOT=~/SKA/epfl-radio-astro/cufinufft; export BLUEBILD_GPU=CUDA; export TMPOUT=/scratch/izar/orliac/test_nufft3_cpp; mkdir -pv $TMPOUT; PROFILE_NSIGHT=0 PROFILE_VTUNE=0 PROFILE_CPROFILE=0 TEST_SEFF=0 TEST_DIR=$TMPOUT CUPY_PYFFS=0 srun --partition gpu --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1  ./jenkins/slurm_lofar_bootes_nufft3_cpp_data_proc.sh
 # debug partion if profiling enabled
 #
 #export TMPOUT=/scratch/izar/orliac/test_nufft3_cpp; mkdir -pv $TMPOUT; PROFILE_NSIGHT=0 PROFILE_VTUNE=1 PROFILE_CPROFILE=1 TEST_SEFF=0 TEST_DIR=$TMPOUT CUPY_PYFFS=0 srun --partition debug --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1  ./jenkins/slurm_lofar_bootes_nufft3_cpp_data_proc.sh

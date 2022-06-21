@@ -54,7 +54,6 @@ gram = bb_gr.GramBlock()
 
 # Imaging
 eps = 1e-3
-w_term = True
 precision = 'single'
 N_bits = 32
 
@@ -102,11 +101,12 @@ t.end_time("Estimate intensity field parameters")
 ####################################################################
 I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
 IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq','sqrt'))
+nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
+                                      field_center=field_center, eps=eps,
+                                      n_trans=1, precision=precision)
 
 I_mfs_ss = bb_sd.Spatial_IMFS_Block(wl, px_grid, N_level, N_bits)
 
-UVW_baselines = []
-gram_corrected_visibilities = []
 for i_t, ti in enumerate(ProgressBar(time)):
     t.start_time("Synthesis: prep input matrices & fPCA")
     tobs, f, S = next(ms.visibilities(channel_id=[channel_id], time_id=slice(i_t, i_t+1, None), column=data_column))
@@ -115,26 +115,18 @@ for i_t, ti in enumerate(ProgressBar(time)):
     W = ms.beamformer(XYZ, wl)
     S, _ = measurement_set.filter_data(S, W)
 
-    G = gram(XYZ, W, wl)
-    D, V, c_idx = I_dp(S, G)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
     c_idx = list(range(N_level))        # bypass c_idx
     t.end_time("Synthesis: prep input matrices & fPCA")
     
     t.start_time("NUFFT Synthesis")
     UVW_baselines_t = ms.instrument.baselines(ti, uvw=True, field_center=field_center)
-    UVW_baselines.append(UVW_baselines_t)
     S_corrected = IV_dp(D, V, W, c_idx)
-    gram_corrected_visibilities.append(S_corrected)
+    nufft_imager.collect(UVW_baselines_t, S_corrected)
     t.end_time("NUFFT Synthesis")
 
-UVW_baselines = np.stack(UVW_baselines, axis=0).reshape(-1, 3)
-gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=-3).reshape(*S_corrected.shape[:2], -1)
-
 # NUFFT Synthesis
-nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=px_grid, FoV=FoV, field_center=field_center, eps=eps, w_term=w_term, n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
-#nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV, field_center=field_center, eps=eps, w_term=w_term, n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
-lsq_image, sqrt_image = nufft_imager(gram_corrected_visibilities)
-#============================================================================================
+lsq_image, sqrt_image = nufft_imager.get_statistic()
 
 ### Sensitivity Field =========================================================
 t.start_time("Estimate sensitivity field parameters")
@@ -154,7 +146,9 @@ t.end_time("Estimate sensitivity field parameters")
 # Imaging
 S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
 SV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq',))
-sensitivity_coeffs = []
+nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
+                                      field_center=field_center, eps=eps,
+                                      n_trans=1, precision=precision)
 
 for i_t, ti in enumerate(ProgressBar(time)):
     tobs, f, S = next(ms.visibilities(channel_id=[channel_id], time_id=slice(i_t, i_t+1, None), column=data_column))
@@ -162,19 +156,14 @@ for i_t, ti in enumerate(ProgressBar(time)):
     XYZ = ms.instrument(tobs)
 
     W = ms.beamformer(XYZ, wl)
-    G = gram(XYZ, W, wl)
-    D, V = S_dp(G)
+    D, V = S_dp(XYZ, W, wl)
 
+    UVW_baselines_t = ms.instrument.baselines(ti, uvw=True, field_center=field_center)
     S_sensitivity = SV_dp(D, V, W, cluster_idx=np.zeros(N_eig, dtype=int))  # (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
-    sensitivity_coeffs.append(S_sensitivity)
+    nufft_imager.collect(UVW_baselines_t, S_sensitivity)
 
+sensitivity_image = nufft_imager.get_statistic()[0]
 np.save('%sD_%s' %(path_out, fname_prefix), D.reshape(-1, 1, 1))
-
-sensitivity_coeffs = np.stack(sensitivity_coeffs, axis=0).reshape(-1)
-nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
-                                      field_center=field_center, eps=eps, w_term=w_term,
-                                      n_trans=1, precision=precision)
-sensitivity_image = nufft_imager(sensitivity_coeffs)
 
 #I_sqrt_eq_nufft = s2image.Image(sqrt_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
 I_lsq_eq_nufft = s2image.Image(lsq_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
