@@ -102,6 +102,14 @@ N_eig, c_centroid = I_est.infer_parameters()
 print("N_eig:", N_eig)
 
 # Imaging
+if read_coords_from_ms:
+    nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
+                                          field_center=field_center, eps=eps, w_term=w_term,
+                                          n_trans=N_level, precision=precision)
+else:
+    nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
+                                          field_center=field_center, eps=eps, w_term=w_term,
+                                          n_trans=N_level, precision=precision)
 I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
 IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq', 'sqrt'))
 UVW_baselines = []
@@ -119,7 +127,7 @@ for t, f, S in ProgressBar(
     plt.savefig("skalow_nufft_new_baselinesUV")
     UVW_baselines.append(UVW_baselines_t)
     W = ms.beamformer(XYZ, wl)
-    G = gram(XYZ, W, wl)
+    #G = gram(XYZ, W, wl)
     S, W = measurement_set.filter_data(S, W)
     plt.clf()
     plt.imshow(np.absolute(S.data))
@@ -129,37 +137,32 @@ for t, f, S in ProgressBar(
     plt.clf()
 
 
-    D, V, c_idx = I_dp(S, G)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
     print(V.shape, D.shape, len(c_idx))
     #print(c_idx)
     S_corrected = IV_dp(D, V, W, c_idx)
-    gram_corrected_visibilities.append(S_corrected)
+    #gram_corrected_visibilities.append(S_corrected)
+    nufft_imager.collect(UVW_baselines_t, S_corrected)
 
-UVW_baselines = np.stack(UVW_baselines, axis=0).reshape(-1, 3)
-gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=-3).reshape(*S_corrected.shape[:2], -1)
+#UVW_baselines = np.stack(UVW_baselines, axis=0).reshape(-1, 3)
+#gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=-3).reshape(*S_corrected.shape[:2], -1)
 
 # NUFFT Synthesis
 print("Running NUFFT on the CPU")
 t = time.process_time()
 
 
-if read_coords_from_ms:
-    nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
-                                          field_center=field_center, eps=eps, w_term=w_term,
-                                          n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
-else:
-    nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T,  grid_size=N_pix, FoV=FoV,
-                                          field_center=field_center, eps=eps, w_term=w_term,
-                                          n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
+
 #print(nufft_imager._synthesizer._inner_fft_sizes)
-lsq_image, sqrt_image = nufft_imager(gram_corrected_visibilities)
+#lsq_image, sqrt_image = nufft_imager(gram_corrected_visibilities)
+lsq_image, sqrt_image = nufft_imager.get_statistic()
 
 end_time = time.process_time()
 print("Time elapsed: {0}s".format(end_time - start_time))
 
 ### Sensitivity Field =========================================================
 # Parameter Estimation
-S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=0.95)
+'''S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=0.95)
 for t in ProgressBar(ms.time["TIME"][::200]):
     XYZ = ms.instrument(t)
     W = ms.beamformer(XYZ, wl)
@@ -167,7 +170,7 @@ for t in ProgressBar(ms.time["TIME"][::200]):
 
     S_est.collect(G)
 N_eig = S_est.infer_parameters()
-'''
+
 print("Running sensitivity imaging")
 # Imaging
 S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)

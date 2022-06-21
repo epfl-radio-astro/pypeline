@@ -41,15 +41,15 @@ read_coords_from_ms = True
 
 # Instrument
 #ms_file = "/home/etolley/rascil_ska_sim/results_test/ska-pipeline_simulation.ms"
-ms_file = "/home/etolley/rascil/examples/pipelines/ska-pipelines/results_rascil_skalow_test/ska-pipeline_simulation.ms"
-#ms_file = "/work/ska/results_rascil_lofar/ska-pipeline_simulation.ms"
+#ms_file = "/home/etolley/rascil/examples/pipelines/ska-pipelines/results_rascil_skalow_test/ska-pipeline_simulation.ms"
+ms_file = "/work/ska/results_rascil_skalow_small/ska-pipeline_simulation.ms"
 ms = measurement_set.SKALowMeasurementSet(ms_file) # stations 1 - N_station 
 gram = bb_gr.GramBlock()
 
 
 if read_coords_from_ms:
-    cl_WCS = ifits.wcs("/home/etolley/rascil/examples/pipelines/ska-pipelines/results_rascil_skalow_test/imaging_dirty.fits")
-    #cl_WCS = ifits.wcs("/work/ska/results_rascil_lofar/wsclean-image.fits")
+    #cl_WCS = ifits.wcs("/home/etolley/rascil/examples/pipelines/ska-pipelines/results_rascil_skalow_test/imaging_dirty.fits")
+    cl_WCS = ifits.wcs("/work/ska/results_rascil_skalow_small/wsclean-image.fits")
     cl_WCS = cl_WCS.sub(['celestial'])
     ##cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10)))  # downsample, too high res!
     cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame
@@ -69,7 +69,7 @@ print("Reading {0}\n".format(ms_file))
 print("FoV is ", np.rad2deg(FoV))
 
 channel_id = 0
-frequency = 145e6#1e8
+frequency = 1e8
 wl = constants.speed_of_light / frequency
 freq_ms = ms.channels["FREQUENCY"][channel_id]
 assert freq_ms.to_value(u.Hz) == frequency
@@ -141,9 +141,8 @@ for t, f, S in ProgressBar(
     W = ms.beamformer(XYZ, wl)
     #S = vis(XYZ, W, wl)
     S, _ = measurement_set.filter_data(S, W)
-    G = gram(XYZ, W, wl)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
     W = W.data
-    D, V, _ = I_dp(S, G)
     S_corrected = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
     gram_corrected_visibilities.append(S_corrected)
 
@@ -164,7 +163,7 @@ lmn_grid = lmn_grid.reshape(3, -1)
 UVW_baselines =  UVW_baselines.T.reshape(3, -1) 
  
 
-do3D=False
+do3D=True
 doPlan = True
 outfilename = 'test_skalow_nufft_'
 

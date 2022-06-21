@@ -41,6 +41,7 @@ out_str = "skalow_small"
 gram = bb_gr.GramBlock()
 print(cl_WCS.to_header())
 cl_WCS = cl_WCS.sub(['celestial'])
+cl_WCS = cl_WCS.slice((slice(None, None,10), slice(None, None, 10)))  # downsample, too high res!
 cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame
 N_cl_lon, N_cl_lat = cl_pix_icrs.shape[-2:]
 
@@ -60,19 +61,7 @@ print(ms.time["TIME"])
 # Imaging
 N_level = 1
 N_bits = 32
-#R = ms.instrument.icrs2bfsf_rot(obs_start, obs_end)
-#colat_idx, lon_idx, pix_colat, pix_lon = grid.equal_angle(
-#    N=ms.instrument.nyquist_rate(wl),
-#    direction=R @ ms.field_center.cartesian.xyz.value,  # BFSF-equivalent f_dir.
-#    FoV=FoV,
-#)
 
-#_, _, px_colat, px_lon = grid.equal_angle(
-#    N=ms.instrument.nyquist_rate(wl), direction=ms.field_center.cartesian.xyz.value, FoV=FoV
-#)
-
-#N_FS, T_kernel = ms.instrument.bfsf_kernel_bandwidth(wl, obs_start, obs_end), np.deg2rad(10)
-#px_grid = transform.pol2cart(1, px_colat, px_lon).reshape(3, -1)
 px_grid = cl_pix_icrs
 time_slice = 10
 print("Grid size is:", px_grid.shape)
@@ -107,52 +96,20 @@ for t, f, S in ProgressBar(
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
     W = ms.beamformer(XYZ, wl)
-    G = gram(XYZ, W, wl)
     S, W = measurement_set.filter_data(S, W)
-
-    D, V, c_idx = I_dp(S, G)
-    print(c_idx)
-    #c_idx = [0,1,2,3]
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
 
     XYZ_gpu = cp.asarray(XYZ.data)
     W_gpu  = cp.asarray(W.data)
     V_gpu  = cp.asarray(V)
     _ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
+    _ = I_mfs(D, V, XYZ, W, c_idx)
     
 I_std, I_lsq = I_mfs.as_image()
 
 end_time = time.process_time()
 print("Time elapsed: {0}s".format(end_time - start_time))
 
-'''### Sensitivity Field =========================================================
-# Parameter Estimation
-S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=0.95)
-for t in ProgressBar(ms.time["TIME"][::200]):
-    XYZ = ms.instrument(t,field_center = ms.field_center)
-    W = ms.beamformer(XYZ, wl)
-    G = gram(XYZ, W, wl)
-    S_est.collect(G)
-N_eig = S_est.infer_parameters()
-print("Running sensitivity imaging")
-# Imaging
-S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
-#S_mfs = bb_fd.Fourier_IMFS_Block(wl, pix_colat, pix_lon, N_FS, T_kernel, R, 1, N_bits)
-S_mfs = bb_sd.Spatial_IMFS_Block(wl, px_grid, 1, N_bits)
-for t, f, S in ProgressBar(
-        ms.visibilities(channel_id=[channel_id], time_id=slice(None, None, time_slice), column="DATA")
-):
-    wl = constants.speed_of_light / f.to_value(u.Hz)
-    XYZ = ms.instrument(t,field_center = ms.field_center)
-    W = ms.beamformer(XYZ, wl)
-    G = gram(XYZ, W, wl)
-    S, W = measurement_set.filter_data(S, W)
-    D, V = S_dp(G)
-    #_ = S_mfs(D, V, XYZ.data, W.data, cluster_idx=np.zeros(N_eig, dtype=int))
-    XYZ_gpu = cp.asarray(XYZ.data)
-    W_gpu  = cp.asarray(W.data.toarray())
-    V_gpu  = cp.asarray(V)
-    _ = S_mfs(D, V_gpu, XYZ_gpu, W_gpu, cluster_idx=np.zeros(N_eig, dtype=int))
-_, S = S_mfs.as_image()'''
 
 # Plot Results ================================================================
 fig, ax = plt.subplots(ncols=N_level, nrows=2, figsize=(16, 10))
