@@ -271,7 +271,7 @@ class NUFFT_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
     Multi-field synthesizer based on the NUFFT synthesizer.
     """
 
-    def __init__(self, wl: float, UVW: np.ndarray, FoV: float, field_center: aspy.SkyCoord,  grid_size: int = 0, xyz_grid: np.ndarray = None,
+    def __init__(self, wl: float,  FoV: float, field_center: aspy.SkyCoord,  grid_size: int = 0, xyz_grid: np.ndarray = None,
                  eps: float = 1e-6, w_term: bool = True, n_trans: int = 1, precision: str = 'double',
                  max_collect_bytes = 2 * 10**9,
                  ctx = None):
@@ -297,7 +297,7 @@ class NUFFT_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
             Bluebuild context. If provided, the bluebild library will be used for computation.
         """
 
-        self._synthesizer = psd.NUFFTFieldSynthesizerBlock(wl=wl, UVW=UVW, grid_size=grid_size, FoV=FoV, xyz_grid = xyz_grid,
+        self._synthesizer = psd.NUFFTFieldSynthesizerBlock(wl=wl, grid_size=grid_size, FoV=FoV, xyz_grid = xyz_grid,
                                                            field_center=field_center, eps=eps,
                                                            n_trans=n_trans, precision=precision,
                                                            ctx=ctx)

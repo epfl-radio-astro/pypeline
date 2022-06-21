@@ -485,7 +485,7 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
     _precision_mappings = dict(single=dict(complex=np.complex64, real=np.float32, dtype='float32'),
                                double=dict(complex=np.complex128, real=np.float64, dtype='float64'))
 
-    def __init__(self, wl: float, UVW: np.ndarray, field_center: aspy.SkyCoord,  FoV: float, grid_size: int = 0, xyz_grid: np.ndarray = None,
+    def __init__(self, wl: float, field_center: aspy.SkyCoord,  FoV: float, grid_size: int = 0, xyz_grid: np.ndarray = None,
                  eps: float = 1e-6, w_term: bool = True, n_trans: int = 1, precision: str = 'double', ctx = None):
         r"""
 
@@ -511,9 +511,8 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         self._wl = wl
         self._eps = eps
         self._precision = precision
-        UVW = np.array(UVW, copy=False)
-        self._UVW = (2 * np.pi * UVW.reshape(3, -1) / wl).astype(self._precision_mappings[self._precision]['real'])
         self._field_center = field_center
+        self._ctx = ctx
         if FoV > 0 and grid_size > 0:
           self._FoV = FoV
           self._grid_size = grid_size
