@@ -38,6 +38,8 @@ import imot_tools.io.s2image as im
 import time as tt
 
 read_coords_from_ms = True
+uvw_from_ms = True
+use_raw_vis = False
 
 # Instrument
 ms_file = "/work/ska/results_rascil_skalow_small/ska-pipeline_simulation.ms"
@@ -125,24 +127,30 @@ ICRS_baselines = []
 gram_corrected_visibilities = []
 baseline_rescaling = 2 * np.pi / wl
 
-for t, f, S in ProgressBar(
-        ms.visibilities(channel_id=[channel_id], time_id=slice(0, None, None), column="DATA", return_UVW=False)
+for t, f, S, uvw in ProgressBar(
+        ms.visibilities(channel_id=[channel_id], time_id=slice(0, None, None), column="DATA", return_UVW=True)
 ):
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
-    UVW = (uvw_frame.transpose() @ XYZ.data.transpose()).transpose()
-    UVW_baselines_t = (UVW[:, None, :] - UVW[None, ...])
+    if uvw_from_ms:
+        UVW_baselines_t = uvw
+    else:
+        UVW = (uvw_frame.transpose() @ XYZ.data.transpose()).transpose()
+        UVW_baselines_t = (UVW[:, None, :] - UVW[None, ...])
     ICRS_baselines_t = (XYZ.data[:, None, :] - XYZ.data[None, ...])
     UVW_baselines.append(baseline_rescaling * UVW_baselines_t)
     ICRS_baselines.append(baseline_rescaling * ICRS_baselines_t)
     W = ms.beamformer(XYZ, wl)
-    #S = vis(XYZ, W, wl)
     S, _ = measurement_set.filter_data(S, W)
     D, V, c_idx = I_dp(S, XYZ, W, wl)
     W = W.data
     S_corrected = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
-    gram_corrected_visibilities.append(S_corrected)
-    print("S_corrected",S_corrected.shape, S_corrected)
+    print('shapes', S_corrected.shape, S.shape)
+
+    if use_raw_vis:
+        gram_corrected_visibilities.append(S.data)
+    else:
+        gram_corrected_visibilities.append(S_corrected)
     print("UVW_baselines_t",UVW_baselines_t)
 
 UVW_baselines = np.stack(UVW_baselines, axis=0)
@@ -151,7 +159,9 @@ gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=0).resh
 
 UVW_baselines=UVW_baselines.reshape(-1,3)
 w_correction = np.exp(1j * UVW_baselines[:, -1])
-gram_corrected_visibilities *= w_correction
+
+if not use_raw_vis:
+    gram_corrected_visibilities *= w_correction
 
 lmn_grid = lmn_grid.reshape(3, -1)
 grid_center = lmn_grid.mean(axis=-1)
@@ -164,7 +174,7 @@ UVW_baselines =  UVW_baselines.T.reshape(3, -1)
 
 do3D=True
 doPlan = True
-outfilename = 'test_skalow_nufft_'
+outfilename = 'test_skalow_nufft_' + ('msUVW_' if uvw_from_ms else '') + ('rawVis_' if use_raw_vis else 'BBVis')
 
 if do3D:
     outfilename += "3D"

@@ -37,7 +37,7 @@ import joblib as job
 
 start_time = time.process_time()
 
-read_coords_from_ms = True
+read_coords_from_ms = False
 
 # Instrument
 ms_file = "/work/ska/results_rascil_skalow_small/ska-pipeline_simulation.ms"
@@ -55,7 +55,9 @@ if read_coords_from_ms:
     width_px, height_px= 2*cl_WCS.wcs.crpix 
     cdelt_x, cdelt_y = cl_WCS.wcs.cdelt 
     FoV = np.deg2rad(abs(cdelt_x*width_px) )
+    print('FoV is', cdelt_x*width_px)
     field_center = ms.field_center
+    print('field center is', field_center)
 else:
     field_center = coord.SkyCoord(ra=+15.0 * u.deg, dec=-45.0 * u.deg, frame='icrs', equinox='J2000')
     #field_center = coord.SkyCoord(ra=90.0 * u.deg, dec=-45.0 * u.deg, frame='icrs', equinox='J2000')
