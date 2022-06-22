@@ -329,9 +329,9 @@ class MeasurementSet:
                 v = _series2array(S[ch_id].rename("S", inplace=True))
                 visibility = vis.VisibilityMatrix(v, beam_idx)
                 if return_UVW:
-                    UVW_baselines = np.zeros((15, 15, 3))
-                    UVW_baselines[np.triu_indices(15, 0)] = uvw
-                    UVW_baselines[np.tril_indices(15, -1)] = -1*np.transpose(UVW_baselines,(1,0,2))[np.tril_indices(15, -1)]
+                    UVW_baselines = np.zeros((N_beam, N_beam, 3))
+                    UVW_baselines[np.triu_indices(N_beam, 0)] = uvw
+                    UVW_baselines[np.tril_indices(N_beam, -1)] = -1*np.transpose(UVW_baselines,(1,0,2))[np.tril_indices(N_beam, -1)]
                     yield t, f[ch_id], visibility, UVW_baselines
                 else:  
                     yield t, f[ch_id], visibility
