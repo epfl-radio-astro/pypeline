@@ -40,15 +40,12 @@ import time as tt
 read_coords_from_ms = True
 
 # Instrument
-#ms_file = "/home/etolley/rascil_ska_sim/results_test/ska-pipeline_simulation.ms"
-#ms_file = "/home/etolley/rascil/examples/pipelines/ska-pipelines/results_rascil_skalow_test/ska-pipeline_simulation.ms"
 ms_file = "/work/ska/results_rascil_skalow_small/ska-pipeline_simulation.ms"
 ms = measurement_set.SKALowMeasurementSet(ms_file) # stations 1 - N_station 
 gram = bb_gr.GramBlock()
 
 
 if read_coords_from_ms:
-    #cl_WCS = ifits.wcs("/home/etolley/rascil/examples/pipelines/ska-pipelines/results_rascil_skalow_test/imaging_dirty.fits")
     cl_WCS = ifits.wcs("/work/ska/results_rascil_skalow_small/wsclean-image.fits")
     cl_WCS = cl_WCS.sub(['celestial'])
     ##cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10)))  # downsample, too high res!
@@ -145,6 +142,8 @@ for t, f, S in ProgressBar(
     W = W.data
     S_corrected = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
     gram_corrected_visibilities.append(S_corrected)
+    print("S_corrected",S_corrected.shape, S_corrected)
+    print("UVW_baselines_t",UVW_baselines_t)
 
 UVW_baselines = np.stack(UVW_baselines, axis=0)
 ICRS_baselines = np.stack(ICRS_baselines, axis=0).reshape(-1, 3)
@@ -172,9 +171,13 @@ if do3D:
     if doPlan:
         outfilename += "_plan"
         plan = finufft.Plan(nufft_type=3, n_modes_or_dim=3, eps=1e-4, isign=1)
+        print('X', UVW_baselines[0])
+        print('lmn_grid', lmn_grid)
+        
         plan.setpts(x= UVW_baselines[0], y=UVW_baselines[1], z=UVW_baselines[2],
                                 s=lmn_grid[0], t=lmn_grid[1],u=lmn_grid[2])
         V = gram_corrected_visibilities #*prephasing
+        print('V', V)
         bb_image = np.real(plan.execute(V)) 
         bb_image = bb_image.reshape(pix_xyz.shape[1:])
     else:

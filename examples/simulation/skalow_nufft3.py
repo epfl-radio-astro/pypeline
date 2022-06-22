@@ -40,7 +40,6 @@ start_time = time.process_time()
 read_coords_from_ms = True
 
 # Instrument
-#ms_file = "/home/etolley/rascil_ska_sim/results_test/ska-pipeline_simulation.ms"
 ms_file = "/work/ska/results_rascil_skalow_small/ska-pipeline_simulation.ms"
 ms = measurement_set.SKALowMeasurementSet(ms_file) # stations 1 - N_station 
 gram = bb_gr.GramBlock()
@@ -74,12 +73,12 @@ obs_start, obs_end = ms.time["TIME"][[0, -1]]
 print("obs start: {0}, end: {1}".format(obs_start, obs_end))
 
 # Imaging
-N_pix = 512
+N_pix = 256
 eps = 1e-5
 w_term = True
 N_level = 1
 precision = 'single'
-time_slice = slice(None, None, 10)
+time_slice = slice(0, None, None)
 
 
 ### Intensity Field ===========================================================
@@ -103,17 +102,33 @@ print("N_eig:", N_eig)
 
 # Imaging
 if read_coords_from_ms:
-    nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
+    nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV, xyz_grid = cl_pix_icrs,
                                           field_center=field_center, eps=eps, w_term=w_term,
-                                          n_trans=N_level, precision=precision)
+                                          n_trans=1, precision=precision)
 else:
     nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
                                           field_center=field_center, eps=eps, w_term=w_term,
-                                          n_trans=N_level, precision=precision)
+                                          n_trans=1, precision=precision)
 I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
 IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq', 'sqrt'))
 UVW_baselines = []
 gram_corrected_visibilities = []
+
+
+#===
+
+field_center_lon, field_center_lat = field_center.data.lon.rad, field_center.data.lat.rad
+field_center_xyz = field_center.cartesian.xyz.value
+
+# UVW reference frame
+w_dir = field_center_xyz
+u_dir = np.array([-np.sin(field_center_lon), np.cos(field_center_lon), 0])
+v_dir = np.array(
+    [-np.cos(field_center_lon) * np.sin(field_center_lat), -np.sin(field_center_lon) * np.sin(field_center_lat),
+     np.cos(field_center_lat)])
+uvw_frame = np.stack((u_dir, v_dir, w_dir), axis=-1)
+
+#===
 fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 10))
 for t, f, S in ProgressBar(
         ms.visibilities(channel_id=[channel_id], time_id=time_slice, column="DATA")
@@ -121,8 +136,8 @@ for t, f, S in ProgressBar(
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
     #UVW_baselines_t = ms.baselines(t, uvw=True)
-    UVW_baselines_t = ms.instrument.baselines(t, field_center = ms.field_center)
-    print('baselines shape:',UVW_baselines_t.shape)
+    UVW_baselines_t = ms.instrument.baselines(t, field_center = ms.field_center, uvw= True)
+
     plt.scatter(UVW_baselines_t[:,:,0], UVW_baselines_t[:,:,1])
     plt.savefig("skalow_nufft_new_baselinesUV")
     UVW_baselines.append(UVW_baselines_t)
@@ -142,6 +157,8 @@ for t, f, S in ProgressBar(
     #print(c_idx)
     S_corrected = IV_dp(D, V, W, c_idx)
     #gram_corrected_visibilities.append(S_corrected)
+    print("S_corrected",S_corrected.shape, S_corrected)
+    print("UVW_baselines_t",UVW_baselines_t)
     nufft_imager.collect(UVW_baselines_t, S_corrected)
 
 #UVW_baselines = np.stack(UVW_baselines, axis=0).reshape(-1, 3)

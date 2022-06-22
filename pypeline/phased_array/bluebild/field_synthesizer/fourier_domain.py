@@ -566,9 +566,13 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         field: np.ndarray
             (M, N_pix) field values.
         """
-        UVW = np.array(UVW, copy=False)
+        UVW = np.array(UVW, copy=False).astype(self._precision_mappings[self._precision]['real'])
+        print("UVW",UVW)
         UVW = (2 * np.pi * UVW.reshape(3, -1) / self._wl).astype(self._precision_mappings[self._precision]['real'])
+        print("X",UVW[0])
         V = np.array(V, copy=False).squeeze().astype(self._precision_mappings[self._precision]['complex'])
+        print("V",V[0,...])
+        print("lmn grid",  self._lmn_grid)
 
         prephasing = np.exp(1j * np.sum(self._grid_center[:, None] * UVW, axis=0)).squeeze().astype(
             self._precision_mappings[self._precision]['complex'])
@@ -579,24 +583,28 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         else:
             plan = finufft.Plan(nufft_type=3, n_modes_or_dim=3, eps=self._eps, isign=1, n_trans=self._n_trans,
                                 dtype=self._precision_mappings[self._precision]['dtype'])
-            plan.setpts(x=UVW[0], y=UVW[1], z=UVW[-1],
-                        s=self._lmn_grid[0], t=self._lmn_grid[1], u=self._lmn_grid[-1])
+            plan.setpts(x=UVW[0], y=UVW[1], z=UVW[2],
+                        s=self._lmn_grid[0], t=self._lmn_grid[1], u=self._lmn_grid[2])
 
         if V.ndim > 1:
             V = V.reshape(-1, UVW.shape[-1])
             prephasing = prephasing[None, :]
             V *= prephasing
+            print("V",V[0,...])
             if self._n_trans == 1:  # NUFFT are evaluated sequentially
                 out = []
                 for n in range(V.shape[0]):
+                    print('V shape',V.shape)
                     out.append(np.real(plan.execute(V[n])))
+                    print('out shape',out[0].shape, len(out))
                 out = np.stack(out, axis=0)
             else:
                 out = np.real(plan.execute(
                     V))  # NUFFT are evaluated in parallel (not clear if multi-threaded or multi-processed?)
         else:
-            out = np.real(plan.execute(V * prephasing))
-
+            print('V shape',V.shape)
+            out = np.real(plan.execute(V*prephasing))
+        print('final out shape',out.shape)
         return out
 
     def synthesize(self, V: np.ndarray) -> np.ndarray:
