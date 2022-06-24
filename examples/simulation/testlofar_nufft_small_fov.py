@@ -174,8 +174,9 @@ for t, f, S in ProgressBar(
     W = ms.beamformer(XYZ, wl)
     G = gram(XYZ, W, wl)
     S, W = measurement_set.filter_data(S, W)
+    W = W
+    D, V, _ = I_dp(S, XYZ, W, wl)
     W = W.data
-    D, V, _ = I_dp(S, G)
     S_corrected = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
     gram_corrected_visibilities.append(S_corrected)
 

@@ -298,8 +298,10 @@ class MeasurementSet:
             data_flag = sub_table.getcol("FLAG")  # (N_entry, N_channel, 4)
             data = sub_table.getcol(column)  # (N_entry, N_channel, 4)
             #print('\nraw data',data.shape, data[:,:,-1])
+            #EO: ask why *= -1 here?
             uvw = -1*sub_table.getcol("UVW")
-
+            #print("-1*sub_table.getcol(UVW)\n", uvw, uvw.shape)
+    
             # We only want XX and YY correlations
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
             data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
@@ -601,6 +603,7 @@ class SKALowMeasurementSet(MeasurementSet):
         :py:class:`~pypeline.phased_array.instrument.EarthBoundInstrumentGeometryBlock`
             Instrument position computer.
         """
+        
         if self._instrument is None:
             # Following the MS file specification from https://casa.nrao.edu/casadocs/casa-5.1.0/reference-material/measurement-set,
             # the ANTENNA sub-table specifies the antenna geometry.
@@ -651,3 +654,4 @@ class SKALowMeasurementSet(MeasurementSet):
             self._beamformer = beamforming.MatchedBeamformerBlock(beam_config)
 
         return self._beamformer
+

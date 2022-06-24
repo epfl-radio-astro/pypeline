@@ -14,6 +14,7 @@ import cupy as cp
 import scipy.constants as constants
 import sys, time
 import finufft
+import astropy.coordinates as coord
 
 import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.bluebild.gram as bb_gr
@@ -37,6 +38,22 @@ ms_file = "/work/ska/results_rascil_skalow_small/ska-pipeline_simulation.ms"
 ms = measurement_set.SKALowMeasurementSet(ms_file) # stations 1 - N_station 
 out_str = "skalow_small"
 
+field_center = coord.SkyCoord(ra=15.0 * u.deg, dec=-45.0 * u.deg, frame='icrs', equinox='J2000')
+FoV = np.deg2rad(5.56111)
+
+field_center_lon, field_center_lat = field_center.data.lon.rad, field_center.data.lat.rad
+field_center_xyz = field_center.cartesian.xyz.value
+print("field_center_xyz", type(field_center_xyz), field_center_xyz)
+
+# UVW reference frame
+w_dir = field_center_xyz
+u_dir = np.array([-np.sin(field_center_lon), np.cos(field_center_lon), 0])
+v_dir = np.array(
+    [-np.cos(field_center_lon) * np.sin(field_center_lat), -np.sin(field_center_lon) * np.sin(field_center_lat),
+    np.cos(field_center_lat)])
+uvw_frame = np.stack((u_dir, v_dir, w_dir), axis=-1)
+print("uvw_frame\n", uvw_frame)
+#continue
 
 gram = bb_gr.GramBlock()
 print(cl_WCS.to_header())
@@ -99,11 +116,11 @@ for t, f, S in ProgressBar(
     S, W = measurement_set.filter_data(S, W)
     D, V, c_idx = I_dp(S, XYZ, W, wl)
 
-    XYZ_gpu = cp.asarray(XYZ.data)
-    W_gpu  = cp.asarray(W.data)
-    V_gpu  = cp.asarray(V)
-    _ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
-    _ = I_mfs(D, V, XYZ, W, c_idx)
+    #XYZ_gpu = cp.asarray(XYZ.data)
+    #W_gpu  = cp.asarray(W.data)
+    #V_gpu  = cp.asarray(V)
+    #_ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
+    _ = I_mfs(D, V, XYZ.data, W.data, c_idx)
     
 I_std, I_lsq = I_mfs.as_image()
 
@@ -127,6 +144,7 @@ for i in range(N_level):
     bottom_plot.set_title("Least-Squares Image Level = {0}".format(i))
 
 plt.savefig("skalow_standard_new")
+plt.show()
 
 # 5. Store the interpolated Bluebild image in standard-compliant FITS for view
 # in AstroPy/DS9.
