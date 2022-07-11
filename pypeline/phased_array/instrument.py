@@ -374,7 +374,9 @@ class EarthBoundInstrumentGeometryBlock(InstrumentGeometryBlock):
         """
         layout = self._layout.loc[:, ["X", "Y", "Z"]].values.T
         r = linalg.norm(layout, axis=0)
-
+        #print("-----> r    = ", r)
+        #print("-----> time = ", time)
+        
         itrs_layout = coord.CartesianRepresentation(layout)
         itrs_position = coord.SkyCoord(itrs_layout, obstime=time, frame="itrs")
         icrs_position = r * (itrs_position.transform_to("icrs").cartesian.xyz)

@@ -19,7 +19,7 @@ import imot_tools.util.argcheck as chk
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
-
+import rascil.processing_components.util.coordinate_support as rascil_crd
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.instrument as instrument
 import pypeline.phased_array.data_gen.statistics as vis
@@ -133,7 +133,6 @@ class MeasurementSet:
             # conventions may be used.
             query = f"select REFERENCE_DIR, TIME from {self._msf}::FIELD"
             table = ct.taql(query)
-
             lon, lat = table.getcell("REFERENCE_DIR", 0).flatten()
             self._field_center = coord.SkyCoord(ra=lon * u.rad, dec=lat * u.rad, frame="icrs")
 
@@ -192,7 +191,6 @@ class MeasurementSet:
             # Therefore, we will instead ask for all columns and only access the one of interest.
             query = f"select * from {self._msf}"
             table = ct.taql(query)
-
             t = time.Time(np.unique(table.calc("MJD(TIME)")), format="mjd", scale="utc")
             t_id = range(len(t))
             self._time = tb.QTable(dict(TIME_ID=t_id, TIME=t))
@@ -297,16 +295,11 @@ class MeasurementSet:
             beam_id_1 = sub_table.getcol("ANTENNA2")  # (N_entry,)
             data_flag = sub_table.getcol("FLAG")  # (N_entry, N_channel, 4)
             data = sub_table.getcol(column)  # (N_entry, N_channel, 4)
-            #print('\nraw data',data.shape, data[:,:,-1])
-            #EO: ask why *= -1 here?
-            uvw = -1*sub_table.getcol("UVW")
-            #print("-1*sub_table.getcol(UVW)\n", uvw, uvw.shape)
-    
+            uvw = -1 * sub_table.getcol("UVW")
+
             # We only want XX and YY correlations
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
             data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
-
-            #print('data after averaging',data)
 
             # Set broken visibilities to 0
             data[data_flag] = 0
@@ -344,6 +337,7 @@ class MeasurementSet:
 
             # Break S into columns and stream out
             t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
+
             f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
             #print(beam_id, beam_idx)
@@ -354,8 +348,8 @@ class MeasurementSet:
                 #print("visibility", visibility)
                 if return_UVW:
                     UVW_baselines = np.zeros((N_beam, N_beam, 3))
-                    UVW_baselines[np.triu_indices(N_beam, 0)] = uvw
-                    UVW_baselines[np.tril_indices(N_beam, -1)] = -1*np.transpose(UVW_baselines,(1,0,2))[np.tril_indices(N_beam, -1)]
+                    UVW_baselines[np.triu_indices(N_beam,  0)] = uvw
+                    UVW_baselines[np.tril_indices(N_beam, -1)] = -np.transpose(UVW_baselines,(1,0,2))[np.tril_indices(N_beam, -1)]
                     yield t, f[ch_id], visibility, UVW_baselines
                 else:  
                     yield t, f[ch_id], visibility
@@ -584,16 +578,21 @@ class SKALowMeasurementSet(MeasurementSet):
     """
     SKA Low Measurement Set reader.
     """
-
-    @chk.check("file_name", chk.is_instance(str))
-    def __init__(self, file_name):
+    @chk.check(
+        dict(file_name=chk.is_instance(str),
+             origin=chk.allow_None(chk.is_instance(coord.EarthLocation)))
+    )
+    def __init__(self, file_name, origin=None):
         """
         Parameters
         ----------
         file_name : str
             Name of the MS file.
+        origin : astropy EarthLocation
+            Reference location used to compute local station coordinates (ref. RASCIL issue)
         """
         super().__init__(file_name)
+        self._origin = origin
 
     @property
     def instrument(self):
@@ -625,7 +624,19 @@ class SKALowMeasurementSet(MeasurementSet):
             )
             cfg = pd.DataFrame(data=station_mean, columns=("X", "Y", "Z"), index=cfg_idx)
 
-            XYZ = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
+            if self._origin:
+                o = np.array([self._origin.x.value, self._origin.y.value, self._origin.z.value])
+                xyz = cfg.values - o
+                for i in range(0, xyz.shape[0]):
+                    xyz[i,:] = rascil_crd.enu_to_ecef(self._origin, xyz[i,:])
+                XYZ = instrument.InstrumentGeometry(xyz=xyz, ant_idx=cfg.index)
+                #XYZ_wrong = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
+                #print("XYZ CORRECT\n", XYZ.data[0:5,:])
+                #print("XYZ WRONG\n", XYZ_wrong.data[0:5,:])
+                #print("XYZ DIFF\n", XYZ_wrong.data[0:5,:] - XYZ.data[0:5,:])
+            else:
+                XYZ = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
+            
 
             self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ)
 
