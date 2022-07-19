@@ -119,6 +119,7 @@ for t, f, S in ProgressBar(
     I_est.collect(S, G)
 
 N_eig, c_centroid = I_est.infer_parameters()
+print("N_eig", N_eig)
 
 # Imaging
 I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
@@ -141,17 +142,15 @@ for t, f, S, uvw in ProgressBar(
     UVW_baselines.append(baseline_rescaling * UVW_baselines_t)
     ICRS_baselines.append(baseline_rescaling * ICRS_baselines_t)
     W = ms.beamformer(XYZ, wl)
+    print('W matrix', W)
     S, _ = measurement_set.filter_data(S, W)
     D, V, c_idx = I_dp(S, XYZ, W, wl)
     W = W.data
     S_corrected = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
-    print('shapes', S_corrected.shape, S.shape)
-
     if use_raw_vis:
         gram_corrected_visibilities.append(S.data)
     else:
         gram_corrected_visibilities.append(S_corrected)
-    print("UVW_baselines_t",UVW_baselines_t)
 
 UVW_baselines = np.stack(UVW_baselines, axis=0)
 ICRS_baselines = np.stack(ICRS_baselines, axis=0).reshape(-1, 3)
@@ -181,13 +180,9 @@ if do3D:
     if doPlan:
         outfilename += "_plan"
         plan = finufft.Plan(nufft_type=3, n_modes_or_dim=3, eps=1e-4, isign=1)
-        print('X', UVW_baselines[0])
-        print('lmn_grid', lmn_grid)
-        
         plan.setpts(x= UVW_baselines[0], y=UVW_baselines[1], z=UVW_baselines[2],
                                 s=lmn_grid[0], t=lmn_grid[1],u=lmn_grid[2])
         V = gram_corrected_visibilities #*prephasing
-        print('V', V)
         bb_image = np.real(plan.execute(V)) 
         bb_image = bb_image.reshape(pix_xyz.shape[1:])
     else:
