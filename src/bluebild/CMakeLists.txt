@@ -34,6 +34,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
 # Options
 option(BLUEBILD_BUILD_TESTS "Build tests" OFF)
 option(BLUEBILD_PYTHON "Build python module" ON)
+option(BLUEBILD_MAGMA "Use MAGMA library as eigensolver" OFF)
 option(BLUEBILD_PYBIND11_DOWNLOAD "Download pybind11 instead of looking for installation" OFF)
 
 set(BLUEBILD_GPU "OFF" CACHE STRING "GPU backend")
@@ -54,6 +55,7 @@ if(BLUEBILD_GPU)
 		set(BLUEBILD_CUDA ON)
 	elseif(BLUEBILD_GPU STREQUAL "ROCM")
 		set(BLUEBILD_ROCM ON)
+		set(BLUEBILD_MAGMA ON)
 	else()
 		message(FATAL_ERROR "Invalid GPU backend")
 	endif()
@@ -96,10 +98,15 @@ endif()
 
 # ROCm
 if(BLUEBILD_ROCM)
-	message(FATAL_ERROR "ROCM support not yet fully implemented") # TODO: remove when implemented
 	find_package(hip CONFIG REQUIRED)
 	find_package(rocblas CONFIG REQUIRED)
   list(APPEND BLUEBILD_EXTERNAL_LIBS hip::host roc::rocblas)
+endif()
+
+# MAGMA
+if(BLUEBILD_MAGMA)
+	find_package(MAGMA MODULE REQUIRED)
+	list(APPEND BLUEBILD_EXTERNAL_LIBS MAGMA::MAGMA)
 endif()
 
 set(BLA_SIZEOF_INTEGER 4) # 32 bit interface to blas / lapack

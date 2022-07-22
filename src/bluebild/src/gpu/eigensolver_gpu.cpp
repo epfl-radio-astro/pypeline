@@ -15,6 +15,7 @@
 #include "gpu/kernels/reverse.hpp"
 #include "gpu/util/gpu_blas_api.hpp"
 #include "gpu/util/gpu_runtime_api.hpp"
+#include "gpu/util/solver_api.hpp"
 
 namespace bluebild {
 
