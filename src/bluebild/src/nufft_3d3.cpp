@@ -78,9 +78,9 @@ template <typename T> struct Nufft3d3Internal {
                                             ctx_->gpu_stream()));
       }
 
-      gpu::stream_synchronize(ctx_->gpu_stream()); // cufinufft cannot be asigned a stream
+      gpu::check_status(gpu::stream_synchronize(ctx_->gpu_stream())); // cufinufft cannot be asigned a stream
       planGPU_ = Nufft3d3GPU<T>(iflag, tol, numTrans, M, xDevice, yDevice, zDevice, N, sDevice, tDevice, uDevice);
-      gpu::stream_synchronize(nullptr);
+      gpu::check_status(gpu::stream_synchronize(nullptr));
 #else
       throw GPUSupportError();
 #endif
@@ -108,7 +108,7 @@ template <typename T> struct Nufft3d3Internal {
         fkDevice = fkBuffer.get();
       }
 
-      gpu::stream_synchronize(ctx_->gpu_stream()); // cufinufft cannot be asigned a stream
+      gpu::check_status(gpu::stream_synchronize(ctx_->gpu_stream())); // cufinufft cannot be asigned a stream
       planGPU_.value().execute(cjDevice, fkDevice);
 
       if(fkBuffer) {
@@ -118,7 +118,7 @@ template <typename T> struct Nufft3d3Internal {
       }
 
 
-      gpu::stream_synchronize(nullptr);
+      gpu::check_status(gpu::stream_synchronize(nullptr));
 #else
       throw GPUSupportError();
 #endif

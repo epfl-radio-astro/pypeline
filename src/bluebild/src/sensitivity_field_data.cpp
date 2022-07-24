@@ -28,7 +28,7 @@ BLUEBILD_EXPORT auto sensitivity_field_data(Context &ctx, T wl, int m, int n,
   if (ctxInternal.processing_unit() == BLUEBILD_PU_GPU) {
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
     // Syncronize with default stream. TODO: replace with event
-    gpu::stream_synchronize(nullptr);
+    gpu::check_status(gpu::stream_synchronize(nullptr));
 
     BufferType<gpu::ComplexType<T>> wBuffer, vBuffer;
     BufferType<T> dBuffer, xyzBuffer;
@@ -74,9 +74,9 @@ BLUEBILD_EXPORT auto sensitivity_field_data(Context &ctx, T wl, int m, int n,
     }
 
     // call intensity_field_data on gpu
-    auto devInfo = sensitivity_field_data_gpu<T>(
-        ctxInternal, wl, m, n, nEig, wDevice, ldwDevice, xyzDevice, ldxyzDevice,
-        dDevice, vDevice, ldvDevice);
+    sensitivity_field_data_gpu<T>(ctxInternal, wl, m, n, nEig, wDevice,
+                                  ldwDevice, xyzDevice, ldxyzDevice, dDevice,
+                                  vDevice, ldvDevice);
 
     if (dBuffer) {
       gpu::check_status(gpu::memcpy_async(d, dDevice, nEig * sizeof(T),
@@ -91,18 +91,9 @@ BLUEBILD_EXPORT auto sensitivity_field_data(Context &ctx, T wl, int m, int n,
           ctxInternal.gpu_stream()));
     }
 
-    int hostInfo[2];
-    gpu::check_status(gpu::memcpy_async(
-        hostInfo, devInfo.get(), 2 * sizeof(int), gpu::flag::MemcpyDeviceToHost,
-        ctxInternal.gpu_stream()));
-
     // syncronize with stream to be synchronous with host
     gpu::check_status(gpu::stream_synchronize(ctxInternal.gpu_stream()));
 
-    // check if eigensolver threw error
-    if (hostInfo[0] || hostInfo[1]) {
-      throw EigensolverError();
-    }
 #else
     throw GPUSupportError();
 #endif

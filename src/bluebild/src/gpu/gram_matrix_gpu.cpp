@@ -18,7 +18,7 @@ auto gram_matrix_gpu(ContextInternal& ctx, int m, int n, const gpu::ComplexType<
   using ComplexType = gpu::ComplexType<T>;
 
   // Syncronize with default stream. TODO: replace with event
-  gpu::stream_synchronize(nullptr);
+  gpu::check_status(gpu::stream_synchronize(nullptr));
 
   auto baseD = create_buffer<ComplexType>(ctx.allocators().gpu(), m * m);
 

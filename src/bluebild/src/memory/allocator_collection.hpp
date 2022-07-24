@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <functional>
 #include <memory>
+#include <tuple>
 
 #include "memory/allocator.hpp"
 #include "memory/pool_allocator.hpp"
@@ -24,19 +25,19 @@ public:
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
         ,
         allocPinned_(new PoolAllocator(
-            [](std::size_t size) -> void* {
+            [](std::size_t size) -> void * {
               void* ptr = nullptr;
               gpu::check_status(gpu::malloc_host(&ptr, size));
               return ptr;
             },
-            [](void* ptr) -> void { gpu::free_host(ptr); })),
+            [](void *ptr) -> void { std::ignore = gpu::free_host(ptr); })),
         allocGPU_(new PoolAllocator(
-            [](std::size_t size) -> void* {
+            [](std::size_t size) -> void * {
               void* ptr = nullptr;
               gpu::check_status(gpu::malloc(&ptr, size));
               return ptr;
             },
-            [](void* ptr) -> void { gpu::free(ptr); }))
+            [](void *ptr) -> void { std::ignore = gpu::free(ptr); }))
 #endif
   {
 

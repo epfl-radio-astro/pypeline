@@ -28,7 +28,7 @@ BLUEBILD_EXPORT auto gram_matrix(Context &ctx, int m, int n,
   if (ctxInternal.processing_unit() == BLUEBILD_PU_GPU) {
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
     // Syncronize with default stream. TODO: replace with event
-    gpu::stream_synchronize(nullptr);
+    gpu::check_status(gpu::stream_synchronize(nullptr));
 
     BufferType<gpu::ComplexType<T>> wBuffer, gBuffer;
     BufferType<T> xyzBuffer;

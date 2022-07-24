@@ -46,6 +46,7 @@ set(BLUEBILD_INSTALL "LIB" CACHE STRING "Install the librariy (LIB), the python 
 set_property(CACHE BLUEBILD_INSTALL PROPERTY STRINGS
 	"LIB" "PYTHON" "OFF"
 	)
+set(CMAKE_HIP_ARCHITECTURES "gfx803;gfx900;gfx906" CACHE STRING "HIP GPU architectures")
 
 # Options combination check
 set(BLUEBILD_CUDA OFF)
@@ -64,6 +65,11 @@ endif()
 if(BLUEBILD_INSTALL STREQUAL "PYTHON")
 	set(BLUEBILD_PYTHON ON)
 endif()
+
+
+set(BLUEBILD_FLAGS "")
+set(BLUEBILD_EXTERNAL_LIBS "")
+set(BLUEBILD_INCLUDE_DIRS "")
 
 # CUDA
 if(BLUEBILD_CUDA)
@@ -98,6 +104,15 @@ endif()
 
 # ROCm
 if(BLUEBILD_ROCM)
+	include(CheckCXXCompilerFlag)
+	check_cxx_compiler_flag("--amdgpu-target=gfx906" _IS_HIPCC)
+	if(NOT _IS_HIPCC)
+		message(FATAL_ERROR "ROCm build requires hipcc to be set as CXX compiler!")
+	endif()
+	list(APPEND BLUEBILD_FLAGS -fno-gpu-rdc)
+	foreach(arch ${CMAKE_HIP_ARCHITECTURES})
+		list(APPEND BLUEBILD_FLAGS --amdgpu-target=${arch})
+	endforeach()
 	find_package(hip CONFIG REQUIRED)
 	find_package(rocblas CONFIG REQUIRED)
   list(APPEND BLUEBILD_EXTERNAL_LIBS hip::host roc::rocblas)
@@ -107,6 +122,7 @@ endif()
 if(BLUEBILD_MAGMA)
 	find_package(MAGMA MODULE REQUIRED)
 	list(APPEND BLUEBILD_EXTERNAL_LIBS MAGMA::MAGMA)
+	list(APPEND BLUEBILD_FLAGS -DUSE_HIP) # required to compile magma header
 endif()
 
 set(BLA_SIZEOF_INTEGER 4) # 32 bit interface to blas / lapack

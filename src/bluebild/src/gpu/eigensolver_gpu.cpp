@@ -1,6 +1,4 @@
 
-#include <cusolverDn.h>
-
 #include <complex>
 #include <cstddef>
 #include <functional>
@@ -19,161 +17,10 @@
 
 namespace bluebild {
 
-namespace eigensolver {
-auto worspace_size(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cusolverEigRange_t range,
-                   cublasFillMode_t uplo, int n, float* A, int lda, float vl, float vu, int il,
-                   int iu) -> int {
-  int lwork = 0;
-  if (cusolverDnSsyevdx_bufferSize(handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu, nullptr,
-                                   nullptr, &lwork) != CUSOLVER_STATUS_SUCCESS)
-    throw GPUError();
-  return lwork;
-}
-auto worspace_size(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cusolverEigRange_t range,
-                   cublasFillMode_t uplo, int n, double* A, int lda, double vl, double vu, int il,
-                   int iu) -> int {
-  int lwork = 0;
-  if (cusolverDnDsyevdx_bufferSize(handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu, nullptr,
-                                   nullptr, &lwork) != CUSOLVER_STATUS_SUCCESS)
-    throw GPUError();
-  return lwork;
-}
-auto worspace_size(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cusolverEigRange_t range,
-                   cublasFillMode_t uplo, int n, cuComplex* A, int lda, float vl, float vu, int il,
-                   int iu) -> int {
-  int lwork = 0;
-  if (cusolverDnCheevdx_bufferSize(handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu, nullptr,
-                                   nullptr, &lwork) != CUSOLVER_STATUS_SUCCESS)
-    throw GPUError();
-  return lwork;
-}
-auto worspace_size(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cusolverEigRange_t range,
-                   cublasFillMode_t uplo, int n, cuDoubleComplex* A, int lda, double vl, double vu,
-                   int il, int iu) -> int {
-  int lwork = 0;
-  if (cusolverDnZheevdx_bufferSize(handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu, nullptr,
-                                   nullptr, &lwork) != CUSOLVER_STATUS_SUCCESS)
-    throw GPUError();
-  return lwork;
-}
-
-auto solve(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cusolverEigRange_t range,
-           cublasFillMode_t uplo, int n, float* A, int lda, float vl, float vu, int il, int iu,
-           int* hMeig, float* W, float* work, int lwork, int* devInfo) -> void {
-  if (cusolverDnSsyevdx(handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu, hMeig, W, work, lwork,
-                        devInfo) != CUSOLVER_STATUS_SUCCESS)
-    throw GPUError();
-}
-
-auto solve(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cusolverEigRange_t range,
-           cublasFillMode_t uplo, int n, double* A, int lda, double vl, double vu, int il, int iu,
-           int* hMeig, double* W, double* work, int lwork, int* devInfo) -> void {
-  if (cusolverDnDsyevdx(handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu, hMeig, W, work, lwork,
-                        devInfo) != CUSOLVER_STATUS_SUCCESS)
-    throw GPUError();
-}
-
-auto solve(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cusolverEigRange_t range,
-           cublasFillMode_t uplo, int n, cuComplex* A, int lda, float vl, float vu, int il, int iu,
-           int* hMeig, float* W, cuComplex* work, int lwork, int* devInfo) -> void {
-  if (cusolverDnCheevdx(handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu, hMeig, W, work, lwork,
-                        devInfo) != CUSOLVER_STATUS_SUCCESS)
-    throw GPUError();
-}
-
-auto solve(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cusolverEigRange_t range,
-           cublasFillMode_t uplo, int n, cuDoubleComplex* A, int lda, double vl, double vu, int il,
-           int iu, int* hMeig, double* W, cuDoubleComplex* work, int lwork, int* devInfo) -> void {
-  if (cusolverDnZheevdx(handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu, hMeig, W, work, lwork,
-                        devInfo) != CUSOLVER_STATUS_SUCCESS)
-    throw GPUError();
-}
-
-}  // namespace eigensolver
-
-namespace general_eigensolver {
-auto worspace_size(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cusolverEigRange_t range,
-                   cublasFillMode_t uplo, int n, float* A, int lda, float* B, int ldb, float vl,
-                   float vu, int il, int iu) -> int {
-  int lwork = 0;
-  if (cusolverDnSsygvdx_bufferSize(handle, CUSOLVER_EIG_TYPE_1, jobz, range, uplo, n, A, lda, B,
-                                   ldb, vl, vu, il, iu, nullptr, nullptr,
-                                   &lwork) != CUSOLVER_STATUS_SUCCESS)
-    throw GPUError();
-  return lwork;
-}
-auto worspace_size(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cusolverEigRange_t range,
-                   cublasFillMode_t uplo, int n, double* A, int lda, double* B, int ldb, double vl,
-                   double vu, int il, int iu) -> int {
-  int lwork = 0;
-  if (cusolverDnDsygvdx_bufferSize(handle, CUSOLVER_EIG_TYPE_1, jobz, range, uplo, n, A, lda, B,
-                                   ldb, vl, vu, il, iu, nullptr, nullptr,
-                                   &lwork) != CUSOLVER_STATUS_SUCCESS)
-    throw GPUError();
-  return lwork;
-}
-auto worspace_size(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cusolverEigRange_t range,
-                   cublasFillMode_t uplo, int n, cuComplex* A, int lda, cuComplex* B, int ldb,
-                   float vl, float vu, int il, int iu) -> int {
-  int lwork = 0;
-  if (cusolverDnChegvdx_bufferSize(handle, CUSOLVER_EIG_TYPE_1, jobz, range, uplo, n, A, lda, B,
-                                   ldb, vl, vu, il, iu, nullptr, nullptr,
-                                   &lwork) != CUSOLVER_STATUS_SUCCESS)
-    throw GPUError();
-  return lwork;
-}
-auto worspace_size(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cusolverEigRange_t range,
-                   cublasFillMode_t uplo, int n, cuDoubleComplex* A, int lda, cuDoubleComplex* B,
-                   int ldb, double vl, double vu, int il, int iu) -> int {
-  int lwork = 0;
-  if (cusolverDnZhegvdx_bufferSize(handle, CUSOLVER_EIG_TYPE_1, jobz, range, uplo, n, A, lda, B,
-                                   ldb, vl, vu, il, iu, nullptr, nullptr,
-                                   &lwork) != CUSOLVER_STATUS_SUCCESS)
-    throw GPUError();
-  return lwork;
-}
-
-auto solve(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cusolverEigRange_t range,
-           cublasFillMode_t uplo, int n, float* A, int lda, float* B, int ldb, float vl, float vu,
-           int il, int iu, int* hMeig, float* W, float* work, int lwork, int* devInfo) -> void {
-  if (cusolverDnSsygvdx(handle, CUSOLVER_EIG_TYPE_1, jobz, range, uplo, n, A, lda, B, ldb, vl, vu,
-                        il, iu, hMeig, W, work, lwork, devInfo) != CUSOLVER_STATUS_SUCCESS)
-    throw GPUError();
-}
-
-auto solve(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cusolverEigRange_t range,
-           cublasFillMode_t uplo, int n, double* A, int lda, double* B, int ldb, double vl,
-           double vu, int il, int iu, int* hMeig, double* W, double* work, int lwork, int* devInfo)
-    -> void {
-  if (cusolverDnDsygvdx(handle, CUSOLVER_EIG_TYPE_1, jobz, range, uplo, n, A, lda, B, ldb, vl, vu,
-                        il, iu, hMeig, W, work, lwork, devInfo) != CUSOLVER_STATUS_SUCCESS)
-    throw GPUError();
-}
-
-auto solve(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cusolverEigRange_t range,
-           cublasFillMode_t uplo, int n, cuComplex* A, int lda, cuComplex* B, int ldb, float vl,
-           float vu, int il, int iu, int* hMeig, float* W, cuComplex* work, int lwork, int* devInfo)
-    -> void {
-  if (cusolverDnChegvdx(handle, CUSOLVER_EIG_TYPE_1, jobz, range, uplo, n, A, lda, B, ldb, vl, vu,
-                        il, iu, hMeig, W, work, lwork, devInfo) != CUSOLVER_STATUS_SUCCESS)
-    throw GPUError();
-}
-
-auto solve(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cusolverEigRange_t range,
-           cublasFillMode_t uplo, int n, cuDoubleComplex* A, int lda, cuDoubleComplex* B, int ldb,
-           double vl, double vu, int il, int iu, int* hMeig, double* W, cuDoubleComplex* work,
-           int lwork, int* devInfo) -> void {
-  if (cusolverDnZhegvdx(handle, CUSOLVER_EIG_TYPE_1, jobz, range, uplo, n, A, lda, B, ldb, vl, vu,
-                        il, iu, hMeig, W, work, lwork, devInfo) != CUSOLVER_STATUS_SUCCESS)
-    throw GPUError();
-}
-
-}  // namespace general_eigensolver
-
 template <typename T>
 auto eigh_gpu(ContextInternal& ctx, int m, int nEig, const gpu::ComplexType<T>* a, int lda,
               const gpu::ComplexType<T>* b, int ldb, int* nEigOut, T* d, gpu::ComplexType<T>* v,
-              int ldv) -> BufferType<int> {
+              int ldv) -> void {
   // TODO: add fill mode
   using ComplexType = gpu::ComplexType<T>;
   using ScalarType = T;
@@ -186,20 +33,11 @@ auto eigh_gpu(ContextInternal& ctx, int m, int nEig, const gpu::ComplexType<T>* 
                                          gpu::flag::MemcpyDeviceToDevice, ctx.gpu_stream()));
   int hMeig = 0;
 
-  int lwork = eigensolver::worspace_size(ctx.gpu_solver_handle(), CUSOLVER_EIG_MODE_VECTOR,
-                                         CUSOLVER_EIG_RANGE_V, CUBLAS_FILL_MODE_LOWER, m, aBuffer.get(),
-                                         m, std::numeric_limits<T>::epsilon(),
-                                         std::numeric_limits<T>::max(), 1, m);
-  auto workspace = create_buffer<ComplexType>(ctx.allocators().gpu(), lwork);
-  auto devInfo = create_buffer<int>(ctx.allocators().gpu(), 2);
-  // make sure info is always 0. Second entry might not be set otherwise.
-  gpu::memset_async(devInfo.get(), 0, 2 * sizeof(int), ctx.gpu_stream());
-
   // compute positive eigenvalues
-  eigensolver::solve(ctx.gpu_solver_handle(), CUSOLVER_EIG_MODE_VECTOR, CUSOLVER_EIG_RANGE_V,
-                     CUBLAS_FILL_MODE_LOWER, m, aBuffer.get(), m, std::numeric_limits<T>::epsilon(),
-                     std::numeric_limits<T>::max(), 1, m, &hMeig, dBuffer.get(), workspace.get(),
-                     lwork, devInfo.get());
+  gpu::eigensolver::solve(ctx, 'V', 'V', 'L', m, aBuffer.get(), m,
+                          std::numeric_limits<T>::epsilon(),
+                          std::numeric_limits<T>::max(), 1, m, &hMeig,
+                          dBuffer.get());
 
   if (b) {
     auto bBuffer = create_buffer<ComplexType>(ctx.allocators().gpu(), m * m);  // Matrix B
@@ -235,20 +73,11 @@ auto eigh_gpu(ContextInternal& ctx, int m, int nEig, const gpu::ComplexType<T>* 
                                              gpu::flag::MemcpyDeviceToDevice, ctx.gpu_stream()));
     }
 
-    // allocate new work buffer
-    lwork = general_eigensolver::worspace_size(
-        ctx.gpu_solver_handle(), CUSOLVER_EIG_MODE_VECTOR, CUSOLVER_EIG_RANGE_V,
-        CUBLAS_FILL_MODE_LOWER, m, aBuffer.get(), m, bBuffer.get(), m,
-        std::numeric_limits<T>::epsilon(), std::numeric_limits<T>::max(), 1, m);
-    workspace.reset();
-    workspace = create_buffer<ComplexType>(ctx.allocators().gpu(), lwork);
-
     // compute positive general eigenvalues
-    general_eigensolver::solve(ctx.gpu_solver_handle(), CUSOLVER_EIG_MODE_VECTOR,
-                               CUSOLVER_EIG_RANGE_V, CUBLAS_FILL_MODE_LOWER, m, aBuffer.get(), m,
-                               bBuffer.get(), m, std::numeric_limits<T>::epsilon(),
-                               std::numeric_limits<T>::max(), 1, m, &hMeig, dBuffer.get(),
-                               workspace.get(), lwork, devInfo.get() + 1);
+    gpu::eigensolver::solve(ctx, 'V', 'V', 'L', m, aBuffer.get(), m,
+                            bBuffer.get(), m, std::numeric_limits<T>::epsilon(),
+                            std::numeric_limits<T>::max(), 1, m, &hMeig,
+                            dBuffer.get());
   }
 
   if (hMeig > 1) {
@@ -273,17 +102,16 @@ auto eigh_gpu(ContextInternal& ctx, int m, int nEig, const gpu::ComplexType<T>* 
                                          gpu::flag::MemcpyDeviceToDevice, ctx.gpu_stream()));
 
   *nEigOut = std::min<int>(hMeig, nEig);
-  return devInfo;
 }
 
 template auto eigh_gpu<float>(ContextInternal& ctx, int m, int nEig,
                               const gpu::ComplexType<float>* a, int lda,
                               const gpu::ComplexType<float>* b, int ldb, int* nEigOut, float* d,
-                              gpu::ComplexType<float>* v, int ldv) -> BufferType<int>;
+                              gpu::ComplexType<float>* v, int ldv) -> void;
 
 template auto eigh_gpu<double>(ContextInternal& ctx, int m, int nEig,
                                const gpu::ComplexType<double>* a, int lda,
                                const gpu::ComplexType<double>* b, int ldb, int* nEigOut, double* d,
-                               gpu::ComplexType<double>* v, int ldv) -> BufferType<int>;
+                               gpu::ComplexType<double>* v, int ldv) -> void;
 
 }  // namespace bluebild

@@ -23,12 +23,13 @@ if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
 		gpu/intensity_field_data_gpu.cpp
 		gpu/gram_matrix_gpu.cpp
 		gpu/nufft_3d3_gpu.cpp
-        gpu/standard_synthesizer_gpu.cpp
+		gpu/standard_synthesizer_gpu.cpp
+		gpu/util/solver_api.cpp
 		gpu/kernels/reverse.cu
 		gpu/kernels/inv_square.cu
 		gpu/kernels/min_diff.cu
 		gpu/kernels/gram.cu
-        gpu/kernels/standard_synthesizer.cu
+		gpu/kernels/standard_synthesizer.cu
 		)
 endif()
 
@@ -58,13 +59,10 @@ macro(bluebild_create_library _TARGET_NAME)
 		set_property(TARGET ${_TARGET_NAME} PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
 	endif()
 
-	target_compile_options(${_TARGET_NAME} PRIVATE ${BLUEBILD_DEFINITIONS} ${BLUEBILD_EXTERNAL_COMPILE_OPTIONS})
-	target_include_directories(${_TARGET_NAME} PRIVATE ${BLUEBILD_EXTERNAL_INCLUDE_DIRS} ${BLUEBILD_INCLUDE_DIRS})
-
-
+	target_compile_options(${_TARGET_NAME} PRIVATE ${BLUEBILD_FLAGS})
+	target_include_directories(${_TARGET_NAME} PRIVATE ${BLUEBILD_INCLUDE_DIRS})
 	target_link_libraries(${_TARGET_NAME} PRIVATE ${BLUEBILD_EXTERNAL_LIBS})
 
-	target_include_directories(${_TARGET_NAME} INTERFACE ${BLUEBILD_INTERFACE_INCLUDE_DIRS})
 	target_include_directories(${_TARGET_NAME} INTERFACE $<INSTALL_INTERFACE:include>) # for install(EXPORT ...)
 	target_include_directories(${_TARGET_NAME} INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>) # for export(...)
 
