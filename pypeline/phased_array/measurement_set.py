@@ -210,6 +210,18 @@ class MeasurementSet:
         raise NotImplementedError
 
     @property
+    def location(self):
+        """
+        EarthLocation of the instrument
+
+        Returns
+        -------
+        :py:class:`~astropy.coordinates.EarthLocation
+            Location of the instrument on the surface of the Earth
+        """
+        raise NotImplementedError
+
+    @property
     def beamformer(self):
         """
         Each dataset has been beamformed in a specific way.
@@ -222,21 +234,6 @@ class MeasurementSet:
         """
         raise NotImplementedError
 
-    '''def UVW(self,  channel_id, t):
-        channel_id = self.channels["CHANNEL_ID"][channel_id]
-        time_id = slice(0,  1, 1)
-        N_time = len(self.time)
-        time_start, time_stop, time_step = time_id.indices(N_time)
-        query = (
-            f"select * from {self._msf} where TIME in "
-            f"(select unique TIME from {self._msf} limit {time_start}:{time_stop}:{time_step})"
-        )
-        table = ct.taql(query)
-        for sub_table in table.iter("TIME", sort=True):
-            tms = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
-            if tms!=t: continue
-            data = sub_table.getcol("UVW")  # (N_entry, N_channel, 4)
-            return data
 
     @chk.check(
         dict(
@@ -244,7 +241,7 @@ class MeasurementSet:
             time_id=chk.accept_any(chk.is_integer, chk.is_instance(slice)),
             column=chk.is_instance(str),
         )
-    )'''
+    )
     def visibilities(self, channel_id, time_id, column, return_UVW = False):
         """
         Extract visibility matrices.
@@ -298,7 +295,8 @@ class MeasurementSet:
             data_flag = sub_table.getcol("FLAG")  # (N_entry, N_channel, 4)
             data = sub_table.getcol(column)  # (N_entry, N_channel, 4)
             #print('\nraw data',data.shape, data[:,:,-1])
-            uvw = -1*sub_table.getcol("UVW")
+            uvw = sub_table.getcol("UVW")
+            uvw *= -1
 
             # We only want XX and YY correlations
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
@@ -320,7 +318,7 @@ class MeasurementSet:
             i, j = np.triu_indices(N_beam, k=0)
             wanted_index = pd.MultiIndex.from_arrays((beam_id[i], beam_id[j]), names=("B_0", "B_1"))
             index_to_drop = S_full_idx.difference(wanted_index)
-            S_trunc = S_full.drop(index=index_to_drop)
+            S_trunc   = S_full.drop(index=index_to_drop)
 
             # Depending on the dataset, some (ANTENNA1, ANTENNA2) pairs that have correlation=0 are
             # omitted in the table.
@@ -344,16 +342,21 @@ class MeasurementSet:
             t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
             f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
-            #print(beam_id, beam_idx)
+
+            print("ndiff",N_diff)
             for ch_id in channel_id:
-                #print("vis", S[ch_id])
                 v = _series2array(S[ch_id].rename("S", inplace=True))
                 visibility = vis.VisibilityMatrix(v, beam_idx)
-                #print("visibility", visibility)
                 if return_UVW:
+                    print("debug, nbeam = ",N_beam)
                     UVW_baselines = np.zeros((N_beam, N_beam, 3))
+                    '''print(UVW_baselines.shape)
                     UVW_baselines[np.triu_indices(N_beam, 0)] = uvw
-                    UVW_baselines[np.tril_indices(N_beam, -1)] = -1*np.transpose(UVW_baselines,(1,0,2))[np.tril_indices(N_beam, -1)]
+                    UVW_baselines[np.tril_indices(N_beam, -1)] = -1*np.transpose(UVW_baselines,(1,0,2))[np.tril_indices(N_beam, -1)]'''
+                    uvw_indices = S_trunc.index.to_numpy(dtype = np.dtype('int,int'))
+                    UVW_baselines[uvw_indices['f0'],uvw_indices['f1']] = uvw
+                    #UVW_baselines[:, 0] *= -1.0
+                    #UVW_baselines[:, 2] *= -1.0
                     yield t, f[ch_id], visibility, UVW_baselines
                 else:  
                     yield t, f[ch_id], visibility
@@ -482,6 +485,10 @@ class LofarMeasurementSet(MeasurementSet):
         return self._instrument
 
     @property
+    def location(self):
+        return coord.EarthLocation(x=3826923.9 * u.m, y=460915.1 * u.m, z=5064643.2 * u.m)
+
+    @property
     def beamformer(self):
         """
         Each dataset has been beamformed in a specific way.
@@ -553,6 +560,10 @@ class MwaMeasurementSet(MeasurementSet):
             self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ)
 
         return self._instrument
+
+    @property
+    def location(self):
+        return coord.EarthLocation.of_site('mwa')
 
     @property
     def beamformer(self):
@@ -627,6 +638,10 @@ class SKALowMeasurementSet(MeasurementSet):
             self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ)
 
         return self._instrument
+
+    @property
+    def location(self):
+        return coord.EarthLocation(lon=116.76444824 * u.deg, lat=-26.824722084 * u.deg, height=300.0)
 
     @property
     def beamformer(self):

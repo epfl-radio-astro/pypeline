@@ -47,24 +47,17 @@ import sys
 #low_location = coord.EarthLocation(
 #    lon=116.76444824 * u.deg, lat=-26.824722084 * u.deg, height=300.0
 #)
-ms_file = "/work/ska/results_rascil_skalow_small/ska-pipeline_simulation.ms"
-cl_WCS = ifits.wcs("/work/ska/results_rascil_skalow_small/wsclean-image.fits")
-ms = measurement_set.SKALowMeasurementSet(ms_file) # stations 1 - N_station 
 
-#ms_file = "/work/ska/gauss4/gauss4_t201806301100_SBL180.MS"
-#cl_WCS = ifits.wcs("/work/ska/gauss4/gauss4-image-pb.fits")
-#ms = measurement_set.LofarMeasurementSet(ms_file) # stations 1 - N_station 
-
-#ms_file = "/work/ska/MWA_1086366992/1086366992.ms"
+ms_file = "/work/ska/MWA_1086366992/1086366992.ms"
           #/work/ska/MWA_1086366992/1086366992.ms
-#cl_WCS = ifits.wcs("/work/ska/MWA_1086366992/wsclean-mwa-chan100-image.fits")
-#ms = measurement_set.MwaMeasurementSet(ms_file) # stations 1 - N_station 
+cl_WCS = ifits.wcs("/work/ska/MWA_1086366992/wsclean-mwa-chan100-image.fits")
+ms = measurement_set.MwaMeasurementSet(ms_file) # stations 1 - N_station 
 
 use_ms = False
 use_raw_vis = True
-do3D = False
+do3D = True
 doPlan = False
-ITRS_XYZ = False
+ITRS_XYZ = True
 
 for use_ms in True, False:
 #for use_ms in False,:
@@ -73,23 +66,21 @@ for use_ms in True, False:
     read_coords_from_ms = use_ms
     uvw_from_ms         = use_ms
 
-    outfilename = 'test_skalow_nufft_' + ('msUVW_' if uvw_from_ms else '') + ('rawVis_' if use_raw_vis else 'BBVis')
+    outfilename = 'test_mwa_nufft_' + ('msUVW_' if uvw_from_ms else '') + ('rawVis_' if use_raw_vis else 'BBVis')
 
     gram = bb_gr.GramBlock()
 
-    if read_coords_from_ms:
-        cl_WCS = cl_WCS.sub(['celestial'])
-        width_px, height_px= 2*cl_WCS.wcs.crpix 
-        cdelt_x, cdelt_y = cl_WCS.wcs.cdelt 
-        FoV = np.deg2rad(abs(cdelt_x*width_px) )
-    else:
-        FoV = np.deg2rad(5.56111)
+    cl_WCS = cl_WCS.sub(['celestial'])
+    width_px, height_px= 2*cl_WCS.wcs.crpix 
+    cdelt_x, cdelt_y = cl_WCS.wcs.cdelt 
+    FoV = np.deg2rad(abs(cdelt_x*width_px) )
+
     source = ms.field_center
         
     print("Reading {0}\n".format(ms_file))
     print("FoV is ", np.rad2deg(FoV))
 
-    channel_id = 0
+    channel_id = 100
     #frequency = 1e8
     freq_ms = ms.channels["FREQUENCY"][channel_id]
     frequency = freq_ms.to_value(u.Hz)
@@ -130,33 +121,88 @@ for use_ms in True, False:
         wl = constants.speed_of_light / f.to_value(u.Hz)
         print(f.to_value(u.Hz), wl)
 
+
+        # ITRF position of antennae
+        XYZ_TF = np.asarray(ms._instrument._layout)
+
+        #print(XYZ_TF, type(XYZ_TF), XYZ_TF.shape)
+        #print("BB ITRF first station ", XYZ_TF[0,:])
+
         #EO: to be exact, needs low_location (as defined in RASCIL)
         #    but sufficiently well approximated with mean "geocentric" coordinates of array
         #  : RASCIL stores as ITRF crd geocentric 
 
         # Computing h0, the hour angle of the source from local meridian
         # Hour Angle of star = Local Sidereal Time- Right Ascension of star
-        lst = atime.Time(t, scale='utc', location=ms.location).sidereal_time('mean')
-        print(f"source: {source}")
-        print(f"   lst: {lst}")
-        h0 = lst - source.ra
-        print(f"BB h0 = {h0.deg:.3f}; EO: this should match the \"time\" used in RASCIL input for the simulation")
+        if ITRS_XYZ:
+            # Field center coordinates
+            field_center_lon, field_center_lat = source.data.lon.rad, source.data.lat.rad
+            field_center_xyz = source.cartesian.xyz.value
 
-        cos_h0, sin_h0 = np.cos(h0.rad), np.sin(h0.rad)
-        cos_dec, sin_dec = np.cos(source.dec.rad), np.sin(source.dec.rad)
+            # UVW reference frame
+            w_dir = field_center_xyz
+            u_dir = np.array([-np.sin(field_center_lon), np.cos(field_center_lon), 0])
+            v_dir = np.array(
+                [-np.cos(field_center_lon) * np.sin(field_center_lat), -np.sin(field_center_lon) * np.sin(field_center_lat),
+                 np.cos(field_center_lat)])
+            uvw_frame = np.stack((u_dir, v_dir, w_dir), axis=-1)
+            UVW = (uvw_frame.transpose() @ XYZ.data.transpose()).transpose()
+            bsl__uvw  = (UVW[:, None, :] - UVW[None, ...])
 
-        uvw_frame = np.array([[           sin_h0,            cos_h0,       0],
-                              [-sin_dec * cos_h0,  sin_dec * sin_h0, cos_dec],
-                              [ cos_dec * cos_h0, -cos_dec * sin_h0, sin_dec]])
-        #uvw_frame = np.array([[           cos_h0,           -sin_h0,       0],
-        #                      [ sin_dec * sin_h0,  sin_dec * cos_h0, cos_dec],
-        #                      [-cos_dec * sin_h0, -cos_dec * cos_h0, sin_dec]])
+        else:
+            lst = atime.Time(t, scale='utc', location=ms.location).sidereal_time('mean')
+            print(f"source: {source}")
+            print(f"   lst: {lst}")
+            h0 = lst - source.ra
+            print(f"BB h0 = {h0.deg:.3f}; EO: this should match the \"time\" used in RASCIL input for the simulation")
 
-        #EO: flip w dir to match the reference, but needs justification!
-        print("uvw_frame\n", uvw_frame)
-        uvw_frame[:,2] *= -1
-        print("uvw_frame\n", uvw_frame)
+            cos_h0, sin_h0 = np.cos(h0.rad), np.sin(h0.rad)
+            cos_dec, sin_dec = np.cos(source.dec.rad), np.sin(source.dec.rad)
+
+            uvw_frame = np.array([[           sin_h0,            cos_h0,       0],
+                                  [-sin_dec * cos_h0,  sin_dec * sin_h0, cos_dec],
+                                  [ cos_dec * cos_h0, -cos_dec * sin_h0, sin_dec]])
+            #uvw_frame = np.array([[           cos_h0,           -sin_h0,       0],
+            #                      [ sin_dec * sin_h0,  sin_dec * cos_h0, cos_dec],
+            #                      [-cos_dec * sin_h0, -cos_dec * cos_h0, sin_dec]])
+
+            #EO: flip w dir to match the reference, but needs justification!
+            print("uvw_frame\n", uvw_frame)
+            uvw_frame[:,2] *= -1
+            print("uvw_frame\n", uvw_frame)
         
+
+
+            # Step 1: recover baseline ENU (RASCIL stores geocentric center + ENU from config)
+            # todo: check how to recover "center" in MS table if written by RASCIL
+
+            # Geocentric position of array center
+            ACX, ACY, ACZ = np.mean(XYZ_TF, axis=0)
+            AC = coord.EarthLocation.from_geocentric(x=ACX, y=ACY, z=ACZ, unit=u.meter)
+            print(f"Array enter ITRF = {AC.geocentric}")
+
+            # Geodetic coordinates of array's center
+            ACLON, ACLAT, ACHGT = AC.to_geodetic()
+            print(f"Array center lon, lat, height = {ACLON:.5f}, {ACLAT:.5f}, {ACHGT:.2f}")
+            ACLON, ACLAT = ACLON.to(u.rad), ACLAT.to(u.rad)
+            print(f"Array center lon, lat, height = {ACLON:.5f}, {ACLAT:.5f}, {ACHGT:.2f}")
+
+            # Weird/bug?
+            ENU__ = XYZ_TF.data - np.array([AC.x.value, AC.y.value, AC.z.value]) 
+            bsl__enu = ENU__[:, None, :] - ENU__[None, ...]
+            #print(f"bsl__neu (BB ENU reconstructed)\n {bsl__enu} {bsl__enu.shape}")
+            NANT, _ = XYZ_TF.data.shape
+
+            # Baselines enu -> xyz -> uvw
+            bsl__uvw = np.zeros(bsl__enu.shape)
+            for i in range(0, NANT):
+                for j in range(0, NANT):
+                    tmp = xyz_at_latitude(bsl__enu[i,j,:], ACLAT.rad)
+                    bsl__uvw[i,j,:] = xyz_to_uvw(tmp, h0.rad, source.dec.rad)
+            print(f"bsl__uvw BB\n {bsl__uvw}")
+
+            print(f"uvw bsl MS\n {uvw}")
+
         # Imaging grid
         lim = np.sin(FoV / 2)
         N_pix = 256
@@ -166,41 +212,6 @@ for use_ms in True, False:
         lmn_grid = np.stack((Lpix, Mpix, Jpix), axis=0)
         pix_xyz = np.tensordot(uvw_frame.transpose(), lmn_grid, axes=1)  #EO: check this one!
         
-        # ITRF position of antennae
-        XYZ_TF = np.asarray(ms._instrument._layout)
-
-        print(XYZ_TF, type(XYZ_TF), XYZ_TF.shape)
-        #print("BB ITRF first station ", XYZ_TF[0,:])
-
-        # Step 1: recover baseline ENU (RASCIL stores geocentric center + ENU from config)
-        # todo: check how to recover "center" in MS table if written by RASCIL
-
-        # Geocentric position of array center
-        ACX, ACY, ACZ = np.mean(XYZ_TF, axis=0)
-        AC = coord.EarthLocation.from_geocentric(x=ACX, y=ACY, z=ACZ, unit=u.meter)
-        print(f"Array enter ITRF = {AC.geocentric}")
-
-        # Geodetic coordinates of array's center
-        ACLON, ACLAT, ACHGT = AC.to_geodetic()
-        print(f"Array center lon, lat, height = {ACLON:.5f}, {ACLAT:.5f}, {ACHGT:.2f}")
-        ACLON, ACLAT = ACLON.to(u.rad), ACLAT.to(u.rad)
-        print(f"Array center lon, lat, height = {ACLON:.5f}, {ACLAT:.5f}, {ACHGT:.2f}")
-
-        # Weird/bug?
-        ENU__ = XYZ_TF.data - np.array([AC.x.value, AC.y.value, AC.z.value]) 
-        bsl__enu = ENU__[:, None, :] - ENU__[None, ...]
-        #print(f"bsl__neu (BB ENU reconstructed)\n {bsl__enu} {bsl__enu.shape}")
-        NANT, _ = XYZ_TF.data.shape
-
-        # Baselines enu -> xyz -> uvw
-        bsl__uvw = np.zeros(bsl__enu.shape)
-        for i in range(0, NANT):
-            for j in range(0, NANT):
-                tmp = xyz_at_latitude(bsl__enu[i,j,:], ACLAT.rad)
-                bsl__uvw[i,j,:] = xyz_to_uvw(tmp, h0.rad, source.dec.rad)
-        print(f"bsl__uvw BB\n {bsl__uvw}")
-
-        print(f"uvw bsl MS\n {uvw}")
 
         if uvw_from_ms:
             print("BB using MS")
