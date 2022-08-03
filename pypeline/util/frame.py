@@ -1,7 +1,6 @@
-r"""
+"""
 Definition of the UVW frame.
 """
-
 import numpy as np
 import astropy.coordinates as aspy
 
@@ -81,4 +80,3 @@ def xyz_to_uvw(xyz, ha, dec):
     v = z * np.cos(dec) + v0 * np.sin(dec)
 
     return np.hstack([u, v, w])
-    

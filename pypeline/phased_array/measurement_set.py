@@ -115,6 +115,28 @@ class MeasurementSet:
         self._instrument = None
         self._beamformer = None
 
+    def check_coordinate_consistency(self, t, uvw):
+        """
+        Check that the bluebild-calcuated UVW coordinates are consistent with external UVE coordinates
+
+        """
+        field_center_lon = self.field_center.data.lon.rad
+        field_center_lat = self.field_center.data.lat.rad
+        field_center_xyz = self.field_center.cartesian.xyz.value
+
+        XYZ = self.instrument(t)
+
+        # UVW reference frame
+        w_dir = field_center_xyz
+        u_dir = np.array([-np.sin(field_center_lon), np.cos(field_center_lon), 0])
+        v_dir = np.array(
+            [-np.cos(field_center_lon) * np.sin(field_center_lat), -np.sin(field_center_lon) * np.sin(field_center_lat),
+             np.cos(field_center_lat)])
+        uvw_frame = np.stack((u_dir, v_dir, w_dir), axis=-1)
+        UVW = (uvw_frame.transpose() @ XYZ.data.transpose()).transpose()
+        bsl__uvw  = (UVW[:, None, :] - UVW[None, ...])
+        return np.allclose(bsl__uvw, UVW)
+
     @property
     def field_center(self):
         """
@@ -657,6 +679,89 @@ class SKALowMeasurementSet(MeasurementSet):
         if self._beamformer is None:
             # MWA does not do any beamforming.
             # Given the single-antenna station model in MS files from MWA, this can be seen as
+            # Matched-Beamforming, with a single beam output per station.
+            XYZ = self.instrument._layout
+            beam_id = np.unique(XYZ.index.get_level_values("STATION_ID"))
+
+            direction = self.field_center
+            beam_config = [(_, _, direction) for _ in beam_id]
+            self._beamformer = beamforming.MatchedBeamformerBlock(beam_config)
+
+        return self._beamformer
+
+class RascilMeasurementSet(MeasurementSet):
+    """
+    Measurement Set reader for MS files created with RASCIL, which have different XYZ coordinates
+    """
+
+    @chk.check("file_name", chk.is_instance(str))
+    def __init__(self, file_name, location):
+        """
+        Parameters
+        ----------
+        file_name : str
+            Name of the MS file.
+        """
+        super().__init__(file_name)
+        self._location = location
+
+    @property
+    def instrument(self):
+        """
+        Returns
+        -------
+        :py:class:`~pypeline.phased_array.instrument.EarthBoundInstrumentGeometryBlock`
+            Instrument position computer.
+        """
+        if self._instrument is None:
+            # Following the MS file specification from https://casa.nrao.edu/casadocs/casa-5.1.0/reference-material/measurement-set,
+            # the ANTENNA sub-table specifies the antenna geometry.
+            # Some remarks on the required fields:
+            # - POSITION: absolute station positions in ITRF coordinates.
+            # - ANTENNA_ID: equivalent to STATION_ID field `InstrumentGeometry.index[0]`
+            #               This field is NOT present in the ANTENNA sub-table, but is given
+            #               implicitly by its row-ordering.
+            #               In other words, the station corresponding to ANTENNA1=k in the MAIN
+            #               table is described by the k-th row of the ANTENNA sub-table.
+            query = f"select POSITION from {self._msf}::ANTENNA"
+            table = ct.taql(query)
+            station_mean = table.getcol("POSITION")
+
+            N_station = len(station_mean)
+            station_id = np.arange(N_station)
+            cfg_idx = pd.MultiIndex.from_product(
+                [station_id, [0]], names=("STATION_ID", "ANTENNA_ID")
+            )
+            cfg = pd.DataFrame(data=station_mean, columns=("X", "Y", "Z"), index=cfg_idx)
+
+            XYZ = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
+
+            self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ)
+
+        return self._instrument
+
+    @property
+    def location(self):
+        return self._location
+
+    def check_coordinate_consistency(self, t, uvw):
+        # ITRF position of antennae
+        XYZ_TF = np.asarray(self._instrument._layout)
+
+    @property
+    def beamformer(self):
+        """
+        Each dataset has been beamformed in a specific way.
+        This property outputs the correct beamformer to compute the beamforming weights.
+
+        Returns
+        -------
+        :py:class:`~pypeline.phased_array.beamforming.MatchedBeamformerBlock`
+            Beamweight computer.
+        """
+        if self._beamformer is None:
+            # Do not do any beamforming.
+            # Given the single-antenna station model in MS files, this can be seen as
             # Matched-Beamforming, with a single beam output per station.
             XYZ = self.instrument._layout
             beam_id = np.unique(XYZ.index.get_level_values("STATION_ID"))

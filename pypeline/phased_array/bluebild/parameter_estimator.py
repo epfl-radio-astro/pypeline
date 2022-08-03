@@ -223,6 +223,7 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         N_eig = max(int(np.ceil(len(D_all) / N_data)), self._N_level)
         cluster_centroid = np.sort(np.exp(kmeans.cluster_centers_)[:, 0])[::-1]
 
+        # TODO: also return D_all
         return N_eig, cluster_centroid
 
 

@@ -49,16 +49,7 @@ import sys
 #)
 ms_file = "/work/ska/results_rascil_skalow_small/ska-pipeline_simulation.ms"
 cl_WCS = ifits.wcs("/work/ska/results_rascil_skalow_small/wsclean-image.fits")
-ms = measurement_set.SKALowMeasurementSet(ms_file) # stations 1 - N_station 
-
-#ms_file = "/work/ska/gauss4/gauss4_t201806301100_SBL180.MS"
-#cl_WCS = ifits.wcs("/work/ska/gauss4/gauss4-image-pb.fits")
-#ms = measurement_set.LofarMeasurementSet(ms_file) # stations 1 - N_station 
-
-#ms_file = "/work/ska/MWA_1086366992/1086366992.ms"
-          #/work/ska/MWA_1086366992/1086366992.ms
-#cl_WCS = ifits.wcs("/work/ska/MWA_1086366992/wsclean-mwa-chan100-image.fits")
-#ms = measurement_set.MwaMeasurementSet(ms_file) # stations 1 - N_station 
+ms = measurement_set.RascilMeasurementSet(ms_file, location = coord.EarthLocation(lon=116.76444824 * u.deg, lat=-26.824722084 * u.deg, height=300.0)) # stations 1 - N_station 
 
 use_ms = False
 use_raw_vis = True

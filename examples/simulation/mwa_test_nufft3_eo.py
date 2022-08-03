@@ -136,6 +136,7 @@ for use_ms in True, False:
         # Hour Angle of star = Local Sidereal Time- Right Ascension of star
         if ITRS_XYZ:
             # Field center coordinates
+            XYZ = ms.instrument(t)
             field_center_lon, field_center_lat = source.data.lon.rad, source.data.lat.rad
             field_center_xyz = source.cartesian.xyz.value
 
