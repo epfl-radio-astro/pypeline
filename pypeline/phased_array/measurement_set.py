@@ -229,7 +229,7 @@ class MeasurementSet:
             column=chk.is_instance(str),
         )
     )
-    def visibilities(self, channel_id, time_id, column):
+    def visibilities(self, channel_id, time_id, column, return_UVW=False):
         """
         Extract visibility matrices.
 
@@ -281,13 +281,20 @@ class MeasurementSet:
             beam_id_1 = sub_table.getcol("ANTENNA2")  # (N_entry,)
             data_flag = sub_table.getcol("FLAG")  # (N_entry, N_channel, 4)
             data = sub_table.getcol(column)  # (N_entry, N_channel, 4)
+            uvw = sub_table.getcol("UVW")
+            uvw *= -1
 
             # We only want XX and YY correlations
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
             data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
 
+            print (f'Data shape: {data.shape}, flagged data shape:{data_flag.shape}, nonzero data: {np.count_nonzero(data)}, percentage of non zero data: {np.count_nonzero(data)/(np.count_nonzero(data) + np.count_nonzero(data ==0))}')
+
             # Set broken visibilities to 0
-            data[data_flag] = 0
+            # Set Flagging off for MeerKAT Data
+            #data[data_flag] = 0
+            print (f'Data shape: {data.shape}, flagged data shape:{data_flag.shape}, nonzero data: {np.count_nonzero(data)}, percentage of non zero data: {np.count_nonzero(data)/(np.count_nonzero(data) + np.count_nonzero(data ==0))}')
+
 
             # DataFrame description of visibility data.
             # Each column represents a different channel.
@@ -327,7 +334,19 @@ class MeasurementSet:
             for ch_id in channel_id:
                 v = _series2array(S[ch_id].rename("S", inplace=True))
                 visibility = vis.VisibilityMatrix(v, beam_idx)
-                yield t, f[ch_id], visibility
+                if return_UVW:
+                    print("debug, nbeam = ",N_beam)
+                    UVW_baselines = np.zeros((N_beam, N_beam, 3))
+                    '''print(UVW_baselines.shape)
+                    UVW_baselines[np.triu_indices(N_beam, 0)] = uvw
+                    UVW_baselines[np.tril_indices(N_beam, -1)] = -1*np.transpose(UVW_baselines,(1,0,2))[np.tril_indices(N_beam, -1)]'''
+                    uvw_indices = S_trunc.index.to_numpy(dtype = np.dtype('int,int'))
+                    UVW_baselines[uvw_indices['f0'],uvw_indices['f1']] = uvw
+                    #UVW_baselines[:, 0] *= -1.0
+                    #UVW_baselines[:, 2] *= -1.0
+                    yield t, f[ch_id], visibility, UVW_baselines
+                else:  
+                    yield t, f[ch_id], visibility
 
 
 def _series2array(visibility: pd.Series) -> np.ndarray:
