@@ -1,13 +1,3 @@
-# #############################################################################
-# lofar_bootes_nufft.py
-# ======================
-# Author : Matthieu Simeoni [matthieu.simeoni@gmail.com]
-# #############################################################################
-
-"""
-Simulation LOFAR imaging with Bluebild (NUFFT).
-"""
-
 from tqdm import tqdm as ProgressBar
 import astropy.units as u
 import astropy.coordinates as coord
@@ -16,6 +6,8 @@ import astropy
 from astropy.coordinates.representation import UnitSphericalRepresentation
 import imot_tools.io.s2image as s2image
 import imot_tools.math.sphere.grid as grid
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as constants
@@ -39,8 +31,6 @@ from mpl_toolkits.mplot3d import Axes3D
 import imot_tools.io.s2image as im
 import time as tt
 import sys
-import rascil.processing_components.visibility as rascil_vis
-import rascil.processing_components.util.coordinate_support as rascil_crd
 
 
 def RX(teta):
@@ -71,10 +61,37 @@ uvw_frame = RX(np.pi/2 - source.dec.rad) @ RZ(np.pi/2 + source.ra.rad)
 # From https://ska-telescope.gitlab.io/external/rascil/_modules/rascil/processing_components/simulation/configurations.html#create_configuration_from_file
 low_location = coord.EarthLocation(lon=116.76444824 * u.deg, lat=-26.824722084 * u.deg, height=300.0)
 
-use_raw_vis = True
-do3D = False
-doPlan = False
+
+ms_file = "./rascil_sim/ska-pipeline_simulation.ms"
+ms = measurement_set.SKALowMeasurementSet(ms_file, origin=low_location)
+
 read_coords_from_ms = False
+
+if read_coords_from_ms:
+    cl_WCS = ifits.wcs("/work/ska/results_rascil_skalow_small/wsclean-image.fits")
+    cl_WCS = cl_WCS.sub(['celestial'])
+    ##cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10)))  # downsample, too high res!
+    #cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame
+    #N_cl_lon, N_cl_lat = cl_pix_icrs.shape[-2:]
+    width_px, height_px= 2*cl_WCS.wcs.crpix 
+    cdelt_x, cdelt_y = cl_WCS.wcs.cdelt 
+    FoV = np.deg2rad(abs(cdelt_x*width_px) )
+else:
+    FoV = np.deg2rad(5.56111)
+
+# Imaging grid
+lim = np.sin(FoV / 2)
+N_pix = 256
+pix_slice = np.linspace(-lim, lim, N_pix)
+Lpix, Mpix = np.meshgrid(pix_slice, pix_slice)
+Jpix = np.sqrt(1 - Lpix ** 2 - Mpix ** 2)  # No -1 if r on the sphere !
+lmn_grid = np.stack((Lpix, Mpix, Jpix), axis=0)
+pix_xyz = np.tensordot(uvw_frame.transpose(), lmn_grid, axes=1)
+
+
+use_raw_vis = False
+do3D        = False
+doPlan      = False
 
 for use_ms in True, False:
 
@@ -83,31 +100,7 @@ for use_ms in True, False:
 
     outfilename = 'test_skalow_nufft_' + ('msUVW_' if uvw_from_ms else '') + ('rawVis_' if use_raw_vis else 'BBVis')
 
-    ms_file = "./rascil_sim/ska-pipeline_simulation.ms"
-    ms = measurement_set.SKALowMeasurementSet(ms_file, origin=low_location)
-
     gram = bb_gr.GramBlock()
-
-    if read_coords_from_ms:
-        cl_WCS = ifits.wcs("/work/ska/results_rascil_skalow_small/wsclean-image.fits")
-        cl_WCS = cl_WCS.sub(['celestial'])
-        ##cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10)))  # downsample, too high res!
-        #cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame
-        #N_cl_lon, N_cl_lat = cl_pix_icrs.shape[-2:]
-        width_px, height_px= 2*cl_WCS.wcs.crpix 
-        cdelt_x, cdelt_y = cl_WCS.wcs.cdelt 
-        FoV = np.deg2rad(abs(cdelt_x*width_px) )
-    else:
-        FoV = np.deg2rad(5.56111)
-
-    # Imaging grid
-    lim = np.sin(FoV / 2)
-    N_pix = 256
-    pix_slice = np.linspace(-lim, lim, N_pix)
-    Lpix, Mpix = np.meshgrid(pix_slice, pix_slice)
-    Jpix = np.sqrt(1 - Lpix ** 2 - Mpix ** 2)  # No -1 if r on the sphere !
-    lmn_grid = np.stack((Lpix, Mpix, Jpix), axis=0)
-    pix_xyz = np.tensordot(uvw_frame.transpose(), lmn_grid, axes=1)
 
     channel_id = 0
     frequency = 1e8
@@ -174,14 +167,12 @@ for use_ms in True, False:
     if not use_raw_vis:
         gram_corrected_visibilities *= w_correction
 
-    lmn_grid = lmn_grid.reshape(3, -1)
+    lmn_grid    = lmn_grid.reshape(3, -1)
     grid_center = lmn_grid.mean(axis=-1)
-    lmn_grid -= grid_center[:, None]
-    lmn_grid = lmn_grid.reshape(3, -1)
-    #print("lmn_grid =", lmn_grid)
+    lmn_grid   -= grid_center[:, None]
+    lmn_grid    = lmn_grid.reshape(3, -1)
 
     UVW_baselines = 2 * np.pi * UVW_baselines.T.reshape(3, -1) / wl
-    #UVW_baselines =  UVW_baselines.T.reshape(3, -1) 
 
     if do3D:
         outfilename += "3D"

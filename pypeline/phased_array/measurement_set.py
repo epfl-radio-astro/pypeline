@@ -8,8 +8,8 @@
 Measurement Set (MS) readers and tools.
 """
 
+import sys
 import pathlib
-
 import astropy.coordinates as coord
 import astropy.table as tb
 import astropy.time as time
@@ -19,10 +19,58 @@ import imot_tools.util.argcheck as chk
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
-import rascil.processing_components.util.coordinate_support as rascil_crd
+#import rascil.processing_components.util.coordinate_support as rascil_crd
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.instrument as instrument
 import pypeline.phased_array.data_gen.statistics as vis
+
+
+#EO: copied from RASCIL to avoid having to install RASCIL
+
+def rascil_crd__lla_to_ecef(lat, lon, alt):
+    """Convert WGS84 spherical coordinates to ECEF cartesian coordinates.
+    :param lat:
+    :param lon:
+    :param alt:
+    :result ecef:
+    """
+    WGS84_a = 6378137.00000000
+    WGS84_b = 6356752.31424518
+    N = WGS84_a**2 / np.sqrt(
+        WGS84_a**2 * np.cos(lat) ** 2 + WGS84_b**2 * np.sin(lat) ** 2
+    )
+
+    x = (N + alt) * np.cos(lat) * np.cos(lon)
+    y = (N + alt) * np.cos(lat) * np.sin(lon)
+    z = ((WGS84_b**2 / WGS84_a**2) * N + alt) * np.sin(lat)
+
+    return x, y, z
+
+
+
+def rascil_crd__enu_to_ecef(location, enu):
+    """Convert ENU coordinates relative to reference location to ECEF coordinates.
+    :param location: Current WGS84 coordinate
+    :param enu: local xyz coordinate
+    :result : ECEF
+    """
+    # ECEF coordinates of reference point
+
+    e, n, up = np.hsplit(enu, 3)  # pylint: disable=unbalanced-tuple-unpacking
+
+    lon = location.geodetic[0].to(u.rad).value
+    lat = location.geodetic[1].to(u.rad).value
+    alt = location.geodetic[2].to(u.m).value
+
+    x, y, z = rascil_crd__lla_to_ecef(lat, lon, alt)
+    sin_lat, cos_lat = np.sin(lat), np.cos(lat)
+    sin_lon, cos_lon = np.sin(lon), np.cos(lon)
+
+    X = x - sin_lon * e - sin_lat * cos_lon * n + cos_lat * cos_lon * up
+    Y = y + cos_lon * e - sin_lat * sin_lon * n + cos_lat * sin_lon * up
+    Z = z + cos_lat * n + sin_lat * up
+
+    return np.hstack([X, Y, Z])
 
 
 @chk.check(
@@ -324,6 +372,7 @@ class MeasurementSet:
             # To fix this issue, we augment the dataframe to always make sure `S_trunc` matches the
             # desired shape.
             index_diff = wanted_index.difference(S_trunc.index)
+            #print("index_diff =\n", index_diff)
             N_diff = len(index_diff)
 
             S_fill_in = pd.DataFrame(
@@ -347,9 +396,19 @@ class MeasurementSet:
                 visibility = vis.VisibilityMatrix(v, beam_idx)
                 #print("visibility", visibility)
                 if return_UVW:
+                    #print("N_beam =", N_beam)
                     UVW_baselines = np.zeros((N_beam, N_beam, 3))
-                    UVW_baselines[np.triu_indices(N_beam,  0)] = uvw
-                    UVW_baselines[np.tril_indices(N_beam, -1)] = -np.transpose(UVW_baselines,(1,0,2))[np.tril_indices(N_beam, -1)]
+                    #UVW_baselines[np.triu_indices(N_beam,  0)] = uvw
+                    #UVW_baselines[np.tril_indices(N_beam, -1)] = -np.transpose(UVW_baselines,(1,0,2))[np.tril_indices(N_beam, -1)]
+                    #print("uvw.shape =", uvw.shape)
+                    uvw_indices   = S_trunc.index.to_numpy(dtype = np.dtype('int, int'))
+                    #print("uvw_indices.shape =", uvw_indices.shape)
+                    #print("uvw_indices =", uvw_indices)
+                    #print(uvw_indices['f0'], len(uvw_indices['f0']))
+                    #print(uvw_indices['f1'], len(uvw_indices['f1']))
+                    UVW_baselines[uvw_indices['f0'], uvw_indices['f1']] =  uvw                    
+                    UVW_baselines[uvw_indices['f1'], uvw_indices['f0']] = -uvw
+                    #sys.exit(0)
                     yield t, f[ch_id], visibility, UVW_baselines
                 else:  
                     yield t, f[ch_id], visibility
@@ -628,7 +687,7 @@ class SKALowMeasurementSet(MeasurementSet):
                 o = np.array([self._origin.x.value, self._origin.y.value, self._origin.z.value])
                 xyz = cfg.values - o
                 for i in range(0, xyz.shape[0]):
-                    xyz[i,:] = rascil_crd.enu_to_ecef(self._origin, xyz[i,:])
+                    xyz[i,:] = rascil_crd__enu_to_ecef(self._origin, xyz[i,:])
                 XYZ = instrument.InstrumentGeometry(xyz=xyz, ant_idx=cfg.index)
                 #XYZ_wrong = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
                 #print("XYZ CORRECT\n", XYZ.data[0:5,:])
