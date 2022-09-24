@@ -46,6 +46,13 @@ set_property(CACHE BLUEBILD_INSTALL PROPERTY STRINGS
 	"LIB" "PYTHON" "OFF"
 	)
 
+set(BLUEBILD_BUILD_TYPE "OFF" CACHE STRING "If set, overrides the CMAKE_BUILD_TYPE variable.")
+set_property(CACHE BLUEBILD_BUILD_TYPE PROPERTY STRINGS
+	"Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+if(BLUEBILD_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE ${BLUEBILD_BUILD_TYPE} CACHE STRING "Build type" FORCE)
+endif()
+
 # Options combination check
 set(BLUEBILD_CUDA OFF)
 set(BLUEBILD_ROCM OFF)

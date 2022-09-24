@@ -314,7 +314,7 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
     """
 
     @chk.check(dict(N_eig=chk.is_integer))
-    def __init__(self, N_eig: int, filters: typ.Tuple[str, ...] = ('lsq', 'std', 'sqrt')):
+    def __init__(self, N_eig: int, filters: typ.Tuple[str, ...] = ('lsq', 'std', 'sqrt'), ctx = None):
         r"""
 
         Parameters
@@ -323,6 +323,8 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
             Number of eigenpairs in the fPCA decomposition.
         filters: Tuple[str, ...]
             Filters to be applied to the spectrum ``D`` of the fPCA. Possible values are: ``dict(lsq=D, std=np.ones(D.size, np.float), sqrt=np.sqrt(D), inv=1 / D)``.
+        ctx: :py:class:`~bluebild.Context`
+            Bluebuild context. If provided, will use bluebild module for computation.
         """
         if N_eig <= 0:
             raise ValueError("Parameter [N_eig] must be positive.")
@@ -330,9 +332,10 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
         super().__init__()
         self.filters = filters
         self._N_eig = N_eig
+        self._ctx = ctx
 
     def __call__(self, D: np.ndarray, V: np.ndarray, W: typ.Optional[beamforming.MatchedBeamformerBlock] = None,
-                 cluster_idx: typ.Optional[np.ndarray] = None) -> np.ndarray:
+                 intervals: typ.Optional[np.ndarray] = None) -> np.ndarray:
         r"""
         Filter the fPCA eigenlevels and transform them into virtual visibilities. If a beamforming matrix is provided the
         filtered eigenlevels are also uncompressed (i.e. beamforming reversed).
@@ -345,30 +348,46 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
             (N_antenna, N_eig) --or (N_beam, N_eig) with beamforming-- complex-valued eigenvectors.
         W: Optional[pypeline.phased_array.beamforming.MatchedBeamformerBlock]
             (N_antenna, N_beam) optional beamforming matrix.
-        cluster_idx: Optional[np.ndarray]
-            (N_eig,) cluster indices defining each eigenlevel.
+        intervals: Optional[np.ndarray]
+            (N_intervals, 2) cluster indices defining each eigenlevel.
 
         Returns
         -------
         virtual_vis_stack: np.ndarray
-         (N_filter, N_eig, N_antenna, N_antenna) stack of (N_antenna, N_antenna) virtual visibilities.
+         (N_filter, N_intervals, N_antenna, N_antenna) stack of (N_antenna, N_antenna) virtual visibilities.
         """
-        Filtered_eigs = dict(lsq=D, std=np.ones(D.size, np.float), sqrt=np.sqrt(D), inv=1 / D)
+        if intervals is None:
+            intervals = np.array([[0, np.finfo('d').max]])
+
+        if self._ctx is not None:
+            filter_match = dict(lsq=0, std=1, sqrt=2, inv=3)
+            filter_enums = []
+            for f in self.filters:
+                filter_enums.append(filter_match[f])
+            filter_enums = np.array(filter_enums, dtype=np.uint32)
+            virtual_vis_stack = self._ctx.virtual_vis(filter_enums, intervals, D, V, W.data if W is not None else None)
+            return virtual_vis_stack
+
+        Filtered_eigs = dict(lsq=D, std=np.ones(D.size, D.dtype), sqrt=np.sqrt(D), inv=1 / D)
         if W is not None:
             W = sparse.csr_matrix(W.data)
             V_unbeamformed = np.asarray(W * V)
-            virtual_vis_stack = np.zeros((len(self.filters), np.unique(cluster_idx).size, W.shape[0], W.shape[0]),
+            virtual_vis_stack = np.zeros((len(self.filters), intervals.shape[0], W.shape[0], W.shape[0]),
                                          dtype=np.complex128)
         else:
             V_unbeamformed = V
-            virtual_vis_stack = np.zeros((len(self.filters), np.unique(cluster_idx).size, V.shape[0], V.shape[0]),
+            virtual_vis_stack = np.zeros((len(self.filters), intervals.shape[0], V.shape[0], V.shape[0]),
                                          dtype=np.complex128)
-        if cluster_idx is None:
-            cluster_idx = np.zeros(self._N_eig)
 
+
+        D_flipped = np.flip(D)
         for k, filter in enumerate(self.filters):
-            for i in np.unique(cluster_idx):
-                filtered_eig = Filtered_eigs[filter][i == cluster_idx]
-                virtual_vis_stack[k, i] = (V_unbeamformed[:, i == cluster_idx] * filtered_eig[None, :]) \
-                                          @ V_unbeamformed[:, i == cluster_idx].transpose().conj()
+            for i, interv in enumerate(intervals):
+                indices = D.size - np.flip(np.searchsorted(D_flipped, interv, side='left')) # D is in descending order
+                V_selection = V_unbeamformed[:, indices[0]:indices[1]]
+                if indices[0] < indices[1]:
+                    filtered_eig = Filtered_eigs[filter][indices[0]:indices[1]]
+                    VMul = V_selection * filtered_eig[None, :]
+                    virtual_vis_stack[k, i] = VMul \
+                                              @ V_selection.transpose().conj()
         return virtual_vis_stack

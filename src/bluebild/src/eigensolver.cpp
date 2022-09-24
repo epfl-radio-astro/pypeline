@@ -5,7 +5,7 @@
 #include <memory>
 #include <utility>
 
-#include "bluebild/bluebild.h"
+#include "bluebild/bluebild.hpp"
 #include "bluebild/config.h"
 #include "bluebild/context.hpp"
 #include "context_internal.hpp"
@@ -19,11 +19,12 @@
 #endif
 
 namespace bluebild {
-template <typename T>
-auto eigh(ContextInternal& ctx, int m, int nEig, const std::complex<T>* a, int lda,
-              const std::complex<T>* b, int ldb, int* nEigOut, T* d, std::complex<T>* v, int ldv)
-    -> void {
-      if(ctx.processing_unit() == BLUEBILD_PU_GPU) {
+template <typename T, typename>
+BLUEBILD_EXPORT auto eigh(ContextInternal &ctx, int m, int nEig,
+                          const std::complex<T> *a, int lda,
+                          const std::complex<T> *b, int ldb, int *nEigOut, T *d,
+                          std::complex<T> *v, int ldv) -> void {
+  if (ctx.processing_unit() == BLUEBILD_PU_GPU) {
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
         // Syncronize with default stream. TODO: replace with event
         gpu::stream_synchronize(nullptr);

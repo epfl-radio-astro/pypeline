@@ -3,6 +3,7 @@ set(BLUEBILD_SOURCE_FILES
 	gram_matrix.cpp
 	intensitiy_field_data.cpp
 	sensitivity_field_data.cpp
+	virtual_vis.cpp
 	nufft_3d3.cpp
 	context.cpp
 	host/eigensolver_host.cpp
@@ -10,6 +11,7 @@ set(BLUEBILD_SOURCE_FILES
 	host/sensitivity_field_data_host.cpp
 	host/intensity_field_data_host.cpp
 	host/nufft_3d3_host.cpp
+	host/virtual_vis_host.cpp
 	)
 
 if(BLUEBILD_CUDA OR BLUEBILD_ROCM)

@@ -1,8 +1,9 @@
 #include <array>
-#include <iostream>
+#include <optional>
 #include <limits>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <stdexcept>
 #include <tuple>
 #include <type_traits>
@@ -113,6 +114,57 @@ auto call_intensity_field_data(
   return std::make_tuple(std::move(d), std::move(v), std::move(clusterIndices));
 }
 
+template <typename T>
+auto call_virtual_vis(
+    Context &ctx, const py::array_t<BluebildFilter, py::array::f_style> &filter,
+    const py::array_t<T, py::array::c_style> &intervals,
+    const py::array_t<T, py::array::f_style> &d,
+    const py::array_t<std::complex<T>, py::array::f_style> &v,
+    std::optional<py::array_t<std::complex<T>, py::array::f_style>> w) {
+  if(w)
+    check_2d_array(w.value());
+  check_1d_array(filter);
+  check_2d_array(intervals, {0, 2});
+  check_1d_array(d);
+  check_2d_array(v);
+
+  auto nAntenna = w ? w.value().shape(0) : v.shape(0);
+  auto nBeam = w ? w.value().shape(1) : v.shape(0);
+  auto nEig = v.shape(1);
+
+  // workaround to match current style in python implementation:
+  // use row major ordering and transpose inner matrices afterwards
+  auto virtualVis = py::array_t<std::complex<T>, py::array::c_style>(
+      {filter.size(), intervals.shape(0), nAntenna, nAntenna});
+
+  virtual_vis<T>(
+      ctx, safe_cast<int>(filter.size()), filter.data(0),
+      safe_cast<int>(intervals.size() / 2), intervals.data(0),
+      safe_cast<int>(intervals.strides(0) / intervals.itemsize()),
+      safe_cast<int>(nEig), d.data(0), safe_cast<int>(nAntenna), v.data(0),
+      safe_cast<int>(v.strides(1) / v.itemsize()), safe_cast<int>(nBeam),
+      w ? w.value().data(0) : nullptr,
+      w ? safe_cast<int>(w.value().strides(1) / w.value().itemsize()) : 0,
+      virtualVis.mutable_data(0), virtualVis.strides(0) / virtualVis.itemsize(),
+      virtualVis.strides(1) / virtualVis.itemsize(),
+      virtualVis.strides(2) / virtualVis.itemsize());
+
+  // transpose inner matrices
+  auto virtualVisMut = virtualVis.template mutable_unchecked<4>();
+  for (py::ssize_t i = 0; i < virtualVis.shape(0); ++i) {
+    for (py::ssize_t j = 0; j < virtualVis.shape(1); ++j) {
+      for (py::ssize_t k = 0; k < virtualVis.shape(2); ++k) {
+        for (py::ssize_t l = 0; l < k; ++l) {
+          auto tmp = virtualVisMut(i, j, k, l);
+          virtualVisMut(i, j, k, l) = virtualVisMut(i, j, l, k);
+          virtualVisMut(i, j, l, k) = tmp;
+        }
+      }
+    }
+  }
+
+  return virtualVis;
+}
 
 struct Nufft3d3Dispatcher {
 
@@ -231,6 +283,12 @@ PYBIND11_MODULE(pybluebild, m) {
       .value("CPU", BLUEBILD_PU_CPU)
       .value("GPU", BLUEBILD_PU_GPU);
 
+  py::enum_<BluebildFilter>(m, "Filter")
+      .value("LSQ", BLUEBILD_FILTER_LSQ)
+      .value("STD", BLUEBILD_FILTER_STD)
+      .value("SQRT", BLUEBILD_FILTER_SQRT)
+      .value("INV", BLUEBILD_FILTER_INV);
+
   pybind11::class_<Context>(m, "Context")
       .def(pybind11::init<BluebildProcessingUnit>(),
            pybind11::arg("pu").noconvert())
@@ -302,8 +360,31 @@ PYBIND11_MODULE(pybluebild, m) {
                                              centroids);
           },
           pybind11::arg("n_eig"), pybind11::arg("XYZ"), pybind11::arg("W"),
-          pybind11::arg("wl"), pybind11::arg("S"), pybind11::arg("centroids"));
-
+          pybind11::arg("wl"), pybind11::arg("S"), pybind11::arg("centroids"))
+      .def(
+          "virtual_vis",
+          [](Context &ctx,
+             const py::array_t<BluebildFilter, py::array::f_style> &filter,
+             const py::array_t<float, py::array::c_style> &intervals,
+             const py::array_t<float, py::array::f_style> &d,
+             const py::array_t<std::complex<float>, py::array::f_style> &v,
+             std::optional<py::array_t<std::complex<float>, py::array::f_style>> w) {
+            return call_virtual_vis(ctx, filter, intervals, d, v, w);
+          },
+          pybind11::arg("filter"), pybind11::arg("intervals"),
+          pybind11::arg("d"), pybind11::arg("v"), pybind11::arg("w"))
+      .def(
+          "virtual_vis",
+          [](Context &ctx,
+             const py::array_t<BluebildFilter, py::array::f_style> &filter,
+             const py::array_t<double, py::array::c_style> &intervals,
+             const py::array_t<double, py::array::f_style> &d,
+             const py::array_t<std::complex<double>, py::array::f_style> &v,
+             std::optional<py::array_t<std::complex<double>, py::array::f_style>> w) {
+            return call_virtual_vis(ctx, filter, intervals, d, v, w);
+          },
+          pybind11::arg("filter"), pybind11::arg("intervals"),
+          pybind11::arg("d"), pybind11::arg("v"), pybind11::arg("w"));
 
   pybind11::class_<Nufft3d3Dispatcher>(m, "Nufft3d3")
       .def(pybind11::init<
