@@ -1,6 +1,7 @@
 import numpy as np
-
 import scipy.constants as constants
+import nvtx
+
 import imot_tools.math.sphere.grid as grid
 import astropy.units as u
 import astropy.time as atime
@@ -11,12 +12,12 @@ import pypeline.phased_array.instrument as instrument
 import pypeline.phased_array.bluebild.gram as bb_gr
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.bluebild.data_processor as bb_dp
-import pypeline.phased_array.bluebild.gram as bb_gr
 import pypeline.phased_array.data_gen.source as source
 import pypeline.phased_array.data_gen.statistics as statistics
 import pypeline.phased_array.measurement_set as measurement_set
 
 import imot_tools.math.sphere.transform as transform
+
 #################################################################################
 # Data Generators
 #################################################################################
@@ -73,6 +74,7 @@ class RandomDataGen():
 
     def getVXYZW(self, i):
         return (self.getV(i),self.getXYZ(i),self.getW(i))
+
 #################################################################################
 class SimulatedDataGen():
     def __init__(self, frequency, N_level = 4):
@@ -100,19 +102,19 @@ class SimulatedDataGen():
         self.vis = statistics.VisibilityGeneratorBlock(self.sky_model, T_integration, fs=196000, SNR=np.inf)
 
         _, _, self.px_colat_periodic, self.px_lon_periodic = grid.equal_angle(
-            N=self.dev.nyquist_rate(wl),
+            N=self.dev.nyquist_rate(self.wl),
             direction= self.R @ field_center.cartesian.xyz.value,  # BFSF-equivalent f_dir.
             FoV=self.FoV
         )
 
         _, _, self.px_colat, self.px_lon = grid.equal_angle(
-            N=self.dev.nyquist_rate(wl),
+            N=self.dev.nyquist_rate(self.wl),
             direction=field_center.cartesian.xyz.value,
             FoV=self.FoV
         )
         self.pix_grid = transform.pol2cart(1, self.px_colat, self.px_lon)
         self.T_kernel = np.deg2rad(10)
-        self.N_FS = self.dev.bfsf_kernel_bandwidth(wl, self.obs_start, self.time[-1])
+        self.N_FS = self.dev.bfsf_kernel_bandwidth(self.wl, self.obs_start, self.time[-1])
 
         self.estimateParams()
 
@@ -132,6 +134,7 @@ class SimulatedDataGen():
 
     def getPixGrid(self):
         return self.pix_grid
+
     def getVXYZWD(self, i):
         try:
             t = self.time[i]
@@ -144,7 +147,9 @@ class SimulatedDataGen():
         G = self.gram(XYZ, W, self.wl)
         D, V, __ = self.I_dp(S, G)
         return (V,XYZ.data, W.data, D)
+
 #################################################################################
+
 class RealDataGen():
     def __init__(self, ms_file, N_level = 4, N_station = 24):
         #24
@@ -172,6 +177,8 @@ class RealDataGen():
              direction=self.ms.field_center.cartesian.xyz.value,
              FoV=self.FoV
         )
+        print("pix_grid ", self.px_colat.shape, "x", self.px_lon.shape)
+
         #self.pix_grid = transform.pol2cart(1, self.px_colat, self.px_lon).reshape(3, -1)
         self.pix_grid = transform.pol2cart(1, self.px_colat, self.px_lon)
 
@@ -202,16 +209,24 @@ class RealDataGen():
 
     def getPixGrid(self):
         return self.pix_grid
+
     def getVXYZWD(self, i):
-        t, f, S = next(self.ms.visibilities(channel_id=[self.channel_id], time_id=slice(i, i+1, None), column="DATA"))
 
-        XYZ = self.ms.instrument(t)
-        W = self.ms.beamformer(XYZ, self.wl)
-        G = self.gram(XYZ, W, self.wl)
-        S, _ = measurement_set.filter_data(S, W)
-        D, V, c_idx = self.I_dp(S, G)
+        with nvtx.annotate("getVXYZWD tfs", color="navy"):
+            t, f, S = next(self.ms.visibilities(channel_id=[self.channel_id], time_id=slice(i, i+1, None), column="DATA"))
+        with nvtx.annotate("getVXYZWD XYZ", color="plum"):
+            XYZ = self.ms.instrument(t)
+        with nvtx.annotate("getVXYZWD W", color="silver"):
+            W = self.ms.beamformer(XYZ, self.wl)
+        with nvtx.annotate("getVXYZWD G", color="cyan"):
+            G = self.gram(XYZ, W, self.wl)
+        with nvtx.annotate("getVXYZWD S", color="grey"):
+            S, _ = measurement_set.filter_data(S, W)
+        with nvtx.annotate("getVXYZWD I_dp", color="orange"):
+            D, V, c_idx = self.I_dp(S, G)
 
-        return (V,XYZ.data, W.data,D)
+        return (V, XYZ.data, W.data,D)
+
     def getInputs(self, i):
         t, f, S = next(self.ms.visibilities(channel_id=[self.channel_id], time_id=slice(i, i+1, None), column="DATA"))
 

@@ -672,22 +672,19 @@ class MwaBlock(EarthBoundInstrumentGeometryBlock):
 class MeerkatBlock(EarthBoundInstrumentGeometryBlock):
     """
     `MeerKAT located in South Africa.
-
     This MeerKAT model consists of 58 stations, each consisting of a 15 m offset Gregorian antenna.
     """
 
     @chk.check(dict(N_station=chk.allow_None(chk.is_integer), station_only=chk.is_boolean))
-    def __init__(self, N_station=None, station_only=False):
+    def __init__(self, N_station=None, station_only=True):
         """
         Parameters
         ----------
         N_station : int
             Number of stations to use. (Default = all)
-
             Sometimes only a subset of an instrument’s stations are desired.
             Setting `N_station` limits the number of stations to those that appear first in `XYZ`
             when sorted by STATION_ID.
-
         station_only : bool
             If :py:obj:`True`, model LOFAR stations as single-element antennas. (Default = False)
         """
@@ -697,7 +694,6 @@ class MeerkatBlock(EarthBoundInstrumentGeometryBlock):
     def _get_geometry(self, station_only):
         """
         Load instrument geometry.
-
         Returns
         -------
         :py:class:`~pypeline.phased_array.instrument.InstrumentGeometry`
@@ -714,6 +710,5 @@ class MeerkatBlock(EarthBoundInstrumentGeometryBlock):
             itrs_geom.index = pd.MultiIndex.from_product(
                 [station_id, [0]], names=["STATION_ID", "ANTENNA_ID"]
             )
-
         XYZ = _as_InstrumentGeometry(itrs_geom)
         return XYZ

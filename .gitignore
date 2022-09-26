@@ -4,6 +4,8 @@
 # Author : Sepand KASHANI [kashani.sepand@gmail.com]
 # #############################################################################
 
+*~
+slurm-*.out
 *.png
 *.fits
 core.*
@@ -14,6 +16,7 @@ settings.json
 ### Manually-installed Python Packages ========================================
 pyFFS/
 ImoT_tools/
+finufft
 
 ### Pbr template ==============================================================
 AUTHORS

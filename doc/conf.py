@@ -84,12 +84,13 @@ htmlhelp_basename = "pypelinedoc"
 autosummary_generate = True
 
 # -- Options for autodoc extension -------------------------------------------
-autodoc_member_order = "bysource"
-autodoc_default_flags = [
-    "members",
-    # 'inherited-members',
-    "show-inheritance",
-]
+autodoc_default_options = {
+    'members': None,
+    'member-order': 'bysource',
+    'special-members': '__init__, __call__',
+    'show-inheritance': True
+}
+
 autodoc_inherit_docstrings = True
 
 # -- Options for intersphinx extension ---------------------------------------

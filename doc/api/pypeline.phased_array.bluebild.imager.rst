@@ -1,34 +1,35 @@
-pypeline.phased\_array.bluebild.imager
+﻿pypeline.phased\_array.bluebild.imager
 ======================================
 
 .. automodule:: pypeline.phased_array.bluebild.imager
-   :special-members: __init__, __call__
 
+   
+   
+   
 
-
-
-
-
-   .. rubric:: Classes
-
-   .. autosummary::
-
-      IntegratingMultiFieldSynthesizerBlock
-
-
-
+   
+   
    .. rubric:: Functions
 
    .. autosummary::
-
+   
       cluster_layers
+   
+   
 
-
-
-   .. rubric:: Modules
+   
+   
+   .. rubric:: Classes
 
    .. autosummary::
-      :toctree:
+   
+      IntegratingMultiFieldSynthesizerBlock
+   
+   
 
-      ~pypeline.phased_array.bluebild.imager.spatial_domain
-      ~pypeline.phased_array.bluebild.imager.fourier_domain
+   
+   
+   
+
+
+

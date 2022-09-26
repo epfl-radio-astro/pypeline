@@ -1,8 +1,12 @@
-pypeline.util.array
+﻿pypeline.util.array
 ===================
 
 .. automodule:: pypeline.util.array
-   :special-members: __init__
+
+   
+   
+   
+
    
    
    
@@ -19,3 +23,7 @@ pypeline.util.array
 
    
    
+   
+
+
+

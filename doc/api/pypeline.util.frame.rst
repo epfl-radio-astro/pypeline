@@ -1,8 +1,8 @@
-pypeline.util.frame
+﻿pypeline.util.frame
 ===================
 
 .. automodule:: pypeline.util.frame
-   :special-members: __init__
+
    
    
    
@@ -19,3 +19,11 @@ pypeline.util.frame
 
    
    
+   
+
+   
+   
+   
+
+
+

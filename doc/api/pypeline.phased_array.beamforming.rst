@@ -1,8 +1,11 @@
-pypeline.phased\_array.beamforming
+﻿pypeline.phased\_array.beamforming
 ==================================
 
 .. automodule:: pypeline.phased_array.beamforming
-   :special-members: __init__, __call__
+
+   
+   
+   
 
    
    
@@ -12,6 +15,7 @@ pypeline.phased\_array.beamforming
    
       is_beam_index
       is_mb_beam_config
+   
    
 
    
@@ -24,6 +28,11 @@ pypeline.phased\_array.beamforming
       BeamformerBlock
       MatchedBeamformerBlock
    
+   
 
    
    
+   
+
+
+

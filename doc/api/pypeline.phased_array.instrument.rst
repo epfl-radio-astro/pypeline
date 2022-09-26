@@ -1,25 +1,39 @@
-pypeline.phased\_array.instrument
+﻿pypeline.phased\_array.instrument
 =================================
 
 .. automodule:: pypeline.phased_array.instrument
-   :special-members: __init__, __call__
 
+   
+   
+   
 
-
+   
+   
    .. rubric:: Functions
 
-
    .. autosummary::
-
+   
       is_antenna_index
+   
+   
 
-
+   
+   
    .. rubric:: Classes
 
    .. autosummary::
-
+   
+      EarthBoundInstrumentGeometryBlock
       InstrumentGeometry
       InstrumentGeometryBlock
-      EarthBoundInstrumentGeometryBlock
       LofarBlock
       MwaBlock
+   
+   
+
+   
+   
+   
+
+
+

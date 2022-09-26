@@ -11,6 +11,7 @@ Data processors.
 import imot_tools.math.linalg as pylinalg
 import imot_tools.util.argcheck as chk
 import numpy as np
+import nvtx
 
 import pypeline.core as core
 import pypeline.phased_array.data_gen.statistics as vis
@@ -74,7 +75,7 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
         super().__init__()
         self._N_eig = N_eig
         self._cluster_centroids = np.array(cluster_centroids, copy=False)
-
+    
     @chk.check(dict(S=chk.is_instance(vis.VisibilityMatrix), G=chk.is_instance(gram.GramMatrix)))
     def __call__(self, S, G):
         """
@@ -105,47 +106,47 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
         --------
         .. testsetup::
 
-           from pypeline.phased_array.data_gen.statistics import VisibilityMatrix
-           from pypeline.phased_array.bluebild.gram import GramMatrix
-           from pypeline.phased_array.bluebild.data_processor import IntensityFieldDataProcessorBlock
-           import numpy as np
-           import pandas as pd
-           import scipy.linalg as linalg
+            from pypeline.phased_array.data_gen.statistics import VisibilityMatrix
+            from pypeline.phased_array.bluebild.gram import GramMatrix
+            from pypeline.phased_array.bluebild.data_processor import IntensityFieldDataProcessorBlock
+            import numpy as np
+            import pandas as pd
+            import scipy.linalg as linalg
 
-           def hermitian_array(N: int) -> np.ndarray:
-               '''
-               Construct a (N, N) Hermitian matrix.
-               '''
-               D = np.arange(N)
-               Rmtx = np.random.randn(N,N) + 1j * np.random.randn(N, N)
-               Q, _ = linalg.qr(Rmtx)
+            def hermitian_array(N: int) -> np.ndarray:
+                '''
+                Construct a (N, N) Hermitian matrix.
+                '''
+                D = np.arange(N)
+                Rmtx = np.random.randn(N,N) + 1j * np.random.randn(N, N)
+                Q, _ = linalg.qr(Rmtx)
 
-               A = (Q * D) @ Q.conj().T
-               return A
+                A = (Q * D) @ Q.conj().T
+                return A
 
-           np.random.seed(0)
+            np.random.seed(0)
 
         .. doctest::
 
-           >>> N_beam = 5
-           >>> beam_idx = pd.Index(range(N_beam), name='BEAM_ID')
+            >>> N_beam = 5
+            >>> beam_idx = pd.Index(range(N_beam), name='BEAM_ID')
 
-           # Some random visibility matrix
-           >>> S = VisibilityMatrix(hermitian_array(N_beam), beam_idx)
+            # Some random visibility matrix
+            >>> S = VisibilityMatrix(hermitian_array(N_beam), beam_idx)
 
-           # Some random positive-definite Gram matrix
-           >>> G = GramMatrix(hermitian_array(N_beam) + 100*np.eye(N_beam), beam_idx)
+            # Some random positive-definite Gram matrix
+            >>> G = GramMatrix(hermitian_array(N_beam) + 100*np.eye(N_beam), beam_idx)
 
-           # Get compact energy level descriptors.
-           >>> I_dp = IntensityFieldDataProcessorBlock(N_eig=2,
-           ...                                         cluster_centroids=[0., 20.])
-           >>> D, V, cluster_idx = I_dp(S, G)
+            # Get compact energy level descriptors.
+            >>> I_dp = IntensityFieldDataProcessorBlock(N_eig=2,
+            ...                                         cluster_centroids=[0., 20.])
+            >>> D, V, cluster_idx = I_dp(S, G)
 
-           >>> np.around(D, 2)
-           array([0.04, 0.03])
+            >>> np.around(D, 2)
+            array([0.04, 0.03])
 
-           >>> cluster_idx  # useful for aggregation stage.
-           array([0, 0])
+            >>> cluster_idx  # useful for aggregation stage.
+            array([0, 0])
         """
         if not S.is_consistent_with(G, axes=[0, 0]):
             raise ValueError("Parameters[S, G] are inconsistent.")
@@ -158,10 +159,11 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
         S, G = S.data[idx], G.data[idx]
 
         # Functional PCA
-        if not np.allclose(S, 0):
-            D, V = pylinalg.eigh(S, G, tau=1, N=self._N_eig)
-        else:  # S is broken beyond use
-            D, V = np.zeros(self._N_eig), 0
+        with nvtx.annotate("fPCA", color="pink"):
+            if not np.allclose(S, 0):
+                D, V = pylinalg.eigh(S, G, tau=1, N=self._N_eig)
+            else:  # S is broken beyond use
+                D, V = np.zeros(self._N_eig), 0
 
         # Add broken BEAM_IDs
         V_aligned = np.zeros((N_beam, self._N_eig), dtype=np.complex)

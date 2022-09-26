@@ -1,8 +1,12 @@
-pypeline.phased\_array.measurement\_set
+﻿pypeline.phased\_array.measurement\_set
 =======================================
 
 .. automodule:: pypeline.phased_array.measurement_set
-   :special-members: __init__
+
+   
+   
+   
+
    
    
    .. rubric:: Functions
@@ -19,8 +23,8 @@ pypeline.phased\_array.measurement\_set
 
    .. autosummary::
    
-      MeasurementSet
       LofarMeasurementSet
+      MeasurementSet
       MwaMeasurementSet
    
    
@@ -28,3 +32,6 @@ pypeline.phased\_array.measurement\_set
    
    
    
+
+
+

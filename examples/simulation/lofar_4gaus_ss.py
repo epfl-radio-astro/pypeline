@@ -33,6 +33,7 @@ import imot_tools.math.sphere.transform as transform
 import pycsou.linop as pyclop
 from imot_tools.math.func import SphericalDirichlet
 import joblib as job
+plt.rcParams.update({'font.size': 22})
 
 start_time = time.process_time()
 
@@ -155,15 +156,22 @@ for t, f, S in ProgressBar(
 _, S = S_mfs.as_image()'''
 
 # Plot Results ================================================================
-fig, ax = plt.subplots(ncols=N_level, nrows=2)
+fig, ax = plt.subplots(ncols=N_level+1, nrows=2, figsize = (20,20))
 I_std_eq = s2image.Image(I_std.data, I_std.grid) #  / S.data
 I_lsq_eq = s2image.Image(I_lsq.data, I_lsq.grid) # / S.data
 
+I_std_eq.draw(ax =ax[0, 0], catalog = sky_model.xyz.T)
+ax[0, 0].set_title("STD Image")
+I_lsq_eq.draw(ax = ax[1, 0], catalog = sky_model.xyz.T)
+ax[1, 0].set_title("LSQ Image")
+
 for i in range(N_level):
-    I_std_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax[0,i])
-    ax[0,i].set_title("Standardized Image Level = {0}".format(i))
-    I_lsq_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax[1,i])
-    ax[1,i].set_title("Least-Squares Image Level = {0}".format(i))
+    I_std_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax[0,i+1])
+    ax[0,i+1].set_title("Level = {0}".format(i))
+    I_lsq_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax[1,i+1])
+    ax[1,i+1].set_title("Level = {0}".format(i))
+    
+fig.tight_layout()
 #fig.show()
 #plt.show()
 #sys.exit()

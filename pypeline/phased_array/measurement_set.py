@@ -230,7 +230,7 @@ class MeasurementSet:
             column=chk.is_instance(str),
         )
     )
-    def visibilities(self, channel_id, time_id, column):
+    def visibilities(self, channel_id, time_id, column, return_UVW=False):
         """
         Extract visibility matrices.
 
@@ -274,8 +274,8 @@ class MeasurementSet:
         # Therefore, we will instead ask for all columns and only access those of interest.
         # <check>  unique MJD(TIME) as MJD_TIME from {self._msf} orderby TIME
         query = (
-            f"select * from {self._msf}")#" where MJD(TIME) in " # "MJD(TIME)" instead of TIME
-            #f"(select unique MJD(TIME) from {self._msf} limit {time_start}:{time_stop}:{time_step})") # MJD(TIME) instead of TIME
+            #f"select * from {self._msf}")#" where MJD(TIME) in " # "MJD(TIME)" instead of TIME
+            f"(select unique MJD(TIME) from {self._msf} limit {time_start}:{time_stop}:{time_step})") # MJD(TIME) instead of TIME
             
         table = ct.taql(query)
         subTableIndex = 0
@@ -286,19 +286,21 @@ class MeasurementSet:
             beam_id_1 = sub_table.getcol("ANTENNA2")  # (N_entry,)
             data_flag = sub_table.getcol("FLAG")  # (N_entry, N_channel, 4)
             data = sub_table.getcol(column)  # (N_entry, N_channel, 4)
+            uvw = sub_table.getcol("UVW")
+            uvw *= -1
 
             # print ("flag checks", np.shape(data_flag), np.count_nonzero(data_flag[:,:, 0]), np.count_nonzero(data_flag[:,:, 1]), np.count_nonzero(data_flag[:,:, 2]), np.count_nonzero(data_flag[:,:, 3]) )
             # We only want XX and YY correlations
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
             data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
 
-            # print ("pre flagging:", data.shape, np.count_nonzero(data))
-            # print ( data_flag.shape, np.count_nonzero(data_flag), np.count_nonzero(data_flag==False))
-            # Set broken visibilities to 0
-            data[data_flag] = 0 # testing this way because all data in meerKAT .ms file is flagged.
+            print (f'Data shape: {data.shape}, flagged data shape:{data_flag.shape}, nonzero data: {np.count_nonzero(data)}, percentage of non zero data: {np.count_nonzero(data)/(np.count_nonzero(data) + np.count_nonzero(data ==0))}')
 
-            print ("Visibilities method loop iteration {3}\npost flagging: non zero={0}, zero={1}, total = {2}".
-                format(np.count_nonzero(data), np.count_nonzero(data==0), data.shape[0]*data.shape[1], subTableIndex))
+            # Set broken visibilities to 0
+            # Set Flagging off for MeerKAT Data
+            #data[data_flag] = 0
+            print (f'Data shape: {data.shape}, flagged data shape:{data_flag.shape}, nonzero data: {np.count_nonzero(data)}, percentage of non zero data: {np.count_nonzero(data)/(np.count_nonzero(data) + np.count_nonzero(data ==0))}')
+
 
             # DataFrame description of visibility data.
             # Each column represents a different channel.
@@ -339,7 +341,20 @@ class MeasurementSet:
             for ch_id in channel_id:
                 v = _series2array(S[ch_id].rename("S", inplace=True))
                 visibility = vis.VisibilityMatrix(v, beam_idx)
-                yield t, f[ch_id], visibility
+                if return_UVW:
+                    print("debug, nbeam = ",N_beam)
+                    UVW_baselines = np.zeros((N_beam, N_beam, 3))
+                    '''print(UVW_baselines.shape)
+                    UVW_baselines[np.triu_indices(N_beam, 0)] = uvw
+                    UVW_baselines[np.tril_indices(N_beam, -1)] = -1*np.transpose(UVW_baselines,(1,0,2))[np.tril_indices(N_beam, -1)]'''
+                    uvw_indices = S_trunc.index.to_numpy(dtype = np.dtype('int,int'))
+                    UVW_baselines[uvw_indices['f0'],uvw_indices['f1']] = uvw
+                    UVW_baselines[uvw_indices['f1'], uvw_indices['f0']] = -uvw
+                    #UVW_baselines[:, 0] *= -1.0
+                    #UVW_baselines[:, 2] *= -1.0
+                    yield t, f[ch_id], visibility, UVW_baselines
+                else:  
+                    yield t, f[ch_id], visibility
 
 
 def _series2array(visibility: pd.Series) -> np.ndarray:
@@ -391,7 +406,7 @@ class LofarMeasurementSet(MeasurementSet):
         N_station : int
             Number of stations to use. (Default = all)
 
-            Sometimes only a subset of an instrument’s stations are desired.
+            Sometimes only a subset of an instruments stations are desired.
             Setting `N_station` limits the number of stations to those that appear first when sorted
             by STATION_ID.
         station_only : bool
