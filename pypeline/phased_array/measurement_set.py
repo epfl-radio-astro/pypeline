@@ -274,8 +274,8 @@ class MeasurementSet:
         # Therefore, we will instead ask for all columns and only access those of interest.
         # <check>  unique MJD(TIME) as MJD_TIME from {self._msf} orderby TIME
         query = (
-            #f"select * from {self._msf}")#" where MJD(TIME) in " # "MJD(TIME)" instead of TIME
-            f"(select unique MJD(TIME) from {self._msf} limit {time_start}:{time_stop}:{time_step})") # MJD(TIME) instead of TIME
+            f"select * from {self._msf}")#" where MJD(TIME) in " # "MJD(TIME)" instead of TIME
+            #f"(select unique MJD(TIME) from {self._msf} limit {time_start}:{time_stop}:{time_step})") # MJD(TIME) instead of TIME
             
         table = ct.taql(query)
         subTableIndex = 0

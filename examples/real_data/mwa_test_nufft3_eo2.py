@@ -75,9 +75,8 @@ cl_WCS = ifits.wcs("/work/ska/orliac/test_shreyam/1133149192-169-170_Sun_10s_cal
 ms = measurement_set.MwaMeasurementSet(ms_file) # stations 1 - N_station 
 
 use_raw_vis = False # Use visibilities from .ms file
-do3D        = True # 3D NUFFT 
+do3D        = True  # 3D NUFFT 
 doPlan      = False # ??
-ITRS_XYZ    = True # True for ITRS, false for rascil
 
 for use_ms in True, False:
 
