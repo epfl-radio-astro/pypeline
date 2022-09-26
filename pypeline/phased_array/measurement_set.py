@@ -342,6 +342,7 @@ class MeasurementSet:
                     UVW_baselines[np.tril_indices(N_beam, -1)] = -1*np.transpose(UVW_baselines,(1,0,2))[np.tril_indices(N_beam, -1)]'''
                     uvw_indices = S_trunc.index.to_numpy(dtype = np.dtype('int,int'))
                     UVW_baselines[uvw_indices['f0'],uvw_indices['f1']] = uvw
+                    UVW_baselines[uvw_indices['f1'], uvw_indices['f0']] = -uvw
                     #UVW_baselines[:, 0] *= -1.0
                     #UVW_baselines[:, 2] *= -1.0
                     yield t, f[ch_id], visibility, UVW_baselines
