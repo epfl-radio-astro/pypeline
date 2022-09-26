@@ -13,6 +13,8 @@ import astropy.units as u
 import astropy.coordinates as coord
 import astropy.time as atime
 import imot_tools.io.s2image as s2image
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as constants
@@ -154,6 +156,7 @@ I_lsq_eq.draw(catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix')
 ax.set_title(f'Bluebild least-squares, sensitivity-corrected image (NUFFT)\n'
              f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180 / np.pi)} degrees.\n'
              f'Run time {np.floor(t2 - t1)} seconds.')
+plt.savefig('lbn3_bb_lsq_sc')
 
 plt.figure()
 ax = plt.gca()

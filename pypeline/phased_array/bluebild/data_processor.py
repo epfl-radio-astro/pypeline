@@ -324,7 +324,13 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
         
         for k, filter in enumerate(self.filters):
             for i in np.unique(cluster_idx):
+                print(f"eo k, filter, i = {k}, {filter}, {i}")
                 filtered_eig = Filtered_eigs[filter][i == cluster_idx]
+                print(f"filtered_eig = {filtered_eig}")
+                print(V_unbeamformed[:, i == cluster_idx])
+                print(filtered_eig[None, :])
+                print(V_unbeamformed[:, i == cluster_idx] * filtered_eig[None, :])
                 virtual_vis_stack[k, i] = (V_unbeamformed[:, i == cluster_idx] * filtered_eig[None, :]) \
                                           @ V_unbeamformed[:, i == cluster_idx].transpose().conj()
+                print(virtual_vis_stack[k, i])
         return virtual_vis_stack

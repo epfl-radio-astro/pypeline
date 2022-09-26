@@ -36,7 +36,7 @@ import imot_tools.io.plot as implt
 import time as tt
 t0 = tt.time()
 #Output Directory
-output_dir = "/scratch/izar/krishna/"
+output_dir = "./"
 
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
@@ -86,6 +86,7 @@ for t in ProgressBar(time[::200]):
     I_est.collect(S, G)
 
 N_eig, c_centroid = I_est.infer_parameters()
+print(N_eig, c_centroid)
 
 print ("Intensity Field Parameter Estimation Time: {0}s".format(tt.time()-t1))
 t2 = tt.time()
