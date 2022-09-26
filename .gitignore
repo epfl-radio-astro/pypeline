@@ -8,8 +8,8 @@
 slurm-*.out
 *.png
 *.fits
-*_environment_*_*.yml
-
+core.*
+*.log
 ### VsCode Settings ===========================================================
 settings.json
 

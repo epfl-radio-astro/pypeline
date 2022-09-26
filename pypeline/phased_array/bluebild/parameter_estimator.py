@@ -194,7 +194,6 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         """
         N_data = len(self._visibilities)
         N_beam = N_eig_max = self._visibilities[0].shape[0]
-
         D_all = np.zeros((N_data, N_eig_max))
         for i, (S, G) in enumerate(zip(self._visibilities, self._grams)):
             # Remove broken BEAM_IDs
@@ -204,12 +203,13 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
             working_row_id = list(set(np.arange(N_beam)) - set(broken_row_id))
             idx = np.ix_(working_row_id, working_row_id)
             S, G = S.data[idx], G.data[idx]
-
+            #print ("test2", D_all.shape, S.shape)
             # Functional PCA
             if not np.allclose(S, 0):
                 D, _ = pylinalg.eigh(S, G, tau=self._sigma)
+                #
+                # 
                 D_all[i, : len(D)] = D
-
         D_all = D_all[D_all.nonzero()]
         kmeans = skcl.KMeans(n_clusters=self._N_level).fit(np.log(D_all).reshape(-1, 1))
 

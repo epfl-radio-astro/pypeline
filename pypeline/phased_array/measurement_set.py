@@ -195,6 +195,7 @@ class MeasurementSet:
 
             t = time.Time(np.unique(table.calc("MJD(TIME)")), format="mjd", scale="utc")
             t_id = range(len(t))
+            print("Time loaded")
             self._time = tb.QTable(dict(TIME_ID=t_id, TIME=t))
 
         return self._time
@@ -259,10 +260,11 @@ class MeasurementSet:
 
         channel_id = self.channels["CHANNEL_ID"][channel_id]
         if chk.is_integer(time_id):
+            print("does this")
             time_id = slice(time_id, time_id + 1, 1)
         N_time = len(self.time)
         time_start, time_stop, time_step = time_id.indices(N_time)
-
+        # print ("time vars:",time_id, time_start, time_stop, time_step, N_time)
         # Only a subset of the MAIN table's columns are needed to extract visibility information.
         # As such, it makes sense to construct a TaQL query that only extracts the columns of
         # interest as shown below:
@@ -270,13 +272,16 @@ class MeasurementSet:
         #    (select unique TIME from {self._msf} limit {time_start}:{time_stop}:{time_step})
         # Unfortunately this query consumes a lot of memory due to the column selection process.
         # Therefore, we will instead ask for all columns and only access those of interest.
+        # <check>  unique MJD(TIME) as MJD_TIME from {self._msf} orderby TIME
         query = (
-            f"select * from {self._msf} where TIME in "
-            f"(select unique TIME from {self._msf} limit {time_start}:{time_stop}:{time_step})"
-        )
+            #f"select * from {self._msf}")#" where MJD(TIME) in " # "MJD(TIME)" instead of TIME
+            f"(select unique MJD(TIME) from {self._msf} limit {time_start}:{time_stop}:{time_step})") # MJD(TIME) instead of TIME
+            
         table = ct.taql(query)
+        subTableIndex = 0
+        for sub_table in table.iter("TIME", sort=True): # MJD(TIME) instead of TIME
+            subTableIndex += 1
 
-        for sub_table in table.iter("TIME", sort=True):
             beam_id_0 = sub_table.getcol("ANTENNA1")  # (N_entry,)
             beam_id_1 = sub_table.getcol("ANTENNA2")  # (N_entry,)
             data_flag = sub_table.getcol("FLAG")  # (N_entry, N_channel, 4)
@@ -284,6 +289,7 @@ class MeasurementSet:
             uvw = sub_table.getcol("UVW")
             uvw *= -1
 
+            # print ("flag checks", np.shape(data_flag), np.count_nonzero(data_flag[:,:, 0]), np.count_nonzero(data_flag[:,:, 1]), np.count_nonzero(data_flag[:,:, 2]), np.count_nonzero(data_flag[:,:, 3]) )
             # We only want XX and YY correlations
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
             data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
@@ -331,6 +337,7 @@ class MeasurementSet:
             t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
             f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
+            
             for ch_id in channel_id:
                 v = _series2array(S[ch_id].rename("S", inplace=True))
                 visibility = vis.VisibilityMatrix(v, beam_idx)
@@ -399,7 +406,7 @@ class LofarMeasurementSet(MeasurementSet):
         N_station : int
             Number of stations to use. (Default = all)
 
-            Sometimes only a subset of an instrument’s stations are desired.
+            Sometimes only a subset of an instruments stations are desired.
             Setting `N_station` limits the number of stations to those that appear first when sorted
             by STATION_ID.
         station_only : bool

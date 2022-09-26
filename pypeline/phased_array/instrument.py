@@ -699,17 +699,16 @@ class MeerkatBlock(EarthBoundInstrumentGeometryBlock):
         :py:class:`~pypeline.phased_array.instrument.InstrumentGeometry`
             ITRS instrument geometry.
         """
-        rel_path = pathlib.Path("data", "antenna_array", "instrument", "MeerKAT.csv") # MEERKAT.csv has 58 stations, MeerKAT has 64
+        rel_path = pathlib.Path("data", "antenna_array", "instrument", "MEERKAT.csv")
         abs_path = pkg.resource_filename("pypeline", str(rel_path))
 
-        itrs_geom = pd.read_csv(abs_path).set_index(["STATION_ID","ANTENNA_ID"])
-        """
+        itrs_geom = pd.read_csv(abs_path).set_index(["STATION_ID", "ANTENNA_ID"])
+
         if station_only:
             itrs_geom = itrs_geom.groupby("STATION_ID").mean()
             station_id = itrs_geom.index.get_level_values("STATION_ID")
             itrs_geom.index = pd.MultiIndex.from_product(
                 [station_id, [0]], names=["STATION_ID", "ANTENNA_ID"]
             )
-        """
         XYZ = _as_InstrumentGeometry(itrs_geom)
         return XYZ

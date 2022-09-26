@@ -1,0 +1,12 @@
+
+Currently Loaded Modules:
+  1) gcc/8.4.0-cuda   2) cuda/10.2.89
+
+ 
+
+Traceback (most recent call last):
+  File "/home/krishna/bluebild/pypeline/benchmarking/test_fastsynthesizer.py", line 11, in <module>
+    import pypeline.phased_array.bluebild.field_synthesizer.fourier_domain as synth_periodic
+  File "/home/krishna/bluebild/pypeline/pypeline/phased_array/bluebild/field_synthesizer/fourier_domain.py", line 28, in <module>
+    import finufft
+ModuleNotFoundError: No module named 'finufft'

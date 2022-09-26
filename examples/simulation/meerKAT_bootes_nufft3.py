@@ -35,6 +35,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import imot_tools.io.s2image as im
 import imot_tools.io.plot as implt
 import time as tt
+<<<<<<< HEAD
 
 import plotly.offline as py
 from matplotlib import cm
@@ -70,11 +71,20 @@ def density_scatter( x , y, ax = None, fig = None, sort = True, bins = 20, **kwa
 t0 = tt.time()
 #Output Directory
 output_dir = "/scratch/izar/krishna/MeerKAT/"
+=======
+t0 = tt.time()
+#Output Directory
+output_dir = "/scratch/izar/krishna/"
+>>>>>>> ab3886e1e6644883d6f4a0eb5fe273b94d6e7095
 
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
 ra_field_center = 90#150.119
+<<<<<<< HEAD
 dec_field_center = -60#2.205
+=======
+dec_field_center = -30#2.205
+>>>>>>> ab3886e1e6644883d6f4a0eb5fe273b94d6e7095
 field_center = coord.SkyCoord(ra=ra_field_center * u.deg, dec=dec_field_center * u.deg, frame="icrs") # southern hemisphere COSMOS pointing
 #field_center = coord.SkyCoord(ra=218 * u.deg, dec=34.5 * u.deg, frame="icrs") # LOFAR pointing
 frequency = 1283895507.8125 # Hz
@@ -82,22 +92,34 @@ wl = constants.speed_of_light / frequency
 FoV = 1.02 * wl/15 # 1.02* lambda/D, D - individual antenna diameter
 
 # Instrument
+<<<<<<< HEAD
 N_station = 64 # max 64
 dev = instrument.MeerkatBlock(N_station)
 
 #fig_layout,ax_layout = dev.draw()
 #fig_layout.savefig(output_dir + "MeerKAT_Antenna_Layout")
 
+=======
+N_station = 58 # max 58
+dev = instrument.MeerkatBlock(N_station)
+>>>>>>> ab3886e1e6644883d6f4a0eb5fe273b94d6e7095
 mb_cfg = [(_, _, field_center) for _ in range(N_station)]
 mb = beamforming.MatchedBeamformerBlock(mb_cfg)
 gram = bb_gr.GramBlock()
 
 # Data generation
+<<<<<<< HEAD
 T_integration = 8 # 8 units integrated at a time. 
 sky_model = source.from_tgss_catalog(field_center, FoV, N_src=5)
 vis = statistics.VisibilityGeneratorBlock(sky_model, T_integration, fs=196000, SNR=30)
 time_range = 120 # in minutes
 time = obs_start + (T_integration * u.s) * np.arange(time_range*60/T_integration) # 7200 = 16 hours 3600 = 8 hours 1800 = 4 hours
+=======
+T_integration = 8
+sky_model = source.from_tgss_catalog(field_center, FoV, N_src=5)
+vis = statistics.VisibilityGeneratorBlock(sky_model, T_integration, fs=196000, SNR=30)
+time = obs_start + (T_integration * u.s) * np.arange(3600) # 7200 = 16 hours 3600 = 8 hours 1800 = 4 hours
+>>>>>>> ab3886e1e6644883d6f4a0eb5fe273b94d6e7095
 obs_end = time[-1]
 print ("Total integration time: {0} hours".format((obs_end - obs_start)*24))
 
@@ -138,6 +160,7 @@ for t in ProgressBar(time[::time_slice]):
     XYZ = dev(t)
     UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
     UVW_baselines.append(UVW_baselines_t)
+<<<<<<< HEAD
 
     W = mb(XYZ, wl)
     G = gram(XYZ, W, wl)
@@ -148,6 +171,13 @@ for t in ProgressBar(time[::time_slice]):
 
     c_idx = np.array([0, 1, 2, 3]) # workaround for nonbiased?? eigen levels right now
     
+=======
+    W = mb(XYZ, wl)
+    S = vis(XYZ, W, wl)
+    G = gram(XYZ, W, wl)
+    D, V, c_idx = I_dp(S, G) # replace c_idx with self-input eigenlevels
+    c_idx = np.array([0, 1, 2, 3]) # workaround for nonbiased eigen levels right now
+>>>>>>> ab3886e1e6644883d6f4a0eb5fe273b94d6e7095
     S_corrected = IV_dp(D, V, W, c_idx )
     #gram_corrected_visibilities.append(S_corrected)
     # shape of S_corrected needs some work, sometimes below snippet works, sometimes above one does. 
@@ -177,8 +207,12 @@ gram_corrected_visibilities = gram_corrected_visibilities.reshape(*S_corrected.s
 #fig_uvw.savefig(output_dir + "meerKAT_simulated_UVW_baselines")
 
 fig_uv, ax_uv = plt.subplots(1,1, figsize = (20,20))
+<<<<<<< HEAD
 ax_uv = density_scatter(UVW_baselines[:, 0], UVW_baselines[:, 1], ax = ax_uv, fig = fig_uv)
 #ax_uv.scatter(UVW_baselines[:, 0], UVW_baselines[:, 1], s=.01)
+=======
+ax_uv.scatter(UVW_baselines[:, 0], UVW_baselines[:, 1], s=.01)
+>>>>>>> ab3886e1e6644883d6f4a0eb5fe273b94d6e7095
 ax_uv.set_xlabel('u')
 ax_uv.set_ylabel('v')
 fig_uv.savefig(output_dir + "meerKAT_simulated_UV_baselines_RA_" + str(ra_field_center) + "_Dec_" + str(dec_field_center))

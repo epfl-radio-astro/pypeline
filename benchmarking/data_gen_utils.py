@@ -154,7 +154,7 @@ class RealDataGen():
     def __init__(self, ms_file, N_level = 4, N_station = 24):
         #24
         self.N_level = N_level
-        self.ms = measurement_set.LofarMeasurementSet(ms_file, N_station)
+        self.ms = measurement_set.MWAMeasurementSet(ms_file) # changed to MWA from LOFAR to check if MeerKAT ms compatible with MWA ms
         self.gram = bb_gr.GramBlock()
 
         self.FoV = np.deg2rad(5)

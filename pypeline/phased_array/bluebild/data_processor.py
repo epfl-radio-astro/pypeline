@@ -315,7 +315,7 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
         if W is not None:
             W = sparse.csr_matrix(W.data)
             V_unbeamformed = np.asarray(W * V)
-            virtual_vis_stack = np.zeros((len(self.filters), np.unique(cluster_idx).size, W.shape[0], W.shape[0]),
+            virtual_vis_stack = np.zeros((len(self.filters), np.max(np.unique(cluster_idx)) + 1, W.shape[0], W.shape[0]),
                                          dtype=np.complex128)
         else:
             V_unbeamformed = V
@@ -323,7 +323,7 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
                                          dtype=np.complex128)
         if cluster_idx is None:
             cluster_idx = np.zeros(self._N_eig)
-
+        
         for k, filter in enumerate(self.filters):
             for i in np.unique(cluster_idx):
                 filtered_eig = Filtered_eigs[filter][i == cluster_idx]
