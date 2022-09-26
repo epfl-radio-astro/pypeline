@@ -8,14 +8,14 @@
 #include "bluebild/context.hpp"
 #include "bluebild/nufft_3d3.hpp"
 
-namespace bluebild {
-
 enum BluebildFilter {
   BLUEBILD_FILTER_LSQ,
   BLUEBILD_FILTER_STD,
   BLUEBILD_FILTER_SQRT,
   BLUEBILD_FILTER_INV
 };
+
+namespace bluebild {
 
 template <typename T, typename = std::enable_if_t<std::is_same_v<T, double> ||
                                                   std::is_same_v<T, float>>>

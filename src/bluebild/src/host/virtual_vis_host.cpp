@@ -17,17 +17,20 @@ namespace bluebild {
 // suffice
 template<typename T>
 static auto find_interval_indices(std::size_t n, const T* D, T a, T b) -> std::tuple<std::size_t, std::size_t> {
+  if (!n)
+    return {0, 0};
   std::size_t l = n;
   std::size_t r = 0;
 
   for(std::size_t i =0; i < n; ++i) {
     const auto value = D[i];
-    if (value <= b && i < l) l = i;
-    if (value >= a && i > r) r = i;
-    if (value < a) break;
+    if(value <= b && value >= a) {
+        if(i < l) l = i;
+        if(i > r) r = i;
+    }
   }
 
-  return {l, l < r ? r - l + 1 : 0};
+  return {l, l <= r ? r - l + 1 : 0};
 }
 
 template <typename T>
