@@ -232,6 +232,11 @@ inline auto memset_async(ARGS&&... args) -> StatusType {
 }
 
 template <typename... ARGS>
+inline auto memset_2d_async(ARGS&&... args) -> StatusType {
+  return GPU_PREFIX(Memset2DAsync)(std::forward<ARGS>(args)...);
+}
+
+template <typename... ARGS>
 inline auto pointer_get_attributes(ARGS&&... args) -> StatusType {
   return GPU_PREFIX(PointerGetAttributes)(std::forward<ARGS>(args)...);
 }
