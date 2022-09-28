@@ -4,16 +4,10 @@
 #include <type_traits>
 
 #include "bluebild/config.h"
+#include "bluebild/enums.h"
 #include "bluebild/exceptions.hpp"
 #include "bluebild/context.hpp"
 #include "bluebild/nufft_3d3.hpp"
-
-enum BluebildFilter {
-  BLUEBILD_FILTER_LSQ,
-  BLUEBILD_FILTER_STD,
-  BLUEBILD_FILTER_SQRT,
-  BLUEBILD_FILTER_INV
-};
 
 namespace bluebild {
 

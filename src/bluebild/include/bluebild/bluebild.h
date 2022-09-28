@@ -2,15 +2,7 @@
 
 #include "bluebild/config.h"
 #include "bluebild/errors.h"
-
-enum BluebildProcessingUnit { BLUEBILD_PU_AUTO, BLUEBILD_PU_CPU, BLUEBILD_PU_GPU };
-
-#ifndef __cplusplus
-/*! \cond PRIVATE */
-// C only
-typedef enum BluebildProcessingUnit BluebildProcessingUnit;
-/*! \endcond */
-#endif  // cpp
+#include "bluebild/enums.h"
 
 typedef void* BluebildContext;
 typedef void* BluebildNufft3d3;
@@ -227,6 +219,64 @@ BLUEBILD_EXPORT BluebildError bluebild_gram_matrix_d(BluebildContext ctx, int m,
                                                      int ldxyz, double wl, void* g, int ldg);
 
 /**
+ * Data processor for computing virtual visibilities in double precision.
+ *
+ * @param[in] ctx Context handle.
+ * @param[in] nFilter Number of filter.
+ * @param[in] filter Array of filters.
+ * @param[in] nIntervals Number of intervals.
+ * @param[in] intervals Array of intervals of size (2, nIntervals).
+ * @param[in] ldIntervals Leading dimension of intervals.
+ * @param[in] nEig Number of eigenvalues.
+ * @param[in] D Array of eignenvalues.
+ * @param[in] nAntenna Number of antenna.
+ * @param[in] V Visibilities of size (nBeam, nEig) if W is provided, (nAntenna, nEig) otherwise.
+ * @param[in] nBeam Number of beams.
+ * @param[in] W Optional beamforming matrix of size (nAntenna, nBeam). May be null.
+ * @param[in] ldw Leading dimension of W.
+ * @param[out] virtVis The computed virtual visibilities of size (nAntenna, nAntenna, nIntervals, nFilter).
+ * @param[in] ldVirtVis1 Outer most stride.
+ * @param[in] ldVirtVis2 Stride between each inner 2d matrix.
+ * @param[in] ldVirtVis3 Stride between each coloumn in inner 2d matrix.
+ * @return Error code or BLUEBILD_SUCCESS.
+ */
+BLUEBILD_EXPORT BluebildError bluebild_virtual_vis_s(
+    BluebildContext ctx, int nFilter, const BluebildFilter *filter,
+    int nIntervals, const float *intervals, int ldIntervals, int nEig,
+    const float *D, int nAntenna, const void *V, int ldv, int nBeam,
+    const void *W, int ldw, void *virtVis, int ldVirtVis1, int ldVirtVis2,
+    int ldVirtVis3);
+
+/**
+ * Data processor for computing virtual visibilities in single precision.
+ *
+ * @param[in] ctx Context handle.
+ * @param[in] nFilter Number of filter.
+ * @param[in] filter Array of filters.
+ * @param[in] nIntervals Number of intervals.
+ * @param[in] intervals Array of intervals of size (2, nIntervals).
+ * @param[in] ldIntervals Leading dimension of intervals.
+ * @param[in] nEig Number of eigenvalues.
+ * @param[in] D Array of eignenvalues.
+ * @param[in] nAntenna Number of antenna.
+ * @param[in] V Visibilities of size (nBeam, nEig) if W is provided, (nAntenna, nEig) otherwise.
+ * @param[in] nBeam Number of beams.
+ * @param[in] W Optional beamforming matrix of size (nAntenna, nBeam). May be null.
+ * @param[in] ldw Leading dimension of W.
+ * @param[out] virtVis The computed virtual visibilities of size (nAntenna, nAntenna, nIntervals, nFilter).
+ * @param[in] ldVirtVis1 Outer most stride.
+ * @param[in] ldVirtVis2 Stride between each inner 2d matrix.
+ * @param[in] ldVirtVis3 Stride between each coloumn in inner 2d matrix.
+ * @return Error code or BLUEBILD_SUCCESS.
+ */
+BLUEBILD_EXPORT BluebildError bluebild_virtual_vis_d(
+    BluebildContext ctx, int nFilter, const BluebildFilter *filter,
+    int nIntervals, const double *intervals, int ldIntervals, int nEig,
+    const double *D, int nAntenna, const void *V, int ldv, int nBeam,
+    const void *W, int ldw, void *virtVis, int ldVirtVis1, int ldVirtVis2,
+    int ldVirtVis3);
+
+/**
  * Create plan for a type 3 nufft transform in 3D in single precision.
  *
  * @param[in] ctx Context handle.
@@ -312,6 +362,8 @@ bluebild_nufft3d3_execute_s(BluebildNufft3d3f plan, const void *cj, void *fk);
 BLUEBILD_EXPORT BluebildError bluebild_nufft3d3_execute_d(BluebildNufft3d3 plan,
                                                           const void *cj,
                                                           void *fk);
+
+
 
 #ifdef __cplusplus
 }

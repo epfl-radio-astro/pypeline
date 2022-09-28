@@ -122,47 +122,54 @@ virtual_vis(Context &ctx, int nFilter, const BluebildFilter *filter,
 }
 
 extern "C" {
-// BLUEBILD_EXPORT BluebildError bluebild_gram_matrix_s(BluebildContext ctx, int m,
-//                                                      int n, const void *w,
-//                                                      int ldw, const float *xyz,
-//                                                      int ldxyz, float wl,
-//                                                      void *g, int ldg) {
-//   if (!ctx) {
-//     return BLUEBILD_INVALID_HANDLE_ERROR;
-//   }
-//   try {
-//     gram_matrix<float>(*reinterpret_cast<Context *>(ctx), m, n,
-//                        reinterpret_cast<const std::complex<float> *>(w), ldw,
-//                        xyz, ldxyz, wl,
-//                        reinterpret_cast<std::complex<float> *>(g), ldg);
-//   } catch (const bluebild::GenericError &e) {
-//     return e.error_code();
-//   } catch (...) {
-//     return BLUEBILD_UNKNOWN_ERROR;
-//   }
-//   return BLUEBILD_SUCCESS;
-// }
+BLUEBILD_EXPORT BluebildError bluebild_virtual_vis_s(
+    BluebildContext ctx, int nFilter, const BluebildFilter *filter,
+    int nIntervals, const float *intervals, int ldIntervals, int nEig,
+    const float *D, int nAntenna, const void *V, int ldv, int nBeam,
+    const void *W, int ldw, void *virtVis, int ldVirtVis1, int ldVirtVis2,
+    int ldVirtVis3) {
+  if (!ctx) {
+    return BLUEBILD_INVALID_HANDLE_ERROR;
+  }
+  try {
+    virtual_vis<float>(*reinterpret_cast<Context *>(ctx), nFilter, filter,
+                       nIntervals, intervals, ldIntervals, nEig, D, nAntenna,
+                       reinterpret_cast<const std::complex<float> *>(V), ldv,
+                       nBeam, reinterpret_cast<const std::complex<float> *>(W),
+                       ldw, reinterpret_cast<std::complex<float> *>(virtVis),
+                       ldVirtVis1, ldVirtVis2, ldVirtVis3);
+  } catch (const bluebild::GenericError &e) {
+    return e.error_code();
+  } catch (...) {
+    return BLUEBILD_UNKNOWN_ERROR;
+  }
+  return BLUEBILD_SUCCESS;
+}
 
-// BLUEBILD_EXPORT BluebildError bluebild_gram_matrix_d(BluebildContext ctx, int m,
-//                                                      int n, const void *w,
-//                                                      int ldw, const double *xyz,
-//                                                      int ldxyz, double wl,
-//                                                      void *g, int ldg) {
-//   if (!ctx) {
-//     return BLUEBILD_INVALID_HANDLE_ERROR;
-//   }
-//   try {
-//     gram_matrix<double>(*reinterpret_cast<Context *>(ctx), m, n,
-//                         reinterpret_cast<const std::complex<double> *>(w), ldw,
-//                         xyz, ldxyz, wl,
-//                         reinterpret_cast<std::complex<double> *>(g), ldg);
-//   } catch (const bluebild::GenericError &e) {
-//     return e.error_code();
-//   } catch (...) {
-//     return BLUEBILD_UNKNOWN_ERROR;
-//   }
-//   return BLUEBILD_SUCCESS;
-// }
+BLUEBILD_EXPORT BluebildError bluebild_virtual_vis_d(
+    BluebildContext ctx, int nFilter, const BluebildFilter *filter,
+    int nIntervals, const double *intervals, int ldIntervals, int nEig,
+    const double *D, int nAntenna, const void *V, int ldv, int nBeam,
+    const void *W, int ldw, void *virtVis, int ldVirtVis1, int ldVirtVis2,
+    int ldVirtVis3) {
+  if (!ctx) {
+    return BLUEBILD_INVALID_HANDLE_ERROR;
+  }
+  try {
+    virtual_vis<double>(*reinterpret_cast<Context *>(ctx), nFilter, filter,
+                        nIntervals, intervals, ldIntervals, nEig, D, nAntenna,
+                        reinterpret_cast<const std::complex<double> *>(V), ldv,
+                        nBeam,
+                        reinterpret_cast<const std::complex<double> *>(W), ldw,
+                        reinterpret_cast<std::complex<double> *>(virtVis),
+                        ldVirtVis1, ldVirtVis2, ldVirtVis3);
+  } catch (const bluebild::GenericError &e) {
+    return e.error_code();
+  } catch (...) {
+    return BLUEBILD_UNKNOWN_ERROR;
+  }
+  return BLUEBILD_SUCCESS;
+}
 }
 
 
