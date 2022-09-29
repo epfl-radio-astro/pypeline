@@ -165,6 +165,7 @@ for t in time[::200]:
     I_est.collect(S, G)
 
 N_eig, c_centroid = I_est.infer_parameters()
+intervals = bb_dp.centroid_to_intervals(c_centroid)
 ifpe_e = tt.time()
 print(f"#@#IFPE {ifpe_e-ifpe_s:.3f} sec")
 
@@ -187,7 +188,7 @@ for t in time[::time_slice]:
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
     D, V, c_idx = I_dp(S, XYZ, W, wl)
-    S_corrected = IV_dp(D, V, W, c_idx)
+    S_corrected = IV_dp(D, V, W, intervals)
     nufft_imager.collect(UVW_baselines_t, S_corrected)
 
 # NUFFT Synthesis
@@ -228,7 +229,7 @@ for t in time[::time_slice]:
     UVW_baselines_t = (UVW[:, None, :] - UVW[None, ...])
     W = mb(XYZ, wl)
     D, V = S_dp(XYZ, W, wl)
-    S_sensitivity = SV_dp(D, V, W, cluster_idx=np.zeros(N_eig, dtype=int))
+    S_sensitivity = SV_dp(D, V, W)
     sensitivity_coeffs.append(S_sensitivity)
     
     nufft_imager.collect(UVW_baselines_t, S_sensitivity)

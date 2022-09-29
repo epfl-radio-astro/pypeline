@@ -357,7 +357,7 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
          (N_filter, N_intervals, N_antenna, N_antenna) stack of (N_antenna, N_antenna) virtual visibilities.
         """
         if intervals is None:
-            intervals = np.array([[0, np.finfo('d').max]])
+            intervals = np.array([[0, np.finfo('f').max]])
 
         if self._ctx is not None:
             filter_match = dict(lsq=0, std=1, sqrt=2, inv=3)
@@ -391,3 +391,38 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
                     virtual_vis_stack[k, i] = VMul \
                                               @ V_selection.transpose().conj()
         return virtual_vis_stack
+
+
+
+def centroid_to_intervals(centroid):
+    r"""
+    Convert centroid to invervals as required by VirtualVisibilitiesDataProcessingBlock.
+
+    Parameters
+    ----------
+    centroid: Optional[np.ndarray]
+        (N_centroid) centroid values. If None, [0, max_float] is returned.
+
+    Returns
+    -------
+    intervals: np.ndarray
+     (N_centroid, 2) Intervals matching the input with lower and upper bound.
+    """
+    if centroid is None or centroid.size <= 1:
+        return np.array([[0, np.finfo('f').max]])
+    intervals = np.empty((centroid.size, 2))
+    sorted_idx = np.argsort(centroid)
+    sorted_centroid = centroid[sorted_idx]
+    for i in range(centroid.size):
+        idx = sorted_idx[i]
+        if idx == 0:
+            intervals[i, 0] = 0
+        else:
+            intervals[i, 0] = (sorted_centroid[idx] + sorted_centroid[idx - 1]) / 2
+
+        if idx == centroid.size - 1:
+            intervals[i, 1] = np.finfo('f').max
+        else:
+            intervals[i, 1] = (sorted_centroid[idx] + sorted_centroid[idx + 1]) / 2
+
+    return intervals
