@@ -3,6 +3,8 @@ import os
 import re
 import numpy as np
 import collections
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as font_manager
 import getopt
@@ -53,8 +55,8 @@ def plot(plot, args):
         gref = np_load(file_gref)
 
         # Solution image and grid (emit warning if missing)
-        file_isol = os.path.join(args.input_directory, builds.get(args.last_build)[2], sols.get(sol).directory, sols.get(sol).filename)
-        file_gsol = os.path.join(args.input_directory, builds.get(args.last_build)[2], sols.get(sol).directory, sols.get(sol).gridname)
+        file_isol = os.path.join(args.input_directory, builds.get(args.last_build)[3], sols.get(sol).directory, sols.get(sol).filename)
+        file_gsol = os.path.join(args.input_directory, builds.get(args.last_build)[3], sols.get(sol).directory, sols.get(sol).gridname)
 
         # Warnings to be recovered by Jenkins to notify Slack channel
         if not os.path.isfile(file_isol):
@@ -111,7 +113,6 @@ def plot(plot, args):
         img_diff.draw(ax=ax[2], data_kwargs = {"cmap": color_diff}, show_gridlines=show_gridlines, grid_kwargs = grid_kwargs)
         ax[2].set_title(f"Difference RMSE = {rmse:.3f}")
         fig.suptitle(sols.get(sol).label, fontsize=20, y=0.8)
-        plt.show()
         fig.savefig(os.path.join(args.output_directory, sol + ".png"))
 
     fstats.close()
@@ -124,10 +125,10 @@ def compare_one_solution_to_another(Solutions, sol1_name, build1, sol2_name, bui
 
     print(f"\nComparing [{sol1.label} / {build1}] to [{sol2.label} / {build2}]")
     builds = monitoring.scan(args.input_directory, args.ignore_up_to)
-    file_isol1 = os.path.join(args.input_directory, builds.get(build1)[2], sol1.directory, sol1.filename)
-    file_gsol1 = os.path.join(args.input_directory, builds.get(build1)[2], sol1.directory, sol1.gridname)
-    file_isol2 = os.path.join(args.input_directory, builds.get(build2)[2], sol2.directory, sol2.filename)
-    file_gsol2 = os.path.join(args.input_directory, builds.get(build2)[2], sol2.directory, sol2.gridname)
+    file_isol1 = os.path.join(args.input_directory, builds.get(build1)[3], sol1.directory, sol1.filename)
+    file_gsol1 = os.path.join(args.input_directory, builds.get(build1)[3], sol1.directory, sol1.gridname)
+    file_isol2 = os.path.join(args.input_directory, builds.get(build2)[3], sol2.directory, sol2.filename)
+    file_gsol2 = os.path.join(args.input_directory, builds.get(build2)[3], sol2.directory, sol2.gridname)
     print(f"Info   : {file_isol1}")
     print(f"Info   : {file_isol2}")
     isol1 = np_load(file_isol1)
@@ -154,7 +155,7 @@ def compare_one_solution_to_another(Solutions, sol1_name, build1, sol2_name, bui
     ax[1].set_title(sol2.label + "\n\n" + "build " + str(build2))
     img_diff.draw(ax=ax[2], data_kwargs = {"cmap": color_diff}, show_gridlines=show_gridlines, grid_kwargs = grid_kwargs)
     ax[2].set_title(f"Difference\n\nRMSE = {rmse:.3f}")
-    plt.show()
+    #plt.show()
     figname = 'img_' + sol1_name + "_" + str(build1) + "_vs_" + sol2_name + "_" + str(build2)
     fig.savefig(os.path.join(args.output_directory, figname + ".png"))
 
@@ -168,6 +169,7 @@ if __name__ == "__main__":
 
     Solutions = monitoring.define_solutions()
 
+    """
     sols = {
         'img_SC'      : Solutions['SC'],
         'img_SG'      : Solutions['SG'],
@@ -177,9 +179,16 @@ if __name__ == "__main__":
         'img_LBN3cct' : Solutions['LBN3cct'],
         'img_LBN3cgt' : Solutions['LBN3cgt']
     }
-    #sols = {
-    #    'G' : Solutions['LBN3cgt']
-    #}
+    """
+
+    sols = {
+        'img_lb_n3_c64'  : Solutions['lb_n3_c64_i'],
+        'img_lb_n3_cc64' : Solutions['lb_n3_cc64_i'],
+        'img_lb_n3_cg64' : Solutions['lb_n3_cg64_i'],
+        'img_lb_ss_c64'  : Solutions['lb_ss_c64_i'],
+        'img_lb_ss_cc64' : Solutions['lb_ss_cc64_i'],
+        'img_lb_ss_cg64' : Solutions['lb_ss_cg64_i']
+    }
 
     plots = (
         {'sols': sols},
@@ -190,22 +199,18 @@ if __name__ == "__main__":
         plot(plot_, args)
 
     # Comparing pairs of solutions
-    compare_one_solution_to_another(Solutions, 'LBN3cct', args.last_build, 'LBN3cgt', args.last_build)
-    compare_one_solution_to_another(Solutions, 'LBN3cct', args.last_build, 'LBN3t',   args.last_build)
-    compare_one_solution_to_another(Solutions, 'LBSSt', args.last_build,   'LBN3t',   args.last_build)
-    compare_one_solution_to_another(Solutions, 'LBSSt', args.last_build,   'LBN3cgt', args.last_build)
+    #compare_one_solution_to_another(Solutions, 'LBN3cct', args.last_build, 'LBN3cgt', args.last_build)
+    #compare_one_solution_to_another(Solutions, 'LBN3cct', args.last_build, 'LBN3t',   args.last_build)
+    #compare_one_solution_to_another(Solutions, 'LBSSt', args.last_build,   'LBN3t',   args.last_build)
+    #compare_one_solution_to_another(Solutions, 'LBSSt', args.last_build,   'LBN3cgt', args.last_build)
     #compare_one_solution_to_another('LBN3cct', args.last_build, 'LBSSt',  args.last_build)
 
+    compare_one_solution_to_another(Solutions, 'lb_n3_c64_i',  args.last_build, 'lb_n3_cc64_i', args.last_build)
+    compare_one_solution_to_another(Solutions, 'lb_n3_c64_i',  args.last_build, 'lb_n3_cg64_i', args.last_build)
 
-# To test locally
-# ---------------
-"""
-cd to pypeline
+    compare_one_solution_to_another(Solutions, 'lb_ss_c64_i',  args.last_build, 'lb_ss_cc64_i', args.last_build)
+    compare_one_solution_to_another(Solutions, 'lb_ss_c64_i',  args.last_build, 'lb_ss_cg64_i', args.last_build)
 
-conda activate pype-111
-
-export BUILD_ID=21 GIT_BRANCH=ci-master OUTPUT_DIR=/tmp/ TEST_FSTAT_RT=/tmp/file_rt.tst TEST_IGNORE_UPTO=0 WORK_DIR=/work/backup/ska/ci-jenkins/izar-ska/ REF_DIR=/work/backup/ska/ci-jenkins/references/ TEST_DIR=.
-
-python ./jenkins/imap.py --input_directory ${WORK_DIR}/${GIT_BRANCH}  --output_directory $OUTPUT_DIR --stat_file $TEST_FSTAT_RT  --last_build $BUILD_ID --ignore_up_to $TEST_IGNORE_UPTO --reference_directory /work/backup/ska/ci-jenkins/references
-
-"""
+    compare_one_solution_to_another(Solutions, 'lb_n3_c64_i',  args.last_build, 'lb_ss_c64_i',  args.last_build)
+    compare_one_solution_to_another(Solutions, 'lb_n3_cc64_i', args.last_build, 'lb_ss_cc64_i', args.last_build)
+    compare_one_solution_to_another(Solutions, 'lb_n3_cg64_i', args.last_build, 'lb_ss_cg64_i', args.last_build)

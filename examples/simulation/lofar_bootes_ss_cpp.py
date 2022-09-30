@@ -7,7 +7,7 @@
 """
 Simulated LOFAR imaging with Bluebild (StandardSynthesis).
 """
-from tqdm import tqdm as ProgressBar
+#from tqdm import tqdm as ProgressBar
 import astropy.coordinates as coord
 import astropy.time as atime
 import astropy.units as u
@@ -206,12 +206,11 @@ for N_bits in 64,:
         else:
             print(f"Internal time ref {I_mfs_cpp._cum_proc_time:7.3f}")
             print(f"@@@ Na {Na} Nb {Nb} Nc {Nc} Ne {Ne} Nh {Nh} Nw {Nw}, sqrt(Npix) {int(np.sqrt(Nh*Nw))} N_ep {N_ep} N_bits {N_bits} N_threads {N_threads:2d} {0.0:8.3f} {time_cpp:7.3f} {0.0 / time_cpp:7.3f}; std_error: RMSE {0.0:.2E}, max_abs ={0.0:.2E}; lsq_error: RMSE {0.0:.2E}, max_abs {0.0:.2E}", flush=True)
-        
-        """
 
     I_std,     I_lsq     = I_mfs.as_image()
     I_std_cpp, I_lsq_cpp = I_mfs_cpp.as_image()
     
+    """
 
     ### Sensitivity Field =========================================================
     # Parameter Estimation

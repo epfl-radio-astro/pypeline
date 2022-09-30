@@ -2,6 +2,8 @@ from skbuild import setup
 import os
 import pathlib
 from setuptools import find_packages
+import shlex
+
 
 current_dir = pathlib.Path(__file__).parent.resolve()
 with open(str(current_dir) + '/VERSION') as f:
@@ -9,7 +11,7 @@ with open(str(current_dir) + '/VERSION') as f:
 
 bluebild_gpu = str(os.getenv('BLUEBILD_GPU', 'CUDA'))
 bluebild_cmake_args = str(os.getenv('BLUEBILD_CMAKE_ARGS', ''))
-bluebild_cmake_args_list = [bluebild_cmake_args] if bluebild_cmake_args else []
+bluebild_cmake_args_list = shlex.split(bluebild_cmake_args) if bluebild_cmake_args else []
 
 setup(
     name="bluebild",
