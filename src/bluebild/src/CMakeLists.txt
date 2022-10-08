@@ -6,10 +6,12 @@ set(BLUEBILD_SOURCE_FILES
 	virtual_vis.cpp
 	nufft_3d3.cpp
 	context.cpp
+	periodic_synthesis.cpp
 	host/eigensolver_host.cpp
 	host/gram_matrix_host.cpp
 	host/sensitivity_field_data_host.cpp
 	host/intensity_field_data_host.cpp
+	host/periodic_synthesis_host.cpp
 	host/nufft_3d3_host.cpp
 	host/virtual_vis_host.cpp
 	)

@@ -260,6 +260,174 @@ struct Nufft3d3Dispatcher {
   std::variant<std::monostate, Nufft3d3f, Nufft3d3> plan_;
 };
 
+
+struct PeriodicSynthesisDispatcher {
+
+  PeriodicSynthesisDispatcher(
+      Context &ctx, int nAntenna, int nBeam, int nIntervals,
+      const py::array_t<BluebildFilter, pybind11::array::f_style> &filter,
+      const py::array_t<float, pybind11::array::f_style> &lmnX,
+      const py::array_t<float, pybind11::array::f_style> &lmnY,
+      const py::array_t<float, pybind11::array::f_style> &lmnZ, float tol)
+      : nIntervals_(nIntervals), nPixel_(lmnX.shape(0)) {
+    check_1d_array(filter);
+    check_1d_array(lmnX);
+    check_1d_array(lmnY, lmnX.shape(0));
+    check_1d_array(lmnZ, lmnX.shape(0));
+    plan_ = PeriodicSynthesis<float>(
+        ctx, tol, nAntenna, nBeam, nIntervals, filter.shape(0), filter.data(0),
+        lmnX.shape(0), lmnX.data(0), lmnY.data(0), lmnZ.data(0));
+  }
+
+  PeriodicSynthesisDispatcher(
+      Context &ctx, int nAntenna, int nBeam, int nIntervals,
+      const py::array_t<BluebildFilter, pybind11::array::f_style> &filter,
+      const py::array_t<double, pybind11::array::f_style> &lmnX,
+      const py::array_t<double, pybind11::array::f_style> &lmnY,
+      const py::array_t<double, pybind11::array::f_style> &lmnZ, double tol)
+      : nIntervals_(nIntervals), nPixel_(lmnX.shape(0)) {
+    check_1d_array(filter);
+    check_1d_array(lmnX);
+    check_1d_array(lmnY, lmnX.shape(0));
+    check_1d_array(lmnZ, lmnX.shape(0));
+    plan_ = PeriodicSynthesis<double>(
+        ctx, tol, nAntenna, nBeam, nIntervals, filter.shape(0), filter.data(0),
+        lmnX.shape(0), lmnX.data(0), lmnY.data(0), lmnZ.data(0));
+  }
+
+  PeriodicSynthesisDispatcher(PeriodicSynthesisDispatcher &&) = default;
+
+  PeriodicSynthesisDispatcher(const PeriodicSynthesisDispatcher &) = delete;
+
+  PeriodicSynthesisDispatcher &
+  operator=(PeriodicSynthesisDispatcher &&) = default;
+
+  PeriodicSynthesisDispatcher &
+  operator=(const PeriodicSynthesisDispatcher &) = delete;
+
+  auto collect(int nEig, double wl, pybind11::array intervals,
+               pybind11::array w, pybind11::array prephase, pybind11::array xyz,
+               pybind11::array uvwX, pybind11::array uvwY, pybind11::array uvwZ,
+               std::optional<pybind11::array> s) -> void {
+    std::visit(
+        [&](auto &&arg) -> void {
+          using T = std::decay_t<decltype(arg)>;
+          if constexpr (std::is_same_v<T, PeriodicSynthesis<float>>) {
+            py::array_t<float, py::array::c_style> intervalsArray(intervals);
+            check_2d_array(intervalsArray, {nIntervals_, 2});
+            py::array_t<std::complex<float>, py::array::f_style> wArray(w);
+            check_2d_array(wArray);
+            auto nAntenna = wArray.shape(0);
+            auto nBeam = wArray.shape(1);
+            py::array_t<float, py::array::f_style> xyzArray(xyz);
+            check_2d_array(xyzArray, {nAntenna, 3});
+            py::array_t<std::complex<float>, py::array::f_style> prephaseArray(
+                prephase);
+            check_1d_array(prephaseArray, nAntenna * nAntenna);
+            py::array_t<float, py::array::f_style> uvwXArray(uvwX);
+            check_1d_array(uvwXArray, nAntenna * nAntenna);
+            py::array_t<float, py::array::f_style> uvwYArray(uvwY);
+            check_1d_array(uvwYArray, nAntenna * nAntenna);
+            py::array_t<float, py::array::f_style> uvwZArray(uvwZ);
+            check_1d_array(uvwZArray, nAntenna * nAntenna);
+            std::optional<py::array_t<std::complex<float>, py::array::f_style>>
+                sArray;
+            if (s) {
+              sArray = py::array_t<std::complex<float>, py::array::f_style>(
+                  s.value());
+              check_2d_array(sArray.value(), {nBeam, nBeam});
+            }
+            std::get<PeriodicSynthesis<float>>(plan_).collect(
+                nEig, wl, intervalsArray.data(0),
+                safe_cast<int>(intervals.strides(0) / intervals.itemsize()),
+                s ? sArray.value().data(0) : nullptr,
+                s ? safe_cast<int>(sArray.value().strides(1) /
+                                   sArray.value().itemsize())
+                  : 0,
+                wArray.data(0),
+                safe_cast<int>(wArray.strides(1) / wArray.itemsize()),
+                xyzArray.data(0),
+                safe_cast<int>(xyzArray.strides(1) / xyzArray.itemsize()),
+                uvwXArray.data(0), uvwYArray.data(0), uvwZArray.data(0),
+                prephaseArray.data(0));
+
+          } else if constexpr (std::is_same_v<T, PeriodicSynthesis<double>>) {
+            py::array_t<double, py::array::c_style> intervalsArray(intervals);
+            check_2d_array(intervalsArray, {nIntervals_, 2});
+            py::array_t<std::complex<double>, py::array::f_style> wArray(w);
+            check_2d_array(wArray);
+            auto nAntenna = wArray.shape(0);
+            auto nBeam = wArray.shape(1);
+            py::array_t<double, py::array::f_style> xyzArray(xyz);
+            check_2d_array(xyzArray, {nAntenna, 3});
+            py::array_t<std::complex<double>, py::array::f_style> prephaseArray(
+                prephase);
+            check_1d_array(prephaseArray, nAntenna * nAntenna);
+            py::array_t<double, py::array::f_style> uvwXArray(uvwX);
+            check_1d_array(uvwXArray, nAntenna * nAntenna);
+            py::array_t<double, py::array::f_style> uvwYArray(uvwY);
+            check_1d_array(uvwYArray, nAntenna * nAntenna);
+            py::array_t<double, py::array::f_style> uvwZArray(uvwZ);
+            check_1d_array(uvwZArray, nAntenna * nAntenna);
+            std::optional<py::array_t<std::complex<double>, py::array::f_style>> sArray;
+            if(s) {
+              sArray = py::array_t<std::complex<double>, py::array::f_style>(s.value());
+              check_2d_array(sArray.value(), {nBeam, nBeam});
+            }
+            std::get<PeriodicSynthesis<double>>(plan_).collect(
+                nEig, wl, intervalsArray.data(0),
+                safe_cast<int>(intervals.strides(0) / intervals.itemsize()),
+                s ? sArray.value().data(0) : nullptr,
+                s ? safe_cast<int>(sArray.value().strides(1) /
+                                   sArray.value().itemsize())
+                  : 0,
+                wArray.data(0),
+                safe_cast<int>(wArray.strides(1) / wArray.itemsize()),
+                xyzArray.data(0),
+                safe_cast<int>(xyzArray.strides(1) / xyzArray.itemsize()),
+                uvwXArray.data(0), uvwYArray.data(0), uvwZArray.data(0),
+                prephaseArray.data(0));
+
+          } else {
+            throw InternalError();
+          }
+        },
+        plan_);
+  }
+
+  auto get(BluebildFilter f) -> py::array {
+    return std::visit(
+        [&](auto &&arg) -> pybind11::array {
+          using T = std::decay_t<decltype(arg)>;
+          if constexpr (std::is_same_v<T, PeriodicSynthesis<double>>) {
+            py::array_t<double> out({nIntervals_, nPixel_});
+            std::get<PeriodicSynthesis<double>>(plan_).get(
+                f, out.mutable_data(0),
+                safe_cast<int>(out.strides(0) / out.itemsize()));
+            return out;
+          } else if constexpr (std::is_same_v<T, PeriodicSynthesis<float>>) {
+            py::array_t<float> out({nIntervals_, nPixel_});
+            std::get<PeriodicSynthesis<float>>(plan_).get(
+                f, out.mutable_data(0),
+                safe_cast<int>(out.strides(0) / out.itemsize()));
+            return out;
+          } else {
+            throw InternalError();
+            return py::array_t<double, py::array::f_style>();
+          }
+        },
+        plan_);
+  }
+
+  std::variant<std::monostate, PeriodicSynthesis<float>,
+               PeriodicSynthesis<double>>
+      plan_;
+  int nIntervals_, nPixel_;
+};
+
+
+
+
 } // namespace
 
 // Create module
@@ -412,4 +580,33 @@ PYBIND11_MODULE(pybluebild, m) {
            pybind11::arg("z"), pybind11::arg("s"), pybind11::arg("t"),
            pybind11::arg("u"))
       .def("execute", &Nufft3d3Dispatcher::execute, pybind11::arg("cj"));
+
+  pybind11::class_<PeriodicSynthesisDispatcher>(m, "PeriodicSynthesis")
+      .def(pybind11::init<
+               Context &, int, int, int,
+               const py::array_t<BluebildFilter, pybind11::array::f_style> &,
+               const py::array_t<float, pybind11::array::f_style> &,
+               const py::array_t<float, pybind11::array::f_style> &,
+               const py::array_t<float, pybind11::array::f_style> &, float>(),
+           pybind11::arg("ctx"), pybind11::arg("n_antenna"),
+           pybind11::arg("n_beam"), pybind11::arg("n_intervals"),
+           pybind11::arg("filter"), pybind11::arg("lmn_x"),
+           pybind11::arg("lmn_y"), pybind11::arg("lmn_y"), pybind11::arg("tol"))
+      .def(pybind11::init<
+               Context &, int, int, int,
+               const py::array_t<BluebildFilter, pybind11::array::f_style> &,
+               const py::array_t<double, pybind11::array::f_style> &,
+               const py::array_t<double, pybind11::array::f_style> &,
+               const py::array_t<double, pybind11::array::f_style> &, double>(),
+           pybind11::arg("ctx"), pybind11::arg("n_antenna"),
+           pybind11::arg("n_beam"), pybind11::arg("n_intervals"),
+           pybind11::arg("filter"), pybind11::arg("lmn_x"),
+           pybind11::arg("lmn_y"), pybind11::arg("lmn_y"), pybind11::arg("tol"))
+      .def("collect", &PeriodicSynthesisDispatcher::collect,
+           pybind11::arg("nEig"), pybind11::arg("wl"),
+           pybind11::arg("intervals"), pybind11::arg("w"),
+           pybind11::arg("prephase"), pybind11::arg("xyz"),
+           pybind11::arg("uvwX"), pybind11::arg("uvwY"), pybind11::arg("uvwY"),
+           pybind11::arg("s"))
+      .def("get", &PeriodicSynthesisDispatcher::get, pybind11::arg("f"));
 }
