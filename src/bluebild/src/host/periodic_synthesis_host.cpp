@@ -32,7 +32,7 @@ PeriodicSynthesisHost<T>::PeriodicSynthesisHost(
   lmnZ_ = create_buffer<T>(ctx_->allocators().host(), nPixel_);
   std::memcpy(lmnZ_.get(), lmnZ, sizeof(T) * nPixel_);
 
-  nMaxInputCount_ = 50; // TODO: compute as fraction of system memory
+  nMaxInputCount_ = 54; // TODO: compute as fraction of system memory
 
   const auto virtualVisBufferSize =
       nIntervals_ * nFilter_ * nAntenna_ * nAntenna_ * nMaxInputCount_;
@@ -103,19 +103,11 @@ auto PeriodicSynthesisHost<T>::collect(
       auto virtVisInnerPtr = virtVisPtr + i * ldVirtVis1 + j * ldVirtVis2;
       for (std::size_t k = 0; k < nAntenna_; ++k) {
         for (std::size_t l = 0; l < nAntenna_; ++l) {
-          if (l != k)
-            virtVisInnerPtr[k * nAntenna_ + l] =
-                std::conj(virtVisInnerPtr[k * nAntenna_ + l]);
+          const auto index = k * nAntenna_ + l;
+          // TODO: why is conjugation necessary here?
+          const auto value = l==k ? virtVisInnerPtr[index] : std::conj(virtVisInnerPtr[index]);
+          virtVisInnerPtr[index] = prephase[index] * value;
         }
-      }
-    }
-  }
-  for (std::size_t i = 0; i < nFilter_; ++i) {
-    for (std::size_t j = 0; j < nIntervals_; ++j) {
-      auto virtVisInnerPtr = virtVisPtr + i * ldVirtVis1 + j * ldVirtVis2;
-      for (std::size_t k = 0; k < nAntenna_ * nAntenna_; ++k) {
-        assert(virtVisInnerPtr - virtualVis_.get() + k < virtualVisBufferSize);
-        virtVisInnerPtr[k] *= prephase[k];
       }
     }
   }
@@ -128,8 +120,9 @@ auto PeriodicSynthesisHost<T>::collect(
 
 template <typename T> auto PeriodicSynthesisHost<T>::computeNufft() -> void {
   if (inputCount_) {
-    auto output = create_buffer<std::complex<T>>(
-        ctx_->allocators().host(), nPixel_ * nFilter_ * nIntervals_);
+    auto output =
+        create_buffer<std::complex<T>>(ctx_->allocators().host(), nPixel_);
+    auto outputPtr = output.get();
     Nufft3d3Host<T> transform(1, tol_, 1, nAntenna_ * nAntenna_ * inputCount_,
                            uvwX_.get(), uvwY_.get(), uvwZ_.get(), nPixel_,
                            lmnX_.get(), lmnY_.get(), lmnZ_.get());
@@ -145,12 +138,11 @@ template <typename T> auto PeriodicSynthesisHost<T>::computeNufft() -> void {
 
     for (std::size_t i = 0; i < nFilter_; ++i) {
       for (std::size_t j = 0; j < nIntervals_; ++j) {
+        auto imgPtr = img_.get() + (j + i * nIntervals_) * nPixel_;
         assert(i * ldVirtVis1 + j * ldVirtVis2 + nAntenna_ * nAntenna_ * inputCount_ <= virtualVisBufferSize);
         transform.execute(virtualVis_.get() + i * ldVirtVis1 + j * ldVirtVis2,
-                          output.get() + i * (nPixel_ * nIntervals_) + j * nPixel_);
+                          outputPtr);
 
-        auto imgPtr = img_.get() + (j + i * nIntervals_) * nPixel_;
-        auto outputPtr = output.get();
         for (std::size_t k = 0; k < nPixel_; ++k) {
           assert(imgPtr - img_.get() + k < imgSize);
           imgPtr[k] += outputPtr[k].real();
