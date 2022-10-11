@@ -53,8 +53,6 @@ PeriodicSynthesisHost<T>::PeriodicSynthesisHost(
       nIntervals_ * nFilter_ * nAntenna_ * nAntenna_ * nMaxInputCount_;
   virtualVis_ = create_buffer<std::complex<T>>(ctx_->allocators().host(),
                                                virtualVisBufferSize);
-  std::memset(virtualVis_.get(), 0,
-              virtualVisBufferSize * sizeof(std::complex<T>));
   uvwX_ = create_buffer<T>(ctx_->allocators().host(),
                            nAntenna_ * nAntenna_ * nMaxInputCount_);
   uvwY_ = create_buffer<T>(ctx_->allocators().host(),
@@ -169,6 +167,8 @@ auto PeriodicSynthesisHost<T>::get(BluebildFilter f, T *out, std::size_t ld)
       break;
     }
   }
+  if (index == nFilter_)
+    throw InvalidParameterError();
 
   for (std::size_t i = 0; i < nIntervals_; ++i) {
     std::memcpy(out + i * ld,

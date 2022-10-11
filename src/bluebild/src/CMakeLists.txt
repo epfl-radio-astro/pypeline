@@ -23,6 +23,7 @@ if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
 		gpu/intensity_field_data_gpu.cpp
 		gpu/gram_matrix_gpu.cpp
 		gpu/nufft_3d3_gpu.cpp
+		gpu/periodic_synthesis_gpu.cpp
 		gpu/virtual_vis_gpu.cpp
 		gpu/kernels/reverse.cu
 		gpu/kernels/inv_square.cu
@@ -30,6 +31,7 @@ if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
 		gpu/kernels/gram.cu
 		gpu/kernels/scale_matrix.cu
 		gpu/kernels/apply_filter.cu
+		gpu/kernels/add_vector.cu
 		)
 endif()
 
