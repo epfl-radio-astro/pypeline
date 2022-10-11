@@ -25,6 +25,7 @@ import pypeline.phased_array.bluebild.imager.fourier_domain as bb_im
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.data_gen.source as source
 import pypeline.phased_array.instrument as instrument
+import pypeline.util.frame as frame
 import imot_tools.math.sphere.transform as transform
 import pypeline.phased_array.data_gen.statistics as statistics
 from mpl_toolkits.mplot3d import Axes3D
@@ -35,6 +36,9 @@ import time as tt
 import matplotlib
 import matplotlib.pyplot as plt
 
+import inspect
+print(bluebild.__file__)
+
 def convert_filter(filters):
     filter_match = dict(lsq=0, std=1, sqrt=2, inv=3)
     filter_enums = []
@@ -43,7 +47,7 @@ def convert_filter(filters):
     return np.array(filter_enums, dtype=np.uint32)
 
 
-def make_lmn_grid(grid_size, FoV):
+def make_grids(grid_size, FoV, field_center):
     r"""
     Imaging grid.
 
@@ -57,17 +61,15 @@ def make_lmn_grid(grid_size, FoV):
     l_grid, m_grid = np.meshgrid(grid_slice, grid_slice)
     n_grid = np.sqrt(1 - l_grid ** 2 - m_grid ** 2)  # No -1 if r on the sphere !
     lmn_grid = np.stack((l_grid, m_grid, n_grid), axis=0)
+    uvw_frame = frame.uvw_basis(field_center)
+    xyz_grid = np.tensordot(uvw_frame, lmn_grid, axes=1)
     lmn_grid = lmn_grid.reshape(3, -1).astype(np.float32)
-    grid_center = lmn_grid.mean(axis=-1)
-    lmn_grid -= grid_center[:, None]
-    return lmn_grid, grid_center
+    return lmn_grid, xyz_grid
 
-def convert_uvw_prephase(wl, grid_center, UVW):
-    UVW = np.array(UVW, copy=False)
+def convert_uvw(wl, UVW):
+    UVW = np.array(UVW, copy=False).transpose((1,0,2)) # transpose because of coloumn major input format for bluebild c++
     UVW = (2 * np.pi * UVW.reshape(-1,3).T.reshape(3, -1) / wl).astype(np.float32)
-    prephasing = np.exp(1j * np.sum(grid_center[:, None] * UVW, axis=0)).squeeze().astype(np.complex64)
-    prephasing = prephasing.reshape(-1)
-    return UVW, prephasing
+    return UVW
 
 
 
@@ -105,6 +107,8 @@ N_level = 3
 time_slice = 25
 
 
+lmn_grid, xyz_grid = make_grids(N_pix, FoV, field_center)
+
 img = None
 
 ### Intensity Field ===========================================================
@@ -128,12 +132,11 @@ for t in ProgressBar(time[::time_slice]):
     W = mb(XYZ, wl)
 
     if img is None:
-        lmn, grid_center = make_lmn_grid(N_pix, FoV)
-        img = bluebild.PeriodicSynthesis(ctx, W.data.shape[0], W.data.shape[1], intervals.shape[0], bluebild_filter, np.array(lmn[0], dtype=np.float64), np.array(lmn[1], dtype=np.float64), np.array(lmn[2], dtype=np.float64), eps)
+        img = bluebild.PeriodicSynthesis(ctx, W.data.shape[0], W.data.shape[1], intervals.shape[0], bluebild_filter, np.array(lmn_grid[0], dtype=np.float64), np.array(lmn_grid[1], dtype=np.float64), np.array(lmn_grid[2], dtype=np.float64), eps)
     S = vis(XYZ, W, wl)
 
-    uvw, prephase = convert_uvw_prephase(wl, grid_center, UVW_baselines_t)
-    img.collect(N_eig, wl, np.array(intervals, dtype=np.float64), np.array(W.data, dtype=np.complex128), np.array(prephase, dtype=np.complex128), np.array(XYZ.data, dtype=np.float64), np.array(uvw[0], dtype=np.float64), np.array(uvw[1], dtype=np.float64), np.array(uvw[2], dtype=np.float64), np.array(S.data, dtype=np.complex128))
+    uvw = convert_uvw(wl, UVW_baselines_t)
+    img.collect(N_eig, wl, np.array(intervals, dtype=np.float64), np.array(W.data, dtype=np.complex128), np.array(XYZ.data, dtype=np.float64), np.array(uvw[0], dtype=np.float64), np.array(uvw[1], dtype=np.float64), np.array(uvw[2], dtype=np.float64), np.array(S.data, dtype=np.complex128))
 
 lsq_image = img.get(bluebild.Filter.LSQ).reshape((intervals.shape[0],N_pix,N_pix))
 sqrt_image = img.get(bluebild.Filter.SQRT).reshape((intervals.shape[0],N_pix,N_pix))
@@ -152,27 +155,25 @@ N_eig = S_est.infer_parameters()
 # Imaging
 img = None
 bluebild_filter = convert_filter(['lsq'])
+intervals = np.array([[0, np.finfo('f').max]])
 for t in ProgressBar(time[::time_slice]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
     UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
-    if img is None:
-        lmn, grid_center = make_lmn_grid(N_pix, FoV)
-        img = bluebild.PeriodicSynthesis(ctx, W.data.shape[0], W.data.shape[1], intervals.shape[0], bluebild_filter, np.array(lmn[0], dtype=np.float64), np.array(lmn[1], dtype=np.float64), np.array(lmn[2], dtype=np.float64), eps)
 
-    uvw, prephase = convert_uvw_prephase(wl, grid_center, UVW_baselines_t)
-    img.collect(N_eig, wl, np.array(intervals, dtype=np.float64), np.array(W.data, dtype=np.complex128), np.array(prephase, dtype=np.complex128), np.array(XYZ.data, dtype=np.float64), np.array(uvw[0], dtype=np.float64), np.array(uvw[1], dtype=np.float64), np.array(uvw[2], dtype=np.float64), None)
+    if img is None:
+        img = bluebild.PeriodicSynthesis(ctx, W.data.shape[0], W.data.shape[1], intervals.shape[0], bluebild_filter, np.array(lmn_grid[0], dtype=np.float64), np.array(lmn_grid[1], dtype=np.float64), np.array(lmn_grid[2], dtype=np.float64), eps)
+
+    uvw = convert_uvw(wl, UVW_baselines_t)
+    img.collect(N_eig, wl, np.array(intervals, dtype=np.float64), np.array(W.data, dtype=np.complex128), np.array(XYZ.data, dtype=np.float64), np.array(uvw[0], dtype=np.float64), np.array(uvw[1], dtype=np.float64), np.array(uvw[2], dtype=np.float64), None)
 
 
 sensitivity_image = img.get(bluebild.Filter.LSQ).reshape((intervals.shape[0],N_pix,N_pix))
 
-# TODO remove after xyz grid available
-nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
-                                      field_center=field_center, eps=eps,
-                                      n_trans=1, precision=precision)
 
-I_lsq_eq = s2image.Image(lsq_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
-I_sqrt_eq = s2image.Image(sqrt_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
+
+I_lsq_eq = s2image.Image(lsq_image / sensitivity_image, xyz_grid)
+I_sqrt_eq = s2image.Image(sqrt_image / sensitivity_image, xyz_grid)
 t2 = tt.time()
 print(f'Elapsed time: {t2 - t1} seconds.')
 
@@ -200,5 +201,5 @@ for i in range(lsq_image.shape[0]):
                   catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5), show_gridlines=False)
 
 plt.suptitle(f'Bluebild Eigenmaps')
-plt.show()
-#  plt.savefig('final_bb.png')
+#  plt.show()
+plt.savefig('final_bb.png')

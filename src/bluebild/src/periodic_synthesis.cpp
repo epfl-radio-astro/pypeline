@@ -31,14 +31,13 @@ template <typename T> struct PeriodicSynthesisInternal {
     }
   }
 
-  void collect(int nEig, T wl, const T *intervals,
-               int ldIntervals, const std::complex<T> *s,
-               int lds, const std::complex<T> *w, int ldw,
-               const T *xyz, int ldxyz, const T *uvwX, const T *uvwY,
-               const T *uvwZ, const std::complex<T> *prephase) {
+  void collect(int nEig, T wl, const T *intervals, int ldIntervals,
+               const std::complex<T> *s, int lds, const std::complex<T> *w,
+               int ldw, const T *xyz, int ldxyz, const T *uvwX, const T *uvwY,
+               const T *uvwZ) {
     if (planHost_) {
       planHost_.value().collect(nEig, wl, intervals, ldIntervals, s, lds, w,
-                                ldw, xyz, ldxyz, uvwX, uvwY, uvwZ, prephase);
+                                ldw, xyz, ldxyz, uvwX, uvwY, uvwZ);
     } else {
       // TODO
     }
@@ -71,15 +70,15 @@ PeriodicSynthesis<T>::PeriodicSynthesis(
             }) {}
 
 template <typename T>
-auto PeriodicSynthesis<T>::collect(
-    int nEig, T wl, const T *intervals, int ldIntervals,
-    const std::complex<T> *s, int lds, const std::complex<T> *w,
-    int ldw, const T *xyz, int ldxyz, const T *uvwX,
-    const T *uvwY, const T *uvwZ, const std::complex<T> *prephase) -> void {
+auto PeriodicSynthesis<T>::collect(int nEig, T wl, const T *intervals,
+                                   int ldIntervals, const std::complex<T> *s,
+                                   int lds, const std::complex<T> *w, int ldw,
+                                   const T *xyz, int ldxyz, const T *uvwX,
+                                   const T *uvwY, const T *uvwZ) -> void {
 
   reinterpret_cast<PeriodicSynthesisInternal<T> *>(plan_.get())
       ->collect(nEig, wl, intervals, ldIntervals, s, lds, w, ldw, xyz, ldxyz,
-                uvwX, uvwY, uvwZ, prephase);
+                uvwX, uvwY, uvwZ);
 }
 
 template <typename T>

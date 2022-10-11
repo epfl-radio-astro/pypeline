@@ -1,7 +1,9 @@
 #include <complex>
+#include <algorithm>
 #include <functional>
 #include <memory>
 #include <cstring>
+#include <unistd.h>
 
 #include "bluebild/config.h"
 #include "bluebild/exceptions.hpp"
@@ -12,7 +14,15 @@
 #include "host/virtual_vis_host.hpp"
 #include "memory/buffer.hpp"
 
+
 namespace bluebild {
+
+static auto system_memory() {
+  auto pages = sysconf(_SC_PHYS_PAGES);
+  auto pageSize = sysconf(_SC_PAGE_SIZE);
+  auto memory =  pages * pageSize;
+  return memory > 0 ? memory : 1024;
+}
 
 template <typename T>
 PeriodicSynthesisHost<T>::PeriodicSynthesisHost(
@@ -32,7 +42,12 @@ PeriodicSynthesisHost<T>::PeriodicSynthesisHost(
   lmnZ_ = create_buffer<T>(ctx_->allocators().host(), nPixel_);
   std::memcpy(lmnZ_.get(), lmnZ, sizeof(T) * nPixel_);
 
-  nMaxInputCount_ = 54; // TODO: compute as fraction of system memory
+  // use at most 33% of memory more accumulation, but not more than 200
+  // iterations. TODO: find optimum
+  nMaxInputCount_ =
+      (system_memory() / 3) / (nIntervals_ * nFilter_ * nAntenna_ * nAntenna_ *
+                               sizeof(std::complex<T>));
+  nMaxInputCount_ = std::min<std::size_t>(std::max<std::size_t>(1, nMaxInputCount_), 200);
 
   const auto virtualVisBufferSize =
       nIntervals_ * nFilter_ * nAntenna_ * nAntenna_ * nMaxInputCount_;
@@ -57,7 +72,7 @@ auto PeriodicSynthesisHost<T>::collect(
     std::size_t nEig, T wl, const T *intervals, std::size_t ldIntervals,
     const std::complex<T> *s, std::size_t lds, const std::complex<T> *w,
     std::size_t ldw, const T *xyz, std::size_t ldxyz, const T *uvwX,
-    const T *uvwY, const T *uvwZ, const std::complex<T> *prephase) -> void {
+    const T *uvwY, const T *uvwZ) -> void {
 
   // store coordinates
   std::memcpy(uvwX_.get() + inputCount_ * nAntenna_ * nAntenna_, uvwX,
@@ -98,19 +113,6 @@ auto PeriodicSynthesisHost<T>::collect(
 
   const auto virtualVisBufferSize =
       nIntervals_ * nFilter_ * nAntenna_ * nAntenna_ * nMaxInputCount_;
-  for (std::size_t i = 0; i < nFilter_; ++i) {
-    for (std::size_t j = 0; j < nIntervals_; ++j) {
-      auto virtVisInnerPtr = virtVisPtr + i * ldVirtVis1 + j * ldVirtVis2;
-      for (std::size_t k = 0; k < nAntenna_; ++k) {
-        for (std::size_t l = 0; l < nAntenna_; ++l) {
-          const auto index = k * nAntenna_ + l;
-          // TODO: why is conjugation necessary here?
-          const auto value = l==k ? virtVisInnerPtr[index] : std::conj(virtVisInnerPtr[index]);
-          virtVisInnerPtr[index] = prephase[index] * value;
-        }
-      }
-    }
-  }
 
   ++inputCount_;
   if (inputCount_ >= nMaxInputCount_) {
