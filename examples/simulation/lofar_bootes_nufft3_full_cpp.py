@@ -63,18 +63,18 @@ def make_grids(grid_size, FoV, field_center):
     lmn_grid = np.stack((l_grid, m_grid, n_grid), axis=0)
     uvw_frame = frame.uvw_basis(field_center)
     xyz_grid = np.tensordot(uvw_frame, lmn_grid, axes=1)
-    lmn_grid = lmn_grid.reshape(3, -1).astype(np.float32)
+    lmn_grid = lmn_grid.reshape(3, -1)
     return lmn_grid, xyz_grid
 
 def convert_uvw(wl, UVW):
     UVW = np.array(UVW, copy=False).transpose((1,0,2)) # transpose because of coloumn major input format for bluebild c++
-    UVW = (2 * np.pi * UVW.reshape(-1,3).T.reshape(3, -1) / wl).astype(np.float32)
+    UVW = (2 * np.pi * UVW.reshape(-1,3).T.reshape(3, -1) / wl)
     return UVW
 
 
 
 
-ctx = bluebild.Context(bluebild.ProcessingUnit.AUTO)
+ctx = bluebild.Context(bluebild.ProcessingUnit.CPU)
 
 
 # Observation
@@ -125,18 +125,19 @@ N_eig, c_centroid = I_est.infer_parameters()
 intervals = bb_dp.centroid_to_intervals(c_centroid)
 
 # Imaging
-bluebild_filter = convert_filter(['lsq', 'sqrt'])
+bluebild_filter = [bluebild.Filter.LSQ, bluebild.Filter.SQRT]
+
 for t in ProgressBar(time[::time_slice]):
     XYZ = dev(t)
     UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
     W = mb(XYZ, wl)
 
     if img is None:
-        img = bluebild.PeriodicSynthesis(ctx, W.data.shape[0], W.data.shape[1], intervals.shape[0], bluebild_filter, np.array(lmn_grid[0], dtype=np.float64), np.array(lmn_grid[1], dtype=np.float64), np.array(lmn_grid[2], dtype=np.float64), eps)
+        img = bluebild.PeriodicSynthesis(ctx, W.data.shape[0], W.data.shape[1], intervals.shape[0], bluebild_filter, lmn_grid[0], lmn_grid[1], lmn_grid[2], precision, eps)
     S = vis(XYZ, W, wl)
 
     uvw = convert_uvw(wl, UVW_baselines_t)
-    img.collect(N_eig, wl, np.array(intervals, dtype=np.float64), np.array(W.data, dtype=np.complex128), np.array(XYZ.data, dtype=np.float64), np.array(uvw[0], dtype=np.float64), np.array(uvw[1], dtype=np.float64), np.array(uvw[2], dtype=np.float64), np.array(S.data, dtype=np.complex128))
+    img.collect(N_eig, wl, intervals, W.data, XYZ.data, uvw[0], uvw[1], uvw[2], S.data)
 
 lsq_image = img.get(bluebild.Filter.LSQ).reshape((intervals.shape[0],N_pix,N_pix))
 sqrt_image = img.get(bluebild.Filter.SQRT).reshape((intervals.shape[0],N_pix,N_pix))
@@ -154,7 +155,7 @@ N_eig = S_est.infer_parameters()
 
 # Imaging
 img = None
-bluebild_filter = convert_filter(['lsq'])
+bluebild_filter = [bluebild.Filter.LSQ]
 intervals = np.array([[0, np.finfo('f').max]])
 for t in ProgressBar(time[::time_slice]):
     XYZ = dev(t)
@@ -162,10 +163,10 @@ for t in ProgressBar(time[::time_slice]):
     UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
 
     if img is None:
-        img = bluebild.PeriodicSynthesis(ctx, W.data.shape[0], W.data.shape[1], intervals.shape[0], bluebild_filter, np.array(lmn_grid[0], dtype=np.float64), np.array(lmn_grid[1], dtype=np.float64), np.array(lmn_grid[2], dtype=np.float64), eps)
+        img = bluebild.PeriodicSynthesis(ctx, W.data.shape[0], W.data.shape[1], intervals.shape[0], bluebild_filter, lmn_grid[0], lmn_grid[1], lmn_grid[2], precision, eps)
 
     uvw = convert_uvw(wl, UVW_baselines_t)
-    img.collect(N_eig, wl, np.array(intervals, dtype=np.float64), np.array(W.data, dtype=np.complex128), np.array(XYZ.data, dtype=np.float64), np.array(uvw[0], dtype=np.float64), np.array(uvw[1], dtype=np.float64), np.array(uvw[2], dtype=np.float64), None)
+    img.collect(N_eig, wl, intervals, W.data, XYZ.data, uvw[0], uvw[1], uvw[2], None)
 
 
 sensitivity_image = img.get(bluebild.Filter.LSQ).reshape((intervals.shape[0],N_pix,N_pix))

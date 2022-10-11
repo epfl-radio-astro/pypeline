@@ -266,33 +266,42 @@ struct PeriodicSynthesisDispatcher {
   PeriodicSynthesisDispatcher(
       Context &ctx, int nAntenna, int nBeam, int nIntervals,
       const py::array_t<BluebildFilter, pybind11::array::f_style> &filter,
-      const py::array_t<float, pybind11::array::f_style> &lmnX,
-      const py::array_t<float, pybind11::array::f_style> &lmnY,
-      const py::array_t<float, pybind11::array::f_style> &lmnZ, float tol)
+      const py::array &lmnX, const py::array &lmnY, const py::array &lmnZ,
+      const std::string &precision, double tol)
       : nIntervals_(nIntervals), nPixel_(lmnX.shape(0)) {
-    check_1d_array(filter);
-    check_1d_array(lmnX);
-    check_1d_array(lmnY, lmnX.shape(0));
-    check_1d_array(lmnZ, lmnX.shape(0));
-    plan_ = PeriodicSynthesis<float>(
-        ctx, tol, nAntenna, nBeam, nIntervals, filter.shape(0), filter.data(0),
-        lmnX.shape(0), lmnX.data(0), lmnY.data(0), lmnZ.data(0));
-  }
-
-  PeriodicSynthesisDispatcher(
-      Context &ctx, int nAntenna, int nBeam, int nIntervals,
-      const py::array_t<BluebildFilter, pybind11::array::f_style> &filter,
-      const py::array_t<double, pybind11::array::f_style> &lmnX,
-      const py::array_t<double, pybind11::array::f_style> &lmnY,
-      const py::array_t<double, pybind11::array::f_style> &lmnZ, double tol)
-      : nIntervals_(nIntervals), nPixel_(lmnX.shape(0)) {
-    check_1d_array(filter);
-    check_1d_array(lmnX);
-    check_1d_array(lmnY, lmnX.shape(0));
-    check_1d_array(lmnZ, lmnX.shape(0));
-    plan_ = PeriodicSynthesis<double>(
-        ctx, tol, nAntenna, nBeam, nIntervals, filter.shape(0), filter.data(0),
-        lmnX.shape(0), lmnX.data(0), lmnY.data(0), lmnZ.data(0));
+    if (precision == "single" || precision == "SINGLE") {
+      py::array_t<float, pybind11::array::f_style | py::array::forcecast>
+          lmnXArray(lmnX);
+      py::array_t<float, pybind11::array::f_style | py::array::forcecast>
+          lmnYArray(lmnY);
+      py::array_t<float, pybind11::array::f_style | py::array::forcecast>
+          lmnZArray(lmnZ);
+      check_1d_array(filter);
+      check_1d_array(lmnXArray);
+      check_1d_array(lmnYArray, lmnXArray.shape(0));
+      check_1d_array(lmnZArray, lmnXArray.shape(0));
+      plan_ = PeriodicSynthesis<float>(ctx, tol, nAntenna, nBeam, nIntervals,
+                                       filter.shape(0), filter.data(0),
+                                       lmnXArray.shape(0), lmnXArray.data(0),
+                                       lmnYArray.data(0), lmnZArray.data(0));
+    } else if (precision == "double" || precision == "DOUBLE") {
+      py::array_t<double, pybind11::array::f_style | py::array::forcecast>
+          lmnXArray(lmnX);
+      py::array_t<double, pybind11::array::f_style | py::array::forcecast>
+          lmnYArray(lmnY);
+      py::array_t<double, pybind11::array::f_style | py::array::forcecast>
+          lmnZArray(lmnZ);
+      check_1d_array(filter);
+      check_1d_array(lmnXArray);
+      check_1d_array(lmnYArray, lmnXArray.shape(0));
+      check_1d_array(lmnZArray, lmnXArray.shape(0));
+      plan_ = PeriodicSynthesis<double>(ctx, tol, nAntenna, nBeam, nIntervals,
+                                       filter.shape(0), filter.data(0),
+                                       lmnXArray.shape(0), lmnXArray.data(0),
+                                       lmnYArray.data(0), lmnZArray.data(0));
+    } else {
+      throw InvalidParameterError();
+    }
   }
 
   PeriodicSynthesisDispatcher(PeriodicSynthesisDispatcher &&) = default;
@@ -316,25 +325,33 @@ struct PeriodicSynthesisDispatcher {
                         std::is_same_v<variantType,
                                        PeriodicSynthesis<double>>) {
             using T = typename variantType::valueType;
-            py::array_t<T, py::array::c_style> intervalsArray(intervals);
+            py::array_t<T, py::array::c_style | py::array::forcecast> intervalsArray(intervals);
             check_2d_array(intervalsArray, {nIntervals_, 2});
-            py::array_t<std::complex<T>, py::array::f_style> wArray(w);
+            py::array_t<std::complex<T>,
+                        py::array::f_style | py::array::forcecast>
+                wArray(w);
             check_2d_array(wArray);
             auto nAntenna = wArray.shape(0);
             auto nBeam = wArray.shape(1);
-            py::array_t<T, py::array::f_style> xyzArray(xyz);
+            py::array_t<T, py::array::f_style | py::array::forcecast> xyzArray(
+                xyz);
             check_2d_array(xyzArray, {nAntenna, 3});
-            py::array_t<T, py::array::f_style> uvwXArray(uvwX);
+            py::array_t<T, py::array::f_style | py::array::forcecast> uvwXArray(
+                uvwX);
             check_1d_array(uvwXArray, nAntenna * nAntenna);
-            py::array_t<T, py::array::f_style> uvwYArray(uvwY);
+            py::array_t<T, py::array::f_style | py::array::forcecast> uvwYArray(
+                uvwY);
             check_1d_array(uvwYArray, nAntenna * nAntenna);
-            py::array_t<T, py::array::f_style> uvwZArray(uvwZ);
+            py::array_t<T, py::array::f_style | py::array::forcecast> uvwZArray(
+                uvwZ);
             check_1d_array(uvwZArray, nAntenna * nAntenna);
-            std::optional<py::array_t<std::complex<T>, py::array::f_style>>
+            std::optional<py::array_t<
+                std::complex<T>, py::array::f_style | py::array::forcecast>>
                 sArray;
             if (s) {
-              sArray =
-                  py::array_t<std::complex<T>, py::array::f_style>(s.value());
+              sArray = py::array_t<std::complex<T>,
+                                   py::array::f_style | py::array::forcecast>(
+                  s.value());
               check_2d_array(sArray.value(), {nBeam, nBeam});
             }
             std::get<PeriodicSynthesis<T>>(plan_).collect(
@@ -547,23 +564,13 @@ PYBIND11_MODULE(pybluebild, m) {
       .def(pybind11::init<
                Context &, int, int, int,
                const py::array_t<BluebildFilter, pybind11::array::f_style> &,
-               const py::array_t<float, pybind11::array::f_style> &,
-               const py::array_t<float, pybind11::array::f_style> &,
-               const py::array_t<float, pybind11::array::f_style> &, float>(),
+               const py::array &, const py::array &, const py::array &,
+               const std::string &, double>(),
            pybind11::arg("ctx"), pybind11::arg("n_antenna"),
            pybind11::arg("n_beam"), pybind11::arg("n_intervals"),
            pybind11::arg("filter"), pybind11::arg("lmn_x"),
-           pybind11::arg("lmn_y"), pybind11::arg("lmn_y"), pybind11::arg("tol"))
-      .def(pybind11::init<
-               Context &, int, int, int,
-               const py::array_t<BluebildFilter, pybind11::array::f_style> &,
-               const py::array_t<double, pybind11::array::f_style> &,
-               const py::array_t<double, pybind11::array::f_style> &,
-               const py::array_t<double, pybind11::array::f_style> &, double>(),
-           pybind11::arg("ctx"), pybind11::arg("n_antenna"),
-           pybind11::arg("n_beam"), pybind11::arg("n_intervals"),
-           pybind11::arg("filter"), pybind11::arg("lmn_x"),
-           pybind11::arg("lmn_y"), pybind11::arg("lmn_y"), pybind11::arg("tol"))
+           pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
+           pybind11::arg("precision"), pybind11::arg("tol"))
       .def("collect", &PeriodicSynthesisDispatcher::collect,
            pybind11::arg("nEig"), pybind11::arg("wl"),
            pybind11::arg("intervals"), pybind11::arg("w"), pybind11::arg("xyz"),
