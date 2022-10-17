@@ -178,9 +178,6 @@ list(APPEND BLUEBILD_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/src)
 list(APPEND BLUEBILD_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/include)
 list(APPEND BLUEBILD_INCLUDE_DIRS ${PROJECT_BINARY_DIR})
 
-find_package(Marla REQUIRED)
-list(APPEND BLUEBILD_EXTERNAL_LIBS Marla::Marla)
-
 #############################################################################
 # All include dirs and definitions must be set before sub-directory is added!
 #############################################################################

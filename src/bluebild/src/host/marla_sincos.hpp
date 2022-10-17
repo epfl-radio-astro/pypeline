@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 #include <math.h>
-#include "marla_floor.hpp"
+#include <cmath>
 #include "constants.hpp"
 
 #include <iostream>
@@ -125,7 +125,7 @@ void marla_sincos(const T px, T* s, T* c)
 	}
 	x = x * CST180<T> / PI<T>;
 	y = x / CST360<T>;
-	x = x - CST360<T> * marla_floor(y);
+	x = x - CST360<T> * std::floor(y);
 
 	/* Find nearest integer to x.
 	 * Note there should be a domain error test here,
