@@ -27,7 +27,7 @@ BLUEBILD_EXPORT auto eigh(ContextInternal &ctx, int m, int nEig,
   if (ctx.processing_unit() == BLUEBILD_PU_GPU) {
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
         // Syncronize with default stream. TODO: replace with event
-        gpu::stream_synchronize(nullptr);
+        gpu::check_status(gpu::stream_synchronize(nullptr));
 
         BufferType<gpu::ComplexType<T>> aBuffer, bBuffer, vBuffer;
         BufferType<T> dBuffer;
@@ -72,7 +72,7 @@ BLUEBILD_EXPORT auto eigh(ContextInternal &ctx, int m, int nEig,
         }
 
         // call eigh on GPU
-        auto devInfo = eigh_gpu<T>(ctx, m, nEig, aDevice, ldaDevice, bDevice, ldbDevice, nEigOut,
+        eigh_gpu<T>(ctx, m, nEig, aDevice, ldaDevice, bDevice, ldbDevice, nEigOut,
                                    dDevice, vDevice, ldvDevice);
 
         // copy back results if required
@@ -87,17 +87,10 @@ BLUEBILD_EXPORT auto eigh(ContextInternal &ctx, int m, int nEig,
                                               gpu::flag::MemcpyDeviceToHost, ctx.gpu_stream()));
         }
 
-        int hostInfo[2];
-        gpu::check_status(gpu::memcpy_async(hostInfo, devInfo.get(), 2 * sizeof(int),
-                                            gpu::flag::MemcpyDeviceToHost, ctx.gpu_stream()));
 
         // syncronize with stream to be synchronous with host
         gpu::check_status(gpu::stream_synchronize(ctx.gpu_stream()));
 
-        // check if eigensolver threw error
-        if (hostInfo[0] || hostInfo[1]) {
-          throw EigensolverError();
-        }
 #else
         throw GPUSupportError();
 #endif

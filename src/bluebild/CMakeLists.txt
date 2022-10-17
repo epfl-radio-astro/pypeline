@@ -42,6 +42,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
 # Options
 option(BLUEBILD_BUILD_TESTS "Build tests" OFF)
 option(BLUEBILD_PYTHON "Build python module" ON)
+option(BLUEBILD_MAGMA "Use MAGMA library as eigensolver" OFF)
 option(BLUEBILD_PYBIND11_DOWNLOAD "Download pybind11 instead of looking for installation" OFF)
 option(BLUEBILD_UMPIRE "Use Umpire memory pool library" OFF)
 
@@ -54,6 +55,7 @@ set(BLUEBILD_INSTALL "LIB" CACHE STRING "Install the librariy (LIB), the python 
 set_property(CACHE BLUEBILD_INSTALL PROPERTY STRINGS
 	"LIB" "PYTHON" "OFF"
 	)
+set(CMAKE_HIP_ARCHITECTURES "gfx803;gfx900;gfx906" CACHE STRING "HIP GPU architectures")
 
 set(BLUEBILD_BUILD_TYPE "OFF" CACHE STRING "If set, overrides the CMAKE_BUILD_TYPE variable.")
 set_property(CACHE BLUEBILD_BUILD_TYPE PROPERTY STRINGS
@@ -70,6 +72,7 @@ if(BLUEBILD_GPU)
 		set(BLUEBILD_CUDA ON)
 	elseif(BLUEBILD_GPU STREQUAL "ROCM")
 		set(BLUEBILD_ROCM ON)
+		set(BLUEBILD_MAGMA ON)
 	else()
 		message(FATAL_ERROR "Invalid GPU backend")
 	endif()
@@ -78,6 +81,11 @@ endif()
 if(BLUEBILD_INSTALL STREQUAL "PYTHON")
 	set(BLUEBILD_PYTHON ON)
 endif()
+
+
+set(BLUEBILD_FLAGS "")
+set(BLUEBILD_EXTERNAL_LIBS "")
+set(BLUEBILD_INCLUDE_DIRS "")
 
 # CUDA
 if(BLUEBILD_CUDA)
@@ -112,10 +120,25 @@ endif()
 
 # ROCm
 if(BLUEBILD_ROCM)
-	message(FATAL_ERROR "ROCM support not yet fully implemented") # TODO: remove when implemented
+	include(CheckCXXCompilerFlag)
+	check_cxx_compiler_flag("--amdgpu-target=gfx906" _IS_HIPCC)
+	if(NOT _IS_HIPCC)
+		message(FATAL_ERROR "ROCm build requires hipcc to be set as CXX compiler!")
+	endif()
+	list(APPEND BLUEBILD_FLAGS -fno-gpu-rdc)
+	foreach(arch ${CMAKE_HIP_ARCHITECTURES})
+		list(APPEND BLUEBILD_FLAGS --amdgpu-target=${arch})
+	endforeach()
 	find_package(hip CONFIG REQUIRED)
 	find_package(rocblas CONFIG REQUIRED)
   list(APPEND BLUEBILD_EXTERNAL_LIBS hip::host roc::rocblas)
+endif()
+
+# MAGMA
+if(BLUEBILD_MAGMA)
+	find_package(MAGMA MODULE REQUIRED)
+	list(APPEND BLUEBILD_EXTERNAL_LIBS MAGMA::MAGMA)
+	list(APPEND BLUEBILD_FLAGS -DUSE_HIP) # required to compile magma header
 endif()
 
 # Umpire

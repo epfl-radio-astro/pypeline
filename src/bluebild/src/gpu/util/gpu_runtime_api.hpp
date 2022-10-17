@@ -9,6 +9,7 @@
 
 #elif defined(BLUEBILD_ROCM)
 #include <hip/hip_runtime_api.h>
+#include <hip/hip_complex.h>
 #define GPU_PREFIX(val) hip##val
 #endif
 

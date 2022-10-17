@@ -67,7 +67,24 @@ void zhegvx_(const int *ITYPE, const char *JOBZ, const char *RANGE,
 
 namespace bluebild {
 namespace lapack {
-static auto eigh_solve(LapackeLayout matrixLayout, char jobz, char range,
+
+inline auto slamch(char cmach) -> float {
+#ifdef BLUEBILD_LAPACK_C
+  return LAPACKE_slamch(cmach);
+#else
+  return slamch_(&cmach, 1);
+#endif
+}
+
+inline auto dlamch(char cmach) -> double {
+#ifdef BLUEBILD_LAPACK_C
+  return LAPACKE_dlamch(cmach);
+#else
+  return dlamch_(&cmach, 1);
+#endif
+}
+
+inline auto eigh_solve(LapackeLayout matrixLayout, char jobz, char range,
                        char uplo, int n, std::complex<float> *a, int lda,
                        float vl, float vu, int il, int iu, int *m, float *w,
                        std::complex<float> *z, int ldz, int *ifail) -> int {
@@ -100,7 +117,7 @@ static auto eigh_solve(LapackeLayout matrixLayout, char jobz, char range,
 #endif
 }
 
-static auto eigh_solve(LapackeLayout matrixLayout, char jobz, char range,
+inline auto eigh_solve(LapackeLayout matrixLayout, char jobz, char range,
                        char uplo, int n, std::complex<double> *a, int lda,
                        double vl, double vu, int il, int iu, int *m, double *w,
                        std::complex<double> *z, int ldz, int *ifail) -> int {
@@ -133,7 +150,7 @@ static auto eigh_solve(LapackeLayout matrixLayout, char jobz, char range,
 #endif
 }
 
-static auto eigh_solve(LapackeLayout matrixLayout, int itype, char jobz,
+inline auto eigh_solve(LapackeLayout matrixLayout, int itype, char jobz,
                        char range, char uplo, int n, std::complex<float> *a,
                        int lda, std::complex<float> *b, int ldb, float vl,
                        float vu, int il, int iu, int *m, float *w,
@@ -167,7 +184,7 @@ static auto eigh_solve(LapackeLayout matrixLayout, int itype, char jobz,
 #endif
 }
 
-static auto eigh_solve(LapackeLayout matrixLayout, int itype, char jobz,
+inline auto eigh_solve(LapackeLayout matrixLayout, int itype, char jobz,
                        char range, char uplo, int n, std::complex<double> *a,
                        int lda, std::complex<double> *b, int ldb, double vl,
                        double vu, int il, int iu, int *m, double *w,

@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <cassert>
+#include <tuple>
 #include <functional>
 #include "bluebild/bluebild.h"
 #include "bluebild/config.h"
@@ -10,11 +11,13 @@
 #include "memory/allocator_collection.hpp"
 
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
-#include <cusolverDn.h>
 #include "gpu/util/gpu_runtime_api.hpp"
 #include "gpu/util/gpu_blas_api.hpp"
 #endif
 
+#if !defined(BLUEBILD_MAGMA) && defined(BLUEBILD_CUDA)
+#include <cusolverDn.h>
+#endif
 namespace bluebild {
 
 
@@ -42,9 +45,10 @@ class ContextInternal {
         // create stream
         gpu::StreamType stream;
         gpu::check_status(gpu::stream_create_with_flags(&stream, gpu::flag::StreamNonBlocking));
-        gpuStream_ = std::unique_ptr<gpu::StreamType, std::function<void(gpu::StreamType*)>>(
-            new gpu::StreamType(stream), [](gpu::StreamType* ptr) {
-              gpu::stream_destroy(*ptr);
+        gpuStream_ = std::unique_ptr<gpu::StreamType,
+                                     std::function<void(gpu::StreamType *)>>(
+            new gpu::StreamType(stream), [](gpu::StreamType *ptr) {
+              std::ignore = gpu::stream_destroy(*ptr);
               delete ptr;
             });
         // create stream
@@ -60,13 +64,21 @@ class ContextInternal {
         gpu::blas::HandleType blasHandle;
         gpu::blas::check_status(gpu::blas::create(&blasHandle));
         gpuBlasHandle_ =
-            std::unique_ptr<gpu::blas::HandleType, std::function<void(gpu::blas::HandleType*)>>(
-                new gpu::blas::HandleType(blasHandle), [](gpu::blas::HandleType* ptr) {
-                  gpu::blas::destroy(*ptr);
+            std::unique_ptr<gpu::blas::HandleType,
+                            std::function<void(gpu::blas::HandleType *)>>(
+                new gpu::blas::HandleType(blasHandle),
+                [](gpu::blas::HandleType *ptr) {
+                  std::ignore = gpu::blas::destroy(*ptr);
                   delete ptr;
                 });
         gpu::blas::set_stream(*gpuBlasHandle_, *gpuStream_);
 
+
+#else
+        throw GPUSupportError();  // CPU not implemented yet
+#endif
+
+#if !defined(BLUEBILD_MAGMA) && defined(BLUEBILD_CUDA)
         // create gpu solver
         cusolverDnHandle_t solverHandle;
         if (cusolverDnCreate(&solverHandle) != CUSOLVER_STATUS_SUCCESS) throw GPUError();
@@ -79,10 +91,8 @@ class ContextInternal {
 
         if (cusolverDnSetStream(solverHandle, *gpuStream_) != CUSOLVER_STATUS_SUCCESS)
           throw GPUError();
-
-#else
-        throw GPUSupportError();  // CPU not implemented yet
 #endif
+
       }
     }
 
@@ -98,6 +108,8 @@ class ContextInternal {
       return *gpuBlasHandle_;
     }
 
+#endif
+#if !defined(BLUEBILD_MAGMA) && defined(BLUEBILD_CUDA)
     auto gpu_solver_handle() const -> const cusolverDnHandle_t& {
       return *gpuSolverHandle_;
     }
@@ -114,6 +126,9 @@ class ContextInternal {
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
     std::unique_ptr<gpu::StreamType, std::function<void(gpu::StreamType*)>> gpuStream_, gpuStream2_;
     std::unique_ptr<gpu::blas::HandleType, std::function<void(gpu::blas::HandleType*)>> gpuBlasHandle_;
+#endif
+
+#if !defined(BLUEBILD_MAGMA) && defined(BLUEBILD_CUDA)
     std::unique_ptr<cusolverDnHandle_t, std::function<void(cusolverDnHandle_t*)>> gpuSolverHandle_;
 #endif
 };

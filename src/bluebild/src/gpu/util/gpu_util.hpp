@@ -1,5 +1,7 @@
 #pragma once
 
+#include <tuple>
+
 #include "bluebild/config.h"
 #include "gpu/util/gpu_runtime_api.hpp"
 
@@ -13,7 +15,7 @@ auto is_device_ptr(const T* ptr) -> bool {
     // throw error if unexpected error
     if (status != gpu::status::ErrorInvalidValue) gpu::check_status(status);
     // clear error from cache and return otherwise
-    gpu::get_last_error();
+    std::ignore = gpu::get_last_error();
     return false;
   }
 

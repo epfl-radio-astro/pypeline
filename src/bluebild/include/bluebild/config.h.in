@@ -2,6 +2,7 @@
 
 #cmakedefine BLUEBILD_CUDA
 #cmakedefine BLUEBILD_ROCM
+#cmakedefine BLUEBILD_MAGMA
 #cmakedefine BLUEBILD_BLAS_C
 #cmakedefine BLUEBILD_LAPACK_C
 #cmakedefine BLUEBILD_UMPIRE
