@@ -46,6 +46,19 @@ auto check_2d_array(const py::array_t<T, STYLE> &a,
     throw InvalidParameterError();
 }
 
+template <typename T, int STYLE>
+auto check_3d_array(const py::array_t<T, STYLE> &a,
+                    std::array<long, 3> shape = {0, 0, 0}) -> void {
+  if (a.ndim() != 3)
+    throw InvalidParameterError();
+  if (shape[0] && a.shape(0) != shape[0])
+    throw InvalidParameterError();
+  if (shape[1] && a.shape(1) != shape[1])
+    throw InvalidParameterError();
+  if (shape[2] && a.shape(2) != shape[2])
+    throw InvalidParameterError();
+}
+
 template <typename T>
 auto call_gram_matrix(Context &ctx,
                       const py::array_t<T, py::array::f_style> &xyz,
@@ -165,6 +178,72 @@ auto call_virtual_vis(
 
   return virtualVis;
 }
+
+struct SSDispatcher {
+    SSDispatcher(const Context &ctx, const float wl,
+                 const std::size_t Nl, const std::size_t Nh, const std::size_t Nw,
+                 const py::array_t<float, pybind11::array::f_style> &pix_grid,
+                 py::array_t<float, pybind11::array::f_style> &stats_std_cum,
+                 py::array_t<float, pybind11::array::f_style> &stats_lsq_cum) {
+        ss_ = SSf(ctx, wl, Nl, Nh, Nw, pix_grid.data(0),
+                  stats_std_cum.mutable_data(0), stats_lsq_cum.mutable_data(0));
+    }
+    SSDispatcher(const Context &ctx, const double wl,
+                 const std::size_t Nl, const std::size_t Nh, const std::size_t Nw,
+                 const py::array_t<double, pybind11::array::f_style> &pix_grid,
+                 py::array_t<double, pybind11::array::f_style> &stats_std_cum,
+                 py::array_t<double, pybind11::array::f_style> &stats_lsq_cum) {
+        ss_ = SS(ctx, wl, Nl, Nh, Nw, pix_grid.data(0),
+                 stats_std_cum.mutable_data(0), stats_lsq_cum.mutable_data(0));
+    }
+
+    SSDispatcher(SSDispatcher &&) = default;
+    SSDispatcher(const SSDispatcher &) = delete;
+    SSDispatcher &operator=(SSDispatcher &&) = default;
+    SSDispatcher &operator=(const SSDispatcher &) = delete;
+
+
+    auto execute(pybind11::array d, pybind11::array v, pybind11::array xyz,
+                 pybind11::array w, pybind11::array c_idx, const bool d2h) -> void {
+
+        if (d.ndim() != 1)     throw InvalidParameterError();
+        if (c_idx.ndim() != 1) throw InvalidParameterError();
+        if (v.ndim() != 2)     throw InvalidParameterError();
+        if (xyz.ndim() != 2)   throw InvalidParameterError();
+        if (w.ndim() != 2)     throw InvalidParameterError();
+
+        const size_t Na = xyz.shape(0);
+        const size_t Ne = d.shape(0);
+        const size_t Nb = v.shape(0);
+
+        assert(c_idx.shape(0) == Ne);
+
+        std::visit([&](auto &&arg) {
+          using T = std::decay_t<decltype(arg)>;
+          if constexpr (std::is_same_v<T, SSf>) {
+                  py::array_t<float, py::array::f_style> dArray(d);                
+                  py::array_t<std::complex<float>, py::array::f_style> vArray(v);
+                  py::array_t<float, py::array::f_style> xyzArray(xyz);
+                  py::array_t<std::complex<float>, py::array::f_style> wArray(w);
+                  py::array_t<std::size_t, py::array::f_style> cidxArray(c_idx);
+                  std::get<SSf>(ss_).execute(dArray.data(0), vArray.data(0), xyzArray.data(0),
+                                             wArray.data(0), cidxArray.data(0), Na, Ne, Nb, d2h);
+              } else if constexpr (std::is_same_v<T, SS>) {
+                  py::array_t<double, py::array::f_style> dArray(d);
+                  py::array_t<std::complex<double>, py::array::f_style> vArray(v);
+                  py::array_t<double, py::array::f_style> xyzArray(xyz);
+                  py::array_t<std::complex<double>, py::array::f_style> wArray(w);
+                  py::array_t<std::size_t, py::array::f_style> cidxArray(c_idx);
+                  std::get<SS>(ss_).execute(dArray.data(0), vArray.data(0), xyzArray.data(0),
+                                            wArray.data(0), cidxArray.data(0), Na, Ne, Nb, d2h);
+              } else {
+              throw InternalError();
+          }
+       }, ss_);
+    }
+
+    std::variant<std::monostate, SSf, SS> ss_;    
+};
 
 struct Nufft3d3Dispatcher {
 
@@ -577,4 +656,30 @@ PYBIND11_MODULE(pybluebild, m) {
            pybind11::arg("uvwX"), pybind11::arg("uvwY"), pybind11::arg("uvwY"),
            pybind11::arg("s"))
       .def("get", &PeriodicSynthesisDispatcher::get, pybind11::arg("f"));
+
+  pybind11::class_<SSDispatcher>(m, "SS")
+      .def(pybind11::init<
+           const Context &, const float,
+           const std::size_t, const std::size_t, const std::size_t,
+           const py::array_t<float, pybind11::array::f_style> &,
+           py::array_t<float, pybind11::array::f_style> &,
+           py::array_t<float, pybind11::array::f_style> &>(),
+           pybind11::arg("ctx"), pybind11::arg("wl"),
+           pybind11::arg("Nl"), pybind11::arg("Nh"), pybind11::arg("Nw"),
+           pybind11::arg("pix_grid"),
+           pybind11::arg("stats_std_cum"), pybind11::arg("stats_lsq_cum"))
+      .def(pybind11::init<
+           const Context &, const double,
+           const std::size_t, const std::size_t, const std::size_t,
+           const py::array_t<double, pybind11::array::f_style> &,
+           py::array_t<double, pybind11::array::f_style> &,
+           py::array_t<double, pybind11::array::f_style> &>(),
+           pybind11::arg("ctx"), pybind11::arg("wl"),
+           pybind11::arg("Nl"), pybind11::arg("Nh"), pybind11::arg("Nw"),
+           pybind11::arg("pix_grid"),
+           pybind11::arg("stats_std_cum"), pybind11::arg("stats_lsq_cum"))
+      .def("execute", &SSDispatcher::execute,
+           pybind11::arg("d"), pybind11::arg("v"),
+           pybind11::arg("xyz"), pybind11::arg("w"), pybind11::arg("c_idx"),
+           pybind11::arg("d2h"));
 }

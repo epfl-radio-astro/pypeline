@@ -1,10 +1,11 @@
 set(BLUEBILD_SOURCE_FILES
 	eigensolver.cpp
 	gram_matrix.cpp
-	intensitiy_field_data.cpp
+	intensity_field_data.cpp
 	sensitivity_field_data.cpp
 	virtual_vis.cpp
 	nufft_3d3.cpp
+    standard_synthesizer.cpp
 	context.cpp
 	periodic_synthesis.cpp
 	host/eigensolver_host.cpp
@@ -14,6 +15,9 @@ set(BLUEBILD_SOURCE_FILES
 	host/periodic_synthesis_host.cpp
 	host/nufft_3d3_host.cpp
 	host/virtual_vis_host.cpp
+	host/ss_host.cpp
+	host/gemmexp.cpp
+	host/standard_synthesizer_host.cpp
 	)
 
 if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
@@ -25,6 +29,7 @@ if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
 		gpu/nufft_3d3_gpu.cpp
 		gpu/periodic_synthesis_gpu.cpp
 		gpu/virtual_vis_gpu.cpp
+		gpu/standard_synthesizer_gpu.cpp
 		gpu/kernels/reverse.cu
 		gpu/kernels/inv_square.cu
 		gpu/kernels/min_diff.cu
@@ -32,6 +37,7 @@ if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
 		gpu/kernels/scale_matrix.cu
 		gpu/kernels/apply_filter.cu
 		gpu/kernels/add_vector.cu
+		gpu/kernels/standard_synthesizer.cu
 		)
 endif()
 

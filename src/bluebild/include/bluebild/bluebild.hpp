@@ -9,6 +9,7 @@
 #include "bluebild/context.hpp"
 #include "bluebild/nufft_3d3.hpp"
 #include "bluebild/periodic_synthesis.hpp"
+#include "bluebild/standard_synthesizer.hpp"
 
 namespace bluebild {
 

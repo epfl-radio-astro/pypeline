@@ -145,18 +145,20 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         if precision == 32:
             self._fp = np.float32
             self._cp = np.complex64
+            self._wl = np.float32(wl)
         elif precision == 64:
             self._fp = np.float64
             self._cp = np.complex128
+            self._wl = np.float64(wl)
         else:
             raise ValueError("Parameter[precision] must be 32 or 64.")
 
-        self._wl = wl
-
         if not ((pix_grid.ndim == 3) and (len(pix_grid) == 3)):
             raise ValueError("Parameter[pix_grid] must have dimensions (3, N_height, N_width).")
-        self._grid = pix_grid / linalg.norm(pix_grid, axis=0)
 
+        self._grid = (pix_grid / linalg.norm(pix_grid, axis=0)).astype(self._fp)
+        
+        
     # needed to remove this check for GPU/CPU flexibility
     # TODO: add back in...
     '''@chk.check(
@@ -201,14 +203,13 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             use_cupy = True
         #print("Using:", xp.__name__)
 
-
         if not _have_matching_shapes(V, XYZ, W):
             raise ValueError("Parameters[V, XYZ, W] are inconsistent.")
 
         # TODO: move precision control outside of the call
-        #V = V.astype(self._cp, copy=False)
-        #XYZ = XYZ.astype(self._fp, copy=False)
-        #W = W.astype(self._cp, copy=False)
+        XYZ = XYZ.astype(self._fp, copy=False)
+        V = V.astype(self._cp, copy=False)
+        W = W.astype(self._cp, copy=False)
 
         self.mark(self.timer_tag + "Synthesizer call")
 
@@ -220,27 +221,38 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             XYZ = xp.asarray(XYZ)
 
         XYZ = XYZ - XYZ.mean(axis=0)
-        #P = xp.zeros((N_antenna, N_height, N_width), dtype=self._cp)
-
+        
         E = xp.zeros((N_eig, N_height, N_width), dtype=self._cp)
 
         a = 1j * 2 * np.pi / self._wl
+
+        assert V.dtype   == self._cp, f'V {V.dtype} not of expected type {self._cp}'
+        assert XYZ.dtype == self._fp, f'XYZ {XYZ.dtype} not of expected type {self._fp}'
+        assert W.dtype   == self._cp, f'W {W.dtype} not of expected type {self._cp}'
+        assert E.dtype   == self._cp, f'E {E.dtype} not of expected type {self._cp}'
+        assert self._grid.dtype == self._fp, f'_grid {self._grid.dtype} not of expected type {self._fp}'
 
         self.mark(self.timer_tag + "Synthesizer matmuls")
 
         for i in range(N_width):
             pix = xp.asarray(self._grid[:,:,i])
+            assert pix.dtype == self._fp
             b  = xp.matmul(XYZ, pix)
+            assert b.dtype == self._fp
             P  = xp.exp(a*b)
+            assert P. dtype == self._cp
             if xp == np and (isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix)):
                 PW = W.T @ P
             else:
                 PW = xp.matmul(W.T, P)
+            assert PW.dtype == self._cp
             E[:,:,i]  = xp.matmul(V.T, PW)
+            assert E.dtype == self._cp
 
         self.unmark(self.timer_tag + "Synthesizer matmuls")
 
         I = E.real ** 2 + E.imag ** 2
+        assert I.dtype == self._fp
 
         self.unmark(self.timer_tag + "Synthesizer call")
 

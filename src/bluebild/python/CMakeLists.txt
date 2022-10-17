@@ -25,6 +25,15 @@ endif()
 
 pybind11_add_module(pybluebild pybluebild.cpp)
 target_link_libraries(pybluebild PRIVATE bluebild)
+set_target_properties(pybluebild PROPERTIES
+	ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bluebild"
+	LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bluebild"
+	)
+
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/bluebild/__init__.py"
+	"${CMAKE_CURRENT_BINARY_DIR}/bluebild/__init__.py"
+	COPYONLY
+)
 
 if(BLUEBILD_INSTALL STREQUAL "PYTHON")
 	# make sure the module can find the library
@@ -41,6 +50,7 @@ if(BLUEBILD_INSTALL STREQUAL "PYTHON")
 
 	# destiantion dir must match module name in setup.py
 	install(TARGETS pybluebild DESTINATION bluebild)
+	install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/bluebild/__init__.py" DESTINATION bluebild)
 	# if BLUEBILD_INSTALL is equal PYTHON, the library has not been added to the install target
 	install(TARGETS bluebild DESTINATION bluebild/_libs)
 endif()

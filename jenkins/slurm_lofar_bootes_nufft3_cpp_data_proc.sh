@@ -1,5 +1,4 @@
 #!/bin/bash
-
 #SBATCH --partition build
 #SBATCH --time 00-01:00:00
 #SBATCH --qos gpu
@@ -7,59 +6,32 @@
 #SBATCH --mem 40G
 #SBATCH --cpus-per-task 1
 
-set -e
-
-module load gcc
-module load fftw
-module load cuda/11.0.2
-module load cmake
-module load openblas
-module list
-
-CONDA_ENV=pype-111
-eval "$(conda shell.bash hook)"
-conda activate $CONDA_ENV
-conda env list
-
-PYTHON=`which python`
-echo PYTHON = $PYTHON
-python -V
-pip show pypeline
-
-echo; pwd
-echo; hostname
-echo
-
-# Check finufft version that is used
-#FINUFFT=./finufft
-#cd $FINUFFT
-#FINUFFT_DIR=`pwd` python -m pip install -e ./python
-$PYTHON -c "import finufft as _; print(_.__path__)" # Print path to finufft
-#cd ..
-#exit 0
-
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export VECLIB_MAXIMUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
-# || true to avoid failure when grep returns nothing under set -e
-echo; echo
-env | grep UM_THREADS || true
-echo
-env | grep SLURM || true
-echo; echo
+set -e
 
-echo "TEST_DIR    = ${TEST_DIR}"
-echo "TEST_SEFF   = ${TEST_SEFF}"
-echo
-echo "PROFILE_CPROFILE = ${PROFILE_CPROFILE}"
-echo "PROFILE_NSIGHT   = ${PROFILE_NSIGHT}"
-echo "PROFILE_VTUNE    = ${PROFILE_VTUNE}"
-echo "PROFILE_ADVISOR  = ${PROFILE_ADVISOR}"
+SCRIPT=$(realpath "$0")
+SCRIPT_DIR=$(dirname "$SCRIPT")
+source $SCRIPT_DIR/install.sh
 
-# Set early exit switch
+bb_load_gcc_stack
+bb_activate_venv
+
+PYTHON=`which python`
+
+# Python script to be run
+PY_SCRIPT="$SCRIPT_DIR/lofar_bootes_nufft3_cpp_data_proc.py"
+[ -f $PY_SCRIPT ] || (echo "Fatal: PY_SCRIPT >>$PY_SCRIPT<< not found"; exit 1)
+echo "PY_SCRIPT = $PY_SCRIPT"; echo
+
+bb_print_env
+bb_print_jenkins_env
+
+# Running with TEST_SEFF=1 causes an early exit
 EARLY_EXIT="${TEST_SEFF:-0}"
 
 # Set profiling switches
@@ -68,47 +40,18 @@ RUN_NSIGHT="${PROFILE_NSIGHT:-0}"
 RUN_VTUNE="${PROFILE_VTUNE:-0}"
 RUN_ADVISOR="${PROFILE_ADVISOR:-0}"
 
-# Output directory must be defined and existing
-if [[ -z "${TEST_DIR}" ]]; then
-    echo "Error: TEST_DIR unset. Must point to an existing directory."
-    exit 1
-else 
-    if [[ ! -d "${TEST_DIR}" ]]; then
-        echo "Error: TEST_DIR must point to an existing directory."
-        exit 1
-    fi
-fi
-ARG_TEST_DIR="--outdir ${TEST_DIR}"
+ARG_TEST_DIR="$(bb_check_output_dir ${TEST_DIR})"
 
-# Script to be run
-PY_SCRIPT="./jenkins/lofar_bootes_nufft3_cpp_data_proc.py"
-echo "PY_SCRIPT = $PY_SCRIPT"; echo
-
-pwd
-cd src/bluebild
-echo env BLUEBILD_GPU set to $BLUEBILD_GPU
-echo env FINUFFT_ROOT set to $FINUFFT_ROOT
-echo env LD_LIBRARY_PATH set to $LD_LIBRARY_PATH
-echo
-[ -f CMakeCache.txt ] && rm -v  CMakeCache.txt
-[ -d CMakeFiles ]     && rm -rv CMakeFiles
-###ls -l
-###[ -d _skbuild ] && rm -r _skbuild
-###ls -l
-pip install --no-deps .
-cd -
 
 # Note: --outdir is omitted, no output is written on disk
 echo "### Timing"
 time python $PY_SCRIPT $ARG_TEST_DIR
 echo; echo
 
-# Running with TEST_SEFF=1 causes an early exit
-if [ $EARLY_EXIT == "1" ]; then
+if [[ $EARLY_EXIT == "1" ]]; then
     echo "TEST_SEFF set to 1 -> exit 0";
     exit 0
 fi
-
 
 if [ $RUN_CPROFILE == "1" ]; then
     echo "### cProfile"
@@ -116,25 +59,18 @@ if [ $RUN_CPROFILE == "1" ]; then
     echo; echo
 fi
 
-
 if [ $RUN_VTUNE == "1" ]; then
-    echo "### Intel VTune Amplifier"
-    source /work/scitas-ge/richart/test_stacks/syrah/v1/opt/spack/linux-rhel7-skylake_avx512/gcc-8.4.0/intel-oneapi-vtune-2021.6.0-34ym22fgautykbgmg5hhgkiwrvbwfvko/setvars.sh || echo "ignoring warning"
-    which vtune
-    vtune -collect hotspots           -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -source-search-dir=. -search-dir=. -result-dir=$TEST_DIR/vtune_hs  -- $PYTHON $PY_SCRIPT
-    vtune -collect hpc-performance    -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -source-search-dir=. -search-dir=. -result-dir=$TEST_DIR/vtune_hpc -- $PYTHON $PY_SCRIPT
-    vtune -collect memory-consumption -run-pass-thru=--no-altstack -strategy ldconfig:notrace:notrace -source-search-dir=. -search-dir=. -result-dir=$TEST_DIR/vtune_mem -- $PYTHON $PY_SCRIPT
+    bb_vtune_hotspots           "${TEST_DIR}" "${PYTHON}" "{$PY_SCRIPT}"
+    bb_vtune_hpc_performance    "${TEST_DIR}" "${PYTHON}" "{$PY_SCRIPT}"
+    bb_vtune_memory_consumption "${TEST_DIR}" "${PYTHON}" "{$PY_SCRIPT}"
+    echo; echo
 fi
-echo; echo
-
 
 if [ $RUN_ADVISOR == "1" ]; then
-    echo "### Intel Advisor"
-    source /work/scitas-ge/richart/test_stacks/syrah/v1/opt/spack/linux-rhel7-skylake_avx512/gcc-8.4.0/intel-oneapi-advisor-2021.4.0-any7cfov5s4ujprr7plf7ks7xzoyqljz/setvars.sh
-    ADVIXE_RUNTOOL_OPTIONS=--no-altstack OMP_NUM_THREADS=1 advixe-cl -collect roofline --enable-cache-simulation --profile-python -project-dir $TEST_DIR/advisor -search-dir src:=. -- $PYTHON $PY_SCRIPT
+    bb_advisor_roofline "${TEST_DIR}" "${PYTHON}" "{$PY_SCRIPT}"
 fi
 
-ls -rtl $TEST_DIR
+
 
 
 # To test from command line
