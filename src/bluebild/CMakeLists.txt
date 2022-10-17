@@ -45,6 +45,7 @@ option(BLUEBILD_PYTHON "Build python module" ON)
 option(BLUEBILD_MAGMA "Use MAGMA library as eigensolver" OFF)
 option(BLUEBILD_PYBIND11_DOWNLOAD "Download pybind11 instead of looking for installation" OFF)
 option(BLUEBILD_UMPIRE "Use Umpire memory pool library" OFF)
+option(BLUEBILD_OMP "Use OpenMP for multi-threading" ON)
 
 set(BLUEBILD_GPU "OFF" CACHE STRING "GPU backend")
 set_property(CACHE BLUEBILD_GPU PROPERTY STRINGS
@@ -180,8 +181,10 @@ if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
 endif()
 
 # OpenMP
-find_package(OpenMP REQUIRED)
-list(APPEND BLUEBILD_EXTERNAL_LIBS OpenMP::OpenMP_CXX)
+if(BLUEBILD_OMP)
+  find_package(OpenMP REQUIRED)
+  list(APPEND BLUEBILD_EXTERNAL_LIBS OpenMP::OpenMP_CXX)
+endif()
 
 # check if C api is available for blas and lapack
 # include(CheckCXXSymbolExists)
@@ -207,7 +210,6 @@ list(APPEND BLUEBILD_INCLUDE_DIRS ${PROJECT_BINARY_DIR})
 add_subdirectory(src)
 
 if(BLUEBILD_PYTHON)
-    message(STATUS "BLUEBILD_PYTHON")
 	add_subdirectory(python)
 endif()
 

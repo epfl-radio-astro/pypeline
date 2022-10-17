@@ -10,7 +10,9 @@
 
 namespace bluebild {
 template <typename T>
-auto eigh_gpu(ContextInternal& ctx, int m, int nEig, const gpu::ComplexType<T>* a, int lda,
-              const gpu::ComplexType<T>* b, int ldb, int* nEigOut, T* d, gpu::ComplexType<T>* v,
-              int ldv) -> void;
+auto eigh_gpu(ContextInternal &ctx, std::size_t m, std::size_t nEig,
+              const gpu::ComplexType<T> *a, std::size_t lda,
+              const gpu::ComplexType<T> *b, std::size_t ldb,
+              std::size_t *nEigOut, T *d, gpu::ComplexType<T> *v,
+              std::size_t ldv) -> void;
 }  // namespace bluebild

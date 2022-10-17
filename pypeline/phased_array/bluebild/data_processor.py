@@ -52,15 +52,13 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
     Data processor for computing intensity fields.
     """
 
-    @chk.check(dict(N_eig=chk.is_integer, cluster_centroids=chk.has_reals))
-    def __init__(self, N_eig, cluster_centroids, ctx=None):
+    @chk.check(dict(N_eig=chk.is_integer))
+    def __init__(self, N_eig, ctx=None):
         """
         Parameters
         ----------
         N_eig : int
             Number of eigenpairs to output after PCA decomposition.
-        cluster_centroids : array-like(float)
-            Intensity centroids for energy-level clustering.
         ctx: :py:class:`~bluebild.Context`
             Bluebuild context. If provided, will use bluebild module for computation.
 
@@ -76,7 +74,6 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
 
         super().__init__()
         self._N_eig = N_eig
-        self._cluster_centroids = np.array(cluster_centroids, copy=False)
         self._ctx = ctx
 
     @chk.check(
@@ -112,9 +109,6 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
 
         V : :py:class:`~numpy.ndarray`
             (N_beam, N_eig) complex-valued eigenvectors.
-
-        cluster_idx : :py:class:`~numpy.ndarray`
-            (N_eig,) cluster indices of each eigenpair.
 
         Examples
         --------
@@ -176,8 +170,8 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
             S, W = S.data, W.data
 
         if self._ctx is not None:
-            D, V, cluster_idx = self._ctx.intensity_field_data(self._N_eig, np.array(XYZ.data, order='F'), np.array(W.data, order='F'),
-                    wl, S, self._cluster_centroids)
+            D, V = self._ctx.intensity_field_data(self._N_eig, np.array(XYZ.data, order='F'), np.array(W.data, order='F'),
+                    wl, S)
         else:
             G = gram.GramBlock().compute(XYZ.data, W, wl)
 
@@ -187,10 +181,6 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
             else:  # S is broken beyond use
                 D, V = np.zeros(self._N_eig), 0
 
-            # Determine energy-level clustering
-            cluster_dist = np.absolute(D.reshape(-1, 1) - self._cluster_centroids.reshape(1, -1))
-            cluster_idx = np.argmin(cluster_dist, axis=1)
-
         # Add broken BEAM_IDs
         if broken_row_id.size:
             V_aligned = np.zeros((N_beam, self._N_eig), dtype=np.complex)
@@ -198,7 +188,7 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
         else:
             V_aligned = V
 
-        return D, V_aligned, cluster_idx
+        return D, V_aligned
 
 
 class SensitivityFieldDataProcessorBlock(DataProcessorBlock):
@@ -381,48 +371,15 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
 
 
         D_flipped = np.flip(D)
-        for k, filter in enumerate(self.filters):
+        for k, f in enumerate(self.filters):
             for i, interv in enumerate(intervals):
                 indices = D.size - np.flip(np.searchsorted(D_flipped, interv, side='left')) # D is in descending order
                 V_selection = V_unbeamformed[:, indices[0]:indices[1]]
                 if indices[0] < indices[1]:
-                    filtered_eig = Filtered_eigs[filter][indices[0]:indices[1]]
+                    filtered_eig = Filtered_eigs[f][indices[0]:indices[1]]
                     VMul = V_selection * filtered_eig[None, :]
                     virtual_vis_stack[k, i] = VMul \
                                               @ V_selection.transpose().conj()
         return virtual_vis_stack
 
 
-
-def centroid_to_intervals(centroid):
-    r"""
-    Convert centroid to invervals as required by VirtualVisibilitiesDataProcessingBlock.
-
-    Parameters
-    ----------
-    centroid: Optional[np.ndarray]
-        (N_centroid) centroid values. If None, [0, max_float] is returned.
-
-    Returns
-    -------
-    intervals: np.ndarray
-     (N_centroid, 2) Intervals matching the input with lower and upper bound.
-    """
-    if centroid is None or centroid.size <= 1:
-        return np.array([[0, np.finfo('f').max]])
-    intervals = np.empty((centroid.size, 2))
-    sorted_idx = np.argsort(centroid)
-    sorted_centroid = centroid[sorted_idx]
-    for i in range(centroid.size):
-        idx = sorted_idx[i]
-        if idx == 0:
-            intervals[i, 0] = 0
-        else:
-            intervals[i, 0] = (sorted_centroid[idx] + sorted_centroid[idx - 1]) / 2
-
-        if idx == centroid.size - 1:
-            intervals[i, 1] = np.finfo('f').max
-        else:
-            intervals[i, 1] = (sorted_centroid[idx] + sorted_centroid[idx + 1]) / 2
-
-    return intervals

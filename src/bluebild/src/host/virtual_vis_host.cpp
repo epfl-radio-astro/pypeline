@@ -9,6 +9,7 @@
 #include "bluebild/config.h"
 #include "memory/buffer.hpp"
 #include "host/blas_api.hpp"
+#include "util.hpp"
 
 namespace bluebild {
 
@@ -67,7 +68,7 @@ auto virtual_vis_host(ContextInternal &ctx, std::size_t nFilter,
 
       } else {
         for (std::size_t k = 0; k < nAntenna; ++k) {
-          std::memset(virtVisCurrent + k * ldVirtVis3, 0,
+          std::memset(static_cast<void*>(virtVisCurrent + k * ldVirtVis3), 0,
                       nAntenna * sizeof(std::complex<T>));
         }
       }

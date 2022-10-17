@@ -30,7 +30,7 @@ auto sensitivity_field_data_host(ContextInternal& ctx, T wl, std::size_t m, std:
 
   gram_matrix_host<T>(ctx, m, n, w, ldw, xyz, ldxyz, wl, bufferG.get(), n);
 
-  int nEigOut = 0;
+  std::size_t nEigOut = 0;
   eigh_host<T>(ctx, n, nEig, bufferG.get(), n, nullptr, 0, &nEigOut, d, v, ldv);
 
   if (nEigOut) {

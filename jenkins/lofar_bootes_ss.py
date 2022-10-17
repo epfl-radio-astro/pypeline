@@ -111,21 +111,21 @@ for t in time[::time_slice]:
     G = gram(XYZ, W, wl)
     I_est.collect(S, G)
 
-N_eig, c_centroid = I_est.infer_parameters()
+N_eig, intervals = I_est.infer_parameters()
 ifpe_e = tt.time()
 print(f"#@#IFPE {ifpe_e-ifpe_s:.3f} sec")
 
 # Imaging
 ifim_s = tt.time()
-I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
+I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig)
 I_mfs = bb_sd.Spatial_IMFS_Block(wl, px_grid, N_level, N_bits)
 #for t in ProgressBar(time[::time_slice]):
 for t in time[::time_slice]:
     XYZ = dev(t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    D, V, c_idx = I_dp(S, XYZ, W, wl)
-    _ = I_mfs(D, V, XYZ.data, W.data, c_idx)
+    D, V = I_dp(S, XYZ, W, wl)
+    _ = I_mfs(D, V, XYZ.data, W.data, intervals)
 
 I_std, I_lsq = I_mfs.as_image()
 ifim_e = tt.time()
@@ -154,7 +154,7 @@ for t in time[::time_slice]:
     XYZ = dev(t)
     W = mb(XYZ, wl)
     D, V = S_dp(XYZ, W, wl)
-    _ = S_mfs(D, V, XYZ.data, W.data, cluster_idx=np.zeros(N_eig, dtype=int))
+    _ = S_mfs(D, V, XYZ.data, W.data)
 _, S = S_mfs.as_image()
 
 I_lsq_eq = s2image.Image(I_lsq.data / S.data, I_lsq.grid)

@@ -19,11 +19,11 @@
 namespace bluebild {
 
 template <typename T, typename>
-BLUEBILD_EXPORT auto sensitivity_field_data(Context &ctx, T wl, int m, int n,
-                                            int nEig, const std::complex<T> *w,
-                                            int ldw, const T *xyz, int ldxyz,
-                                            T *d, std::complex<T> *v, int ldv)
-    -> void {
+BLUEBILD_EXPORT auto
+sensitivity_field_data(Context &ctx, T wl, std::size_t m, std::size_t n,
+                       std::size_t nEig, const std::complex<T> *w,
+                       std::size_t ldw, const T *xyz, std::size_t ldxyz, T *d,
+                       std::complex<T> *v, std::size_t ldv) -> void {
   auto &ctxInternal = *InternalContextAccessor::get(ctx);
   if (ctxInternal.processing_unit() == BLUEBILD_PU_GPU) {
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
@@ -36,9 +36,9 @@ BLUEBILD_EXPORT auto sensitivity_field_data(Context &ctx, T wl, int m, int n,
     auto vDevice = reinterpret_cast<gpu::ComplexType<T> *>(v);
     auto xyzDevice = xyz;
     auto dDevice = d;
-    int ldwDevice = ldw;
-    int ldvDevice = ldv;
-    int ldxyzDevice = ldxyz;
+    std::size_t ldwDevice = ldw;
+    std::size_t ldvDevice = ldv;
+    std::size_t ldxyzDevice = ldxyz;
 
     // copy input if required
     if (!is_device_ptr(w)) {
@@ -103,22 +103,24 @@ BLUEBILD_EXPORT auto sensitivity_field_data(Context &ctx, T wl, int m, int n,
   }
 }
 
-template auto sensitivity_field_data(Context &ctx, float wl, int m, int n,
-                                     int nEig, const std::complex<float> *w,
-                                     int ldw, const float *xyz, int ldxyz,
-                                     float *d, std::complex<float> *v, int ldv)
+template auto
+sensitivity_field_data(Context &ctx, float wl, std::size_t m, std::size_t n,
+                       std::size_t nEig, const std::complex<float> *w,
+                       std::size_t ldw, const float *xyz, std::size_t ldxyz,
+                       float *d, std::complex<float> *v, std::size_t ldv)
     -> void;
 
-template auto sensitivity_field_data(Context &ctx, double wl, int m, int n,
-                                     int nEig, const std::complex<double> *w,
-                                     int ldw, const double *xyz, int ldxyz,
-                                     double *d, std::complex<double> *v,
-                                     int ldv) -> void;
+template auto
+sensitivity_field_data(Context &ctx, double wl, std::size_t m, std::size_t n,
+                       std::size_t nEig, const std::complex<double> *w,
+                       std::size_t ldw, const double *xyz, std::size_t ldxyz,
+                       double *d, std::complex<double> *v, std::size_t ldv)
+    -> void;
 
 extern "C" {
 BLUEBILD_EXPORT BluebildError bluebild_sensitivity_field_data_s(
-    BluebildContext ctx, float wl, int m, int n, int nEig, void *w, int ldw,
-    const float *xyz, int ldxyz, float *d, void *v, int ldv) {
+    BluebildContext ctx, float wl, size_t m, size_t n, size_t nEig, void *w,
+    size_t ldw, const float *xyz, size_t ldxyz, float *d, void *v, size_t ldv) {
   if (!ctx) {
     return BLUEBILD_INVALID_HANDLE_ERROR;
   }
@@ -136,8 +138,9 @@ BLUEBILD_EXPORT BluebildError bluebild_sensitivity_field_data_s(
 }
 
 BLUEBILD_EXPORT BluebildError bluebild_sensitivity_field_data_d(
-    BluebildContext ctx, double wl, int m, int n, int nEig, void *w, int ldw,
-    const double *xyz, int ldxyz, double *d, void *v, int ldv) {
+    BluebildContext ctx, double wl, size_t m, size_t n, size_t nEig, void *w,
+    size_t ldw, const double *xyz, size_t ldxyz, double *d, void *v,
+    size_t ldv) {
   if (!ctx) {
     return BLUEBILD_INVALID_HANDLE_ERROR;
   }

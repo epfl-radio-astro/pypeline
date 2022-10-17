@@ -6,6 +6,7 @@
 #cmakedefine BLUEBILD_BLAS_C
 #cmakedefine BLUEBILD_LAPACK_C
 #cmakedefine BLUEBILD_UMPIRE
+#cmakedefine BLUEBILD_OMP
 #cmakedefine BLUEBILD_VERSION "@BLUEBILD_VERSION@"
 
 #include "bluebild/bluebild_export.h"

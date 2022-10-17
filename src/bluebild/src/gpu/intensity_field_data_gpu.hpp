@@ -9,11 +9,11 @@
 namespace bluebild {
 
 template <typename T>
-auto intensity_field_data_gpu(ContextInternal &ctx, T wl, int m, int n,
-                              int nEig, const gpu::ComplexType<T> *s, int lds,
-                              const gpu::ComplexType<T> *w, int ldw,
-                              const T *xyz, int ldxyz, T *d,
-                              gpu::ComplexType<T> *v, int ldv, int nCluster,
-                              const T *cluster, int *clusterIndices) -> void;
+auto intensity_field_data_gpu(ContextInternal &ctx, T wl, std::size_t m,
+                              std::size_t n, std::size_t nEig,
+                              const gpu::ComplexType<T> *s, std::size_t lds,
+                              const gpu::ComplexType<T> *w, std::size_t ldw,
+                              const T *xyz, std::size_t ldxyz, T *d,
+                              gpu::ComplexType<T> *v, std::size_t ldv) -> void;
 
 }  // namespace bluebild

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <complex>
+#include <cstddef>
 #include <functional>
 #include <memory>
 
@@ -27,9 +28,9 @@ public:
    * @param[in] t Input coordinates in t.
    * @param[in] u Input coordinates in u.
    */
-  Nufft3d3(const Context &ctx, int iflag, double tol, int numTrans, int M,
-           const double *x, const double *y, const double *z, int N,
-           const double *s, const double *t, const double *u);
+  Nufft3d3(const Context &ctx, int iflag, double tol, std::size_t numTrans,
+           std::size_t M, const double *x, const double *y, const double *z,
+           std::size_t N, const double *s, const double *t, const double *u);
 
   /**
    * Execute a nufft3d3 plan in double precision.
@@ -61,9 +62,9 @@ public:
    * @param[in] t Input coordinates in t.
    * @param[in] u Input coordinates in u.
    */
-  Nufft3d3f(const Context &ctx, int iflag, float tol, int numTrans, int M,
-            const float *x, const float *y, const float *z, int N,
-            const float *s, const float *t, const float *u);
+  Nufft3d3f(const Context &ctx, int iflag, float tol, std::size_t numTrans,
+            std::size_t M, const float *x, const float *y, const float *z,
+            std::size_t N, const float *s, const float *t, const float *u);
 
   /**
    * Execute a nufft3d3 plan in double precision.

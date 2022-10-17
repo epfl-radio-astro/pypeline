@@ -18,19 +18,23 @@
 namespace bluebild {
 
 template <typename T>
-auto eigh_gpu(ContextInternal& ctx, int m, int nEig, const gpu::ComplexType<T>* a, int lda,
-              const gpu::ComplexType<T>* b, int ldb, int* nEigOut, T* d, gpu::ComplexType<T>* v,
-              int ldv) -> void {
+auto eigh_gpu(ContextInternal &ctx, std::size_t m, std::size_t nEig,
+              const gpu::ComplexType<T> *a, std::size_t lda,
+              const gpu::ComplexType<T> *b, std::size_t ldb,
+              std::size_t *nEigOut, T *d, gpu::ComplexType<T> *v,
+              std::size_t ldv) -> void {
   // TODO: add fill mode
   using ComplexType = gpu::ComplexType<T>;
   using ScalarType = T;
 
-  auto aBuffer = create_buffer<ComplexType>(ctx.allocators().gpu(), m * m);  // Matrix A
-  auto dBuffer = create_buffer<T>(ctx.allocators().gpu(), m);  // Matrix A
+  auto aBuffer =
+      create_buffer<ComplexType>(ctx.allocators().gpu(), m * m); // Matrix A
+  auto dBuffer = create_buffer<T>(ctx.allocators().gpu(), m);    // Matrix A
 
-  gpu::check_status(gpu::memcpy_2d_async(aBuffer.get(), m * sizeof(ComplexType), a,
-                                         lda * sizeof(ComplexType), m * sizeof(ComplexType), m,
-                                         gpu::flag::MemcpyDeviceToDevice, ctx.gpu_stream()));
+  gpu::check_status(gpu::memcpy_2d_async(
+      aBuffer.get(), m * sizeof(ComplexType), a, lda * sizeof(ComplexType),
+      m * sizeof(ComplexType), m, gpu::flag::MemcpyDeviceToDevice,
+      ctx.gpu_stream()));
   int hMeig = 0;
 
   // compute positive eigenvalues
@@ -40,37 +44,43 @@ auto eigh_gpu(ContextInternal& ctx, int m, int nEig, const gpu::ComplexType<T>* 
                           dBuffer.get());
 
   if (b) {
-    auto bBuffer = create_buffer<ComplexType>(ctx.allocators().gpu(), m * m);  // Matrix B
-    gpu::check_status(gpu::memcpy_2d_async(bBuffer.get(), m * sizeof(ComplexType), b,
-                                           ldb * sizeof(ComplexType), m * sizeof(ComplexType), m,
-                                           gpu::flag::MemcpyDeviceToDevice, ctx.gpu_stream()));
-    if (hMeig != m) {
+    auto bBuffer =
+        create_buffer<ComplexType>(ctx.allocators().gpu(), m * m); // Matrix B
+    gpu::check_status(gpu::memcpy_2d_async(
+        bBuffer.get(), m * sizeof(ComplexType), b, ldb * sizeof(ComplexType),
+        m * sizeof(ComplexType), m, gpu::flag::MemcpyDeviceToDevice,
+        ctx.gpu_stream()));
+    if (static_cast<std::size_t>(hMeig) != m) {
       // reconstuct 'a' without negative eigenvalues (v * diag(d) * v^H)
       auto dComplexD = create_buffer<ComplexType>(ctx.allocators().gpu(), m);
       auto cD = create_buffer<ComplexType>(ctx.allocators().gpu(), m * m);
-      auto newABuffer = create_buffer<ComplexType>(ctx.allocators().gpu(), m * m);
+      auto newABuffer =
+          create_buffer<ComplexType>(ctx.allocators().gpu(), m * m);
 
       // copy scalar eigenvalues to complex for multiplication
-      gpu::check_status(
-          gpu::memset_async(dComplexD.get(), 0, hMeig * sizeof(ComplexType), ctx.gpu_stream()));
-      gpu::check_status(gpu::memcpy_2d_async(dComplexD.get(), sizeof(ComplexType), dBuffer.get(),
-                                             sizeof(ScalarType), sizeof(ScalarType), hMeig,
-                                             gpu::flag::MemcpyDeviceToDevice, ctx.gpu_stream()));
+      gpu::check_status(gpu::memset_async(
+          dComplexD.get(), 0, hMeig * sizeof(ComplexType), ctx.gpu_stream()));
+      gpu::check_status(gpu::memcpy_2d_async(
+          dComplexD.get(), sizeof(ComplexType), dBuffer.get(),
+          sizeof(ScalarType), sizeof(ScalarType), hMeig,
+          gpu::flag::MemcpyDeviceToDevice, ctx.gpu_stream()));
 
-      gpu::blas::check_status(gpu::blas::dgmm(ctx.gpu_blas_handle(), gpu::blas::side::right, m,
-                                              hMeig, aBuffer.get(), m, dComplexD.get(), 1, cD.get(), m));
+      gpu::blas::check_status(gpu::blas::dgmm(
+          ctx.gpu_blas_handle(), gpu::blas::side::right, m, hMeig,
+          aBuffer.get(), m, dComplexD.get(), 1, cD.get(), m));
       ComplexType alpha{1, 0};
       ComplexType beta{0, 0};
-      gpu::blas::check_status(gpu::blas::gemm(ctx.gpu_blas_handle(), gpu::blas::operation::None,
-                                              gpu::blas::operation::ConjugateTranspose, m, m, hMeig,
-                                              &alpha, cD.get(), m, aBuffer.get(), m, &beta,
-                                              newABuffer.get(), m));
+      gpu::blas::check_status(gpu::blas::gemm(
+          ctx.gpu_blas_handle(), gpu::blas::operation::None,
+          gpu::blas::operation::ConjugateTranspose, m, m, hMeig, &alpha,
+          cD.get(), m, aBuffer.get(), m, &beta, newABuffer.get(), m));
       std::swap(newABuffer, aBuffer);
     } else {
       // a was overwritten by eigensolver
-      gpu::check_status(gpu::memcpy_2d_async(aBuffer.get(), m * sizeof(ComplexType), a,
-                                             lda * sizeof(ComplexType), m * sizeof(ComplexType), m,
-                                             gpu::flag::MemcpyDeviceToDevice, ctx.gpu_stream()));
+      gpu::check_status(gpu::memcpy_2d_async(
+          aBuffer.get(), m * sizeof(ComplexType), a, lda * sizeof(ComplexType),
+          m * sizeof(ComplexType), m, gpu::flag::MemcpyDeviceToDevice,
+          ctx.gpu_stream()));
     }
 
     // compute positive general eigenvalues
@@ -86,32 +96,40 @@ auto eigh_gpu(ContextInternal& ctx, int m, int nEig, const gpu::ComplexType<T>* 
     reverse_2_gpu(ctx.gpu_stream(), m, hMeig, aBuffer.get(), m);
   }
 
-  if (hMeig < nEig) {
+  if (static_cast<std::size_t>(hMeig) < nEig) {
     // fewer positive eigenvalues found than requested. Setting others to 0.
-    gpu::check_status(
-        gpu::memset_async(d + hMeig, 0, (nEig - hMeig) * sizeof(ScalarType), ctx.gpu_stream()));
     gpu::check_status(gpu::memset_async(
-        aBuffer.get() + hMeig * m, 0, (nEig - hMeig) * m * sizeof(ComplexType), ctx.gpu_stream()));
+        d + hMeig, 0, (nEig - hMeig) * sizeof(ScalarType), ctx.gpu_stream()));
+    gpu::check_status(gpu::memset_async(
+        aBuffer.get() + hMeig * m, 0, (nEig - hMeig) * m * sizeof(ComplexType),
+        ctx.gpu_stream()));
   }
 
   // copy results to output
-  gpu::check_status(gpu::memcpy_async(d, dBuffer.get(), nEig * sizeof(ScalarType),
-                                      gpu::flag::MemcpyDeviceToDevice, ctx.gpu_stream()));
-  gpu::check_status(gpu::memcpy_2d_async(v, ldv * sizeof(ComplexType), aBuffer.get(),
-                                         m * sizeof(ComplexType), m * sizeof(ComplexType), nEig,
-                                         gpu::flag::MemcpyDeviceToDevice, ctx.gpu_stream()));
+  gpu::check_status(
+      gpu::memcpy_async(d, dBuffer.get(), nEig * sizeof(ScalarType),
+                        gpu::flag::MemcpyDeviceToDevice, ctx.gpu_stream()));
+  gpu::check_status(gpu::memcpy_2d_async(
+      v, ldv * sizeof(ComplexType), aBuffer.get(), m * sizeof(ComplexType),
+      m * sizeof(ComplexType), nEig, gpu::flag::MemcpyDeviceToDevice,
+      ctx.gpu_stream()));
 
-  *nEigOut = std::min<int>(hMeig, nEig);
+  *nEigOut = std::min<std::size_t>(hMeig, nEig);
 }
 
-template auto eigh_gpu<float>(ContextInternal& ctx, int m, int nEig,
-                              const gpu::ComplexType<float>* a, int lda,
-                              const gpu::ComplexType<float>* b, int ldb, int* nEigOut, float* d,
-                              gpu::ComplexType<float>* v, int ldv) -> void;
+template auto eigh_gpu<float>(ContextInternal &ctx, std::size_t m,
+                              std::size_t nEig,
+                              const gpu::ComplexType<float> *a, std::size_t lda,
+                              const gpu::ComplexType<float> *b, std::size_t ldb,
+                              std::size_t *nEigOut, float *d,
+                              gpu::ComplexType<float> *v, std::size_t ldv)
+    -> void;
 
-template auto eigh_gpu<double>(ContextInternal& ctx, int m, int nEig,
-                               const gpu::ComplexType<double>* a, int lda,
-                               const gpu::ComplexType<double>* b, int ldb, int* nEigOut, double* d,
-                               gpu::ComplexType<double>* v, int ldv) -> void;
+template auto
+eigh_gpu<double>(ContextInternal &ctx, std::size_t m, std::size_t nEig,
+                 const gpu::ComplexType<double> *a, std::size_t lda,
+                 const gpu::ComplexType<double> *b, std::size_t ldb,
+                 std::size_t *nEigOut, double *d, gpu::ComplexType<double> *v,
+                 std::size_t ldv) -> void;
 
-}  // namespace bluebild
+} // namespace bluebild

@@ -7,19 +7,21 @@
 #include "gpu/util/gpu_blas_api.hpp"
 #include "gpu/util/gpu_runtime_api.hpp"
 #include "gpu/virtual_vis_gpu.hpp"
-#include "host/virtual_vis_host.hpp"
+#include "util.hpp"
 #include "memory/buffer.hpp"
 
 namespace bluebild {
 
 template <typename T>
-auto virtual_vis_gpu(ContextInternal &ctx, int nFilter,
-                     const BluebildFilter *filterHost, int nIntervals,
-                     const T *intervalsHost, int ldIntervals, int nEig,
-                     const T *D, int nAntenna, const gpu::ComplexType<T> *V,
-                     int ldv, int nBeam, const gpu::ComplexType<T> *W, int ldw,
-                     gpu::ComplexType<T> *virtVis, int ldVirtVis1,
-                     int ldVirtVis2, int ldVirtVis3) -> void {
+auto virtual_vis_gpu(ContextInternal &ctx, std::size_t nFilter,
+                     const BluebildFilter *filterHost, std::size_t nIntervals,
+                     const T *intervalsHost, std::size_t ldIntervals,
+                     std::size_t nEig, const T *D, std::size_t nAntenna,
+                     const gpu::ComplexType<T> *V, std::size_t ldv,
+                     std::size_t nBeam, const gpu::ComplexType<T> *W,
+                     std::size_t ldw, gpu::ComplexType<T> *virtVis,
+                     std::size_t ldVirtVis1, std::size_t ldVirtVis2,
+                     std::size_t ldVirtVis3) -> void {
   using ComplexType = gpu::ComplexType<T>;
 
   const auto zero = ComplexType{0, 0};
@@ -27,8 +29,8 @@ auto virtual_vis_gpu(ContextInternal &ctx, int nFilter,
 
   BufferType<gpu::ComplexType<T>> VUnbeamBuffer;
   if (W) {
-    VUnbeamBuffer =
-        create_buffer<gpu::ComplexType<T>>(ctx.allocators().gpu(), nAntenna * nEig);
+    VUnbeamBuffer = create_buffer<gpu::ComplexType<T>>(ctx.allocators().gpu(),
+                                                       nAntenna * nEig);
 
     gpu::blas::check_status(
         gpu::blas::gemm(ctx.gpu_blas_handle(), gpu::blas::operation::None,
@@ -40,7 +42,7 @@ auto virtual_vis_gpu(ContextInternal &ctx, int nFilter,
   // V is alwayts of shape (nAntenna, nEig) from here on
 
   auto VMulDBuffer = create_buffer<gpu::ComplexType<T>>(ctx.allocators().gpu(),
-                                                    nEig * nAntenna);
+                                                        nEig * nAntenna);
 
   auto DBufferHost = create_buffer<T>(ctx.allocators().pinned(), nEig);
   auto DFilteredBuffer = create_buffer<T>(ctx.allocators().gpu(), nEig);
@@ -67,8 +69,8 @@ auto virtual_vis_gpu(ContextInternal &ctx, int nFilter,
       if (size) {
         // Multiply each col of V with the selected eigenvalue
         gpu::scale_matrix<T>(ctx.gpu_stream(), nAntenna, size, V + start * ldv,
-                          ldv, DFilteredBuffer.get() + start, VMulDBuffer.get(),
-                          nAntenna);
+                             ldv, DFilteredBuffer.get() + start,
+                             VMulDBuffer.get(), nAntenna);
 
         // Matrix multiplication of the previously scaled V and the original V
         // with the selected eigenvalues
@@ -88,21 +90,21 @@ auto virtual_vis_gpu(ContextInternal &ctx, int nFilter,
 }
 
 template auto virtual_vis_gpu<float>(
-    ContextInternal &ctx, int nFilter, const BluebildFilter *filter,
-    int nIntervals, const float *intervals, int ldIntervals, int nEig,
-    const float *D, int nAntenna, const gpu::ComplexType<float> *V, int ldv,
-    int nBeam, const gpu::ComplexType<float> *W, int ldw,
-    gpu::ComplexType<float> *virtVis, int ldVirtVis1, int ldVirtVis2,
-    int ldVirtVis3) -> void;
+    ContextInternal &ctx, std::size_t nFilter, const BluebildFilter *filter,
+    std::size_t nIntervals, const float *intervals, std::size_t ldIntervals,
+    std::size_t nEig, const float *D, std::size_t nAntenna,
+    const gpu::ComplexType<float> *V, std::size_t ldv, std::size_t nBeam,
+    const gpu::ComplexType<float> *W, std::size_t ldw,
+    gpu::ComplexType<float> *virtVis, std::size_t ldVirtVis1,
+    std::size_t ldVirtVis2, std::size_t ldVirtVis3) -> void;
 
-template auto virtual_vis_gpu<double>(ContextInternal &ctx, int nFilter,
-                              const BluebildFilter *filter, int nIntervals,
-                              const double *intervals, int ldIntervals, int nEig,
-                              const double *D, int nAntenna,
-                              const gpu::ComplexType<double> *V, int ldv,
-                              int nBeam, const gpu::ComplexType<double> *W,
-                              int ldw, gpu::ComplexType<double> *virtVis,
-                              int ldVirtVis1, int ldVirtVis2, int ldVirtVis3)
-    -> void;
+template auto virtual_vis_gpu<double>(
+    ContextInternal &ctx, std::size_t nFilter, const BluebildFilter *filter,
+    std::size_t nIntervals, const double *intervals, std::size_t ldIntervals,
+    std::size_t nEig, const double *D, std::size_t nAntenna,
+    const gpu::ComplexType<double> *V, std::size_t ldv, std::size_t nBeam,
+    const gpu::ComplexType<double> *W, std::size_t ldw,
+    gpu::ComplexType<double> *virtVis, std::size_t ldVirtVis1,
+    std::size_t ldVirtVis2, std::size_t ldVirtVis3) -> void;
 
-}  // namespace bluebild
+} // namespace bluebild

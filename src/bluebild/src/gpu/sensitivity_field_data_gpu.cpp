@@ -14,17 +14,17 @@
 namespace bluebild {
 
 template <typename T>
-auto sensitivity_field_data_gpu(ContextInternal &ctx, T wl, int m, int n,
-                                int nEig, const gpu::ComplexType<T> *w, int ldw,
-                                const T *xyz, int ldxyz, T *d,
-                                gpu::ComplexType<T> *v, int ldv) -> void {
-  using ScalarType = T;
-
+auto sensitivity_field_data_gpu(ContextInternal &ctx, T wl, std::size_t m,
+                                std::size_t n, std::size_t nEig,
+                                const gpu::ComplexType<T> *w, std::size_t ldw,
+                                const T *xyz, std::size_t ldxyz, T *d,
+                                gpu::ComplexType<T> *v, std::size_t ldv)
+    -> void {
   auto gD = create_buffer<gpu::ComplexType<T>>(ctx.allocators().gpu(), n * n);
 
   gram_matrix_gpu<T>(ctx, m, n, w, ldw, xyz, ldxyz, wl, gD.get(), n);
 
-  int nEigOut = 0;
+  std::size_t nEigOut = 0;
   eigh_gpu<T>(ctx, n, nEig, gD.get(), n, nullptr, 0, &nEigOut, d, v, ldv);
 
   if (nEigOut)
@@ -32,12 +32,14 @@ auto sensitivity_field_data_gpu(ContextInternal &ctx, T wl, int m, int n,
 }
 
 template auto sensitivity_field_data_gpu<float>(
-    ContextInternal &ctx, float wl, int m, int n, int nEig,
-    const gpu::ComplexType<float> *w, int ldw, const float *xyz, int ldxyz,
-    float *d, gpu::ComplexType<float> *v, int ldv) -> void;
+    ContextInternal &ctx, float wl, std::size_t m, std::size_t n,
+    std::size_t nEig, const gpu::ComplexType<float> *w, std::size_t ldw,
+    const float *xyz, std::size_t ldxyz, float *d, gpu::ComplexType<float> *v,
+    std::size_t ldv) -> void;
 
 template auto sensitivity_field_data_gpu<double>(
-    ContextInternal &ctx, double wl, int m, int n, int nEig,
-    const gpu::ComplexType<double> *w, int ldw, const double *xyz, int ldxyz,
-    double *d, gpu::ComplexType<double> *v, int ldv) -> void;
+    ContextInternal &ctx, double wl, std::size_t m, std::size_t n,
+    std::size_t nEig, const gpu::ComplexType<double> *w, std::size_t ldw,
+    const double *xyz, std::size_t ldxyz, double *d,
+    gpu::ComplexType<double> *v, std::size_t ldv) -> void;
 } // namespace bluebild

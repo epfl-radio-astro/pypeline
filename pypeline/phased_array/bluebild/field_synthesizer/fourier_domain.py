@@ -13,7 +13,7 @@ import imot_tools.math.sphere.transform as transform
 import imot_tools.util.argcheck as chk
 import numexpr as ne
 import numpy as np
-import pyffs
+#  import pyffs
 import scipy.fftpack as fftpack
 import scipy.linalg as linalg
 import scipy.sparse as sparse

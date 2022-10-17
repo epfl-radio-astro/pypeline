@@ -12,9 +12,10 @@
 namespace bluebild {
 
 template <>
-Nufft3d3GPU<double>::Nufft3d3GPU(int iflag, double tol, int numTrans, int M,
-                                 const double *x, const double *y,
-                                 const double *z, int N, const double *s,
+Nufft3d3GPU<double>::Nufft3d3GPU(int iflag, double tol, std::size_t numTrans,
+                                 std::size_t M, const double *x,
+                                 const double *y, const double *z,
+                                 std::size_t N, const double *s,
                                  const double *t, const double *u) {
   cufinufft_opts opts;
   cufinufft_default_opts(3, 3, &opts);
@@ -43,10 +44,10 @@ void Nufft3d3GPU<double>::execute(const gpu::ComplexType<double> *cj,
 }
 
 template <>
-Nufft3d3GPU<float>::Nufft3d3GPU(int iflag, float tol, int numTrans, int M,
-                                const float *x, const float *y, const float *z,
-                                int N, const float *s, const float *t,
-                                const float *u) {
+Nufft3d3GPU<float>::Nufft3d3GPU(int iflag, float tol, std::size_t numTrans,
+                                std::size_t M, const float *x, const float *y,
+                                const float *z, std::size_t N, const float *s,
+                                const float *t, const float *u) {
   cufinufft_opts opts;
   cufinufftf_default_opts(3, 3, &opts);
   cufinufftf_plan p;

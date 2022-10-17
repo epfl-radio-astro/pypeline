@@ -21,12 +21,13 @@ namespace bluebild {
 
 template <typename T, typename>
 BLUEBILD_EXPORT auto
-virtual_vis(Context &ctx, int nFilter, const BluebildFilter *filter,
-            int nIntervals, const T *intervals, int ldIntervals, int nEig,
-            const T *D, int nAntenna, const std::complex<T> *V, int ldv,
-            int nBeam, const std::complex<T> *W, int ldw,
-            std::complex<T> *virtVis, int ldVirtVis1, int ldVirtVis2,
-            int ldVirtVis3) -> void {
+virtual_vis(Context &ctx, std::size_t nFilter, const BluebildFilter *filter,
+            std::size_t nIntervals, const T *intervals, std::size_t ldIntervals,
+            std::size_t nEig, const T *D, std::size_t nAntenna,
+            const std::complex<T> *V, std::size_t ldv, std::size_t nBeam,
+            const std::complex<T> *W, std::size_t ldw, std::complex<T> *virtVis,
+            std::size_t ldVirtVis1, std::size_t ldVirtVis2,
+            std::size_t ldVirtVis3) -> void {
   auto &ctxInternal = *InternalContextAccessor::get(ctx);
   if (ctxInternal.processing_unit() == BLUEBILD_PU_GPU) {
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
@@ -39,16 +40,15 @@ virtual_vis(Context &ctx, int nFilter, const BluebildFilter *filter,
     auto vDevice = reinterpret_cast<const gpu::ComplexType<T> *>(V);
     auto wDevice = reinterpret_cast<const gpu::ComplexType<T> *>(W);
     auto virtVisDevice = reinterpret_cast<gpu::ComplexType<T> *>(virtVis);
-    int ldvDevice = ldv;
-    int ldwDevice = ldw;
-    int ldVirtVis1Device = ldVirtVis1;
-    int ldVirtVis2Device = ldVirtVis2;
-    int ldVirtVis3Device = ldVirtVis3;
+    std::size_t ldvDevice = ldv;
+    std::size_t ldwDevice = ldw;
+    std::size_t ldVirtVis1Device = ldVirtVis1;
+    std::size_t ldVirtVis2Device = ldVirtVis2;
+    std::size_t ldVirtVis3Device = ldVirtVis3;
 
     // copy input if required
     if (!is_device_ptr(D)) {
-      dBuffer =
-          create_buffer<T>(ctxInternal.allocators().gpu(), nEig);
+      dBuffer = create_buffer<T>(ctxInternal.allocators().gpu(), nEig);
       dDevice = dBuffer.get();
       gpu::check_status(gpu::memcpy_async(dBuffer.get(), D, nEig * sizeof(T),
                                           gpu::flag::MemcpyHostToDevice,
@@ -57,7 +57,8 @@ virtual_vis(Context &ctx, int nFilter, const BluebildFilter *filter,
 
     if (!is_device_ptr(V)) {
       const auto vRows = W ? nBeam : nAntenna;
-      vBuffer = create_buffer<gpu::ComplexType<T>>(ctxInternal.allocators().gpu(), vRows * nEig);
+      vBuffer = create_buffer<gpu::ComplexType<T>>(
+          ctxInternal.allocators().gpu(), vRows * nEig);
       ldvDevice = vRows;
       vDevice = vBuffer.get();
       gpu::check_status(gpu::memcpy_2d_async(
@@ -96,8 +97,8 @@ virtual_vis(Context &ctx, int nFilter, const BluebildFilter *filter,
 
     // copy back results if required
     if (virtVisBuffer) {
-      for (int i = 0; i < nFilter; ++i) {
-        for (int j = 0; j < nIntervals; ++j) {
+      for (std::size_t i = 0; i < nFilter; ++i) {
+        for (std::size_t j = 0; j < nIntervals; ++j) {
           gpu::check_status(gpu::memcpy_2d_async(
               virtVis + i * ldVirtVis1 + j * ldVirtVis2,
               ldVirtVis3 * sizeof(gpu::ComplexType<T>),
@@ -123,11 +124,11 @@ virtual_vis(Context &ctx, int nFilter, const BluebildFilter *filter,
 
 extern "C" {
 BLUEBILD_EXPORT BluebildError bluebild_virtual_vis_s(
-    BluebildContext ctx, int nFilter, const BluebildFilter *filter,
-    int nIntervals, const float *intervals, int ldIntervals, int nEig,
-    const float *D, int nAntenna, const void *V, int ldv, int nBeam,
-    const void *W, int ldw, void *virtVis, int ldVirtVis1, int ldVirtVis2,
-    int ldVirtVis3) {
+    BluebildContext ctx, size_t nFilter, const BluebildFilter *filter,
+    size_t nIntervals, const float *intervals, size_t ldIntervals, size_t nEig,
+    const float *D, size_t nAntenna, const void *V, size_t ldv, size_t nBeam,
+    const void *W, size_t ldw, void *virtVis, size_t ldVirtVis1,
+    size_t ldVirtVis2, size_t ldVirtVis3) {
   if (!ctx) {
     return BLUEBILD_INVALID_HANDLE_ERROR;
   }
@@ -147,11 +148,11 @@ BLUEBILD_EXPORT BluebildError bluebild_virtual_vis_s(
 }
 
 BLUEBILD_EXPORT BluebildError bluebild_virtual_vis_d(
-    BluebildContext ctx, int nFilter, const BluebildFilter *filter,
-    int nIntervals, const double *intervals, int ldIntervals, int nEig,
-    const double *D, int nAntenna, const void *V, int ldv, int nBeam,
-    const void *W, int ldw, void *virtVis, int ldVirtVis1, int ldVirtVis2,
-    int ldVirtVis3) {
+    BluebildContext ctx, size_t nFilter, const BluebildFilter *filter,
+    size_t nIntervals, const double *intervals, size_t ldIntervals, size_t nEig,
+    const double *D, size_t nAntenna, const void *V, size_t ldv, size_t nBeam,
+    const void *W, size_t ldw, void *virtVis, size_t ldVirtVis1,
+    size_t ldVirtVis2, size_t ldVirtVis3) {
   if (!ctx) {
     return BLUEBILD_INVALID_HANDLE_ERROR;
   }
@@ -172,21 +173,21 @@ BLUEBILD_EXPORT BluebildError bluebild_virtual_vis_d(
 }
 }
 
-
-
-template auto
-virtual_vis<float, void>(Context &ctx, int nFilter, const BluebildFilter *filter,
-            int nIntervals, const float *intervals, int ldIntervals, int nEig,
-            const float *D, int nAntenna, const std::complex<float> *V, int ldv,
-            int nBeam, const std::complex<float> *W, int ldw,
-            std::complex<float> *virtVis, int ldVirtVis1, int ldVirtVis2,
-            int ldVirtVis3) -> void;
-template auto
-virtual_vis<double, void>(Context &ctx, int nFilter, const BluebildFilter *filter,
-            int nIntervals, const double *intervals, int ldIntervals, int nEig,
-            const double *D, int nAntenna, const std::complex<double> *V, int ldv,
-            int nBeam, const std::complex<double> *W, int ldw,
-            std::complex<double> *virtVis, int ldVirtVis1, int ldVirtVis2,
-            int ldVirtVis3) -> void;
+template auto virtual_vis<float, void>(
+    Context &ctx, std::size_t nFilter, const BluebildFilter *filter,
+    std::size_t nIntervals, const float *intervals, std::size_t ldIntervals,
+    std::size_t nEig, const float *D, std::size_t nAntenna,
+    const std::complex<float> *V, std::size_t ldv, std::size_t nBeam,
+    const std::complex<float> *W, std::size_t ldw, std::complex<float> *virtVis,
+    std::size_t ldVirtVis1, std::size_t ldVirtVis2, std::size_t ldVirtVis3)
+    -> void;
+template auto virtual_vis<double, void>(
+    Context &ctx, std::size_t nFilter, const BluebildFilter *filter,
+    std::size_t nIntervals, const double *intervals, std::size_t ldIntervals,
+    std::size_t nEig, const double *D, std::size_t nAntenna,
+    const std::complex<double> *V, std::size_t ldv, std::size_t nBeam,
+    const std::complex<double> *W, std::size_t ldw,
+    std::complex<double> *virtVis, std::size_t ldVirtVis1,
+    std::size_t ldVirtVis2, std::size_t ldVirtVis3) -> void;
 
 } // namespace bluebild

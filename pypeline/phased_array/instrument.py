@@ -31,7 +31,6 @@ import imot_tools.util.argcheck as chk
 import numpy as np
 import pandas as pd
 import pkg_resources as pkg
-import plotly.graph_objs as go
 import scipy.linalg as linalg
 
 import pypeline.core as core
@@ -131,93 +130,6 @@ class InstrumentGeometry(array.LabeledMatrix):
         """
         df = pd.DataFrame(data=self.data, index=self.index[0], columns=self.index[1].values)
         return df
-
-    @chk.check("title", chk.is_instance(str))
-    def draw(self, title=""):
-        """
-        Plot antenna coordinates in 3D.
-
-        Parameters
-        ----------
-        title : str
-            Title of the graph. (Default = '')
-
-        Returns
-        -------
-        :py:class:`plotly.graph_objs.Figure`
-            3D Figure.
-
-        Examples
-        --------
-        .. doctest::
-
-           import plotly.offline as py
-
-           cfg = InstrumentGeometry(xyz=np.random.randn(6, 3),
-                                    ant_idx=pd.MultiIndex.from_product(
-                                        [range(3), range(2)],
-                                        names=['STATION_ID', 'ANTENNA_ID']))
-
-           fig = cfg.draw(title='Random Array')
-           py.plot(fig)
-
-        Notes
-        -----
-        For visualization purposes, the instrument's center of gravity is mapped to the origin.
-        """
-        # Cartesian Axes
-        arm_length = np.std(self.data, axis=0).max()
-        frame_trace = go.Scatter3d(
-            hoverinfo="text+name",
-            line={"width": 6},
-            marker={"color": "rgb(0,0.5,0)"},
-            mode="lines+markers+text",
-            name="Reference Frame",
-            text=["X", "O", "Y", "O", "Z"],
-            textfont={"color": "black"},
-            textposition="middle center",
-            x=[arm_length, 0, 0, 0, 0],
-            y=[0, 0, arm_length, 0, 0],
-            z=[0, 0, 0, 0, arm_length],
-        )
-
-        # Instrument Layout
-        df = self.as_frame()
-        df = df - df.mean()
-        instrument_trace = []
-        for station_id, station in df.groupby(level="STATION_ID"):
-            X, Y, Z = station.values.T
-
-            antenna_id = station.index.get_level_values("ANTENNA_ID")
-            labels = [f"antenna {_}" for _ in antenna_id]
-
-            station_trace = go.Scatter3d(
-                hoverinfo="text+name",
-                marker={"size": 2},
-                mode="markers",
-                name=f"station {station_id}",
-                text=labels,
-                x=X,
-                y=Y,
-                z=Z,
-            )
-            instrument_trace += [station_trace]
-
-        data = go.Data([frame_trace] + instrument_trace)
-        layout = go.Layout(
-            scene={
-                "aspectmode": "data",
-                "camera": {"eye": {"x": 1.25, "y": 1.25, "z": 1.25}},
-                "xaxis": {"title": "X [m]"},
-                "yaxis": {"title": "Y [m]"},
-                "zaxis": {"title": "Z [m]"},
-            },
-            title=title,
-        )
-
-        fig = go.Figure(data=data, layout=layout)
-        return fig
-
 
 class InstrumentGeometryBlock(core.Block):
     """
