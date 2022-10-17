@@ -42,6 +42,11 @@ if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
 		)
 endif()
 
+# set all files to CXX, such that .cu files are compiled by the CXX compiler with ROCM enabled
+if(BLUEBILD_ROCM)
+    set_source_files_properties(${BLUEBILD_SOURCE_FILES} PROPERTIES LANGUAGE CXX)
+endif()
+
 
 # Creates bluebild library with given name. All common target modifications should be done here.
 macro(bluebild_create_library _TARGET_NAME)

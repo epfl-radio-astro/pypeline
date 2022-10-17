@@ -275,9 +275,16 @@ inline auto gemm_batched(HandleType handle,
                          int batchCount
                          ) -> StatusType {
 #if defined(BLUEBILD_CUDA)
-  return cublasCgemmBatched(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batchCount);
+  return cublasCgemmBatched(handle, transa, transb, m, n, k, alpha, A, lda, B,
+                            ldb, beta, C, ldc, batchCount);
 #else
-  return rocblas_cgemm_batched(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batchCount);
+  return rocblas_cgemm_batched(
+      handle, transa, transb, m, n, k,
+      reinterpret_cast<const rocblas_float_complex *>(alpha),
+      reinterpret_cast<const rocblas_float_complex *const *>(A), lda,
+      reinterpret_cast<const rocblas_float_complex *const *>(B), ldb,
+      reinterpret_cast<const rocblas_float_complex *>(beta),
+      reinterpret_cast<rocblas_float_complex *const *>(C), ldc, batchCount);
 #endif  // BLUEBILD_CUDA
 }
 
@@ -293,9 +300,16 @@ inline auto gemm_batched(HandleType handle,
                          int batchCount
                          ) -> StatusType {
 #if defined(BLUEBILD_CUDA)
-  return cublasZgemmBatched(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batchCount);
+  return cublasZgemmBatched(handle, transa, transb, m, n, k, alpha, A, lda, B,
+                            ldb, beta, C, ldc, batchCount);
 #else
-  return rocblas_zgemm_batched(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batchCount);
+  return rocblas_zgemm_batched(
+      handle, transa, transb, m, n, k,
+      reinterpret_cast<const rocblas_float_complex *>(alpha),
+      reinterpret_cast<const rocblas_float_complex *const *>(A), lda,
+      reinterpret_cast<const rocblas_float_complex *const *>(B), ldb,
+      reinterpret_cast<const rocblas_float_complex *>(beta),
+      reinterpret_cast<rocblas_float_complex *const *>(C), ldc, batchCount);
 #endif  // BLUEBILD_CUDA
 }
 
