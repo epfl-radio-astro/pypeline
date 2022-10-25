@@ -298,7 +298,7 @@ class MeasurementSet:
 
             # Set broken visibilities to 0
             # Set Flagging off for MeerKAT Data
-            #data[data_flag] = 0
+            data[data_flag] = 0
             print (f'Data shape: {data.shape}, flagged data shape:{data_flag.shape}, nonzero data: {np.count_nonzero(data)}, percentage of non zero data: {np.count_nonzero(data)/(np.count_nonzero(data) + np.count_nonzero(data ==0))}')
 
 

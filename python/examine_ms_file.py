@@ -61,6 +61,39 @@ def examine(filename):
 	N_station = len(station_mean)
 	print (f'Number of Stations: {N_station}')
 	print (f'Antenna Positions: \n {station_mean}')
+
+	###########################################################################
+	######### FLAGGING ########################################################
+
+	print ("\nFLAGGING")
+	query = (f"select * from {filename}")#" where MJD(TIME) in " # "MJD(TIME)" instead of TIME
+            #f"(select unique MJD(TIME) from {self._msf} limit {time_start}:{time_stop}:{time_step})" # MJD(TIME) instead of TIME
+            
+	table = ct.taql(query)
+	subTableIndex = 0
+	for sub_table in table.iter("TIME", sort=True): # MJD(TIME) instead of TIME
+		subTableIndex += 1
+
+		beam_id_0 = sub_table.getcol("ANTENNA1")  # (N_entry,)
+		beam_id_1 = sub_table.getcol("ANTENNA2")  # (N_entry,)
+		data_flag = sub_table.getcol("FLAG")  # (N_entry, N_channel, 4)
+		data = sub_table.getcol("CORRECTED_DATA")  # (N_entry, N_channel, 4)
+		uvw = sub_table.getcol("UVW")
+		uvw *= -1
+
+		# print ("flag checks", np.shape(data_flag), np.count_nonzero(data_flag[:,:, 0]), np.count_nonzero(data_flag[:,:, 1]), np.count_nonzero(data_flag[:,:, 2]), np.count_nonzero(data_flag[:,:, 3]) )
+		# We only want XX and YY correlations
+		data = np.average(data[:, :, [0, 3]], axis=2)[:, np.arange(len(f))]
+		data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, np.arange(len(f))]
+
+		print (f'{subTableIndex} Data shape: {data.shape}, flagged data shape:{data_flag.shape}, nonzero data: {np.count_nonzero(data)}, percentage of non zero data: {np.count_nonzero(data)/(np.count_nonzero(data) + np.count_nonzero(data ==0))}')
+
+		# Set broken visibilities to 0
+		# Set Flagging off for MeerKAT Data
+		data[data_flag] = 0
+		print (f'Data shape: {data.shape}, flagged data shape:{data_flag.shape}, nonzero data: {np.count_nonzero(data)}, percentage of non zero data: {np.count_nonzero(data)/(np.count_nonzero(data) + np.count_nonzero(data ==0))}')
+
+
 	
 
 ms_files= [sys.argv[1]]

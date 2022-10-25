@@ -79,7 +79,7 @@ for do3D in True, False:
             width_px, height_px= 2*cl_WCS.wcs.crpix 
             cdelt_x, cdelt_y = cl_WCS.wcs.cdelt 
             #FoV = np.deg2rad(abs(cdelt_x*width_px) )
-            FoV = np.deg2rad(2)
+            FoV = np.deg2rad(5)
             #source = ms.field_center
                 
             print("Reading {0}\n".format(ms_file))
@@ -247,6 +247,16 @@ for do3D in True, False:
                     gram_corrected_visibilities.append(S_corrected)
                     #print("UVW_baselines_t",UVW_baselines_t)
 
+                fig_vis, ax_vis = plt.subplots(1, V.shape[0] + 1)
+
+                ax_vis[0].imshow(S.data)
+                ax_vis[0].set_title("Original Visibilities")
+                for ax_num in np.arange(V.shape[0]):
+                    ax_vis[ax_num+1].imshow(S_corrected)
+                    ax_vis[ax_num+1].set_title("Decomposed Visibility [%d]"%(ax_num))
+
+                fig_vis.tight_layout()
+
             UVW_baselines = np.stack(UVW_baselines, axis=0)
             gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=0).reshape(-1)
             
@@ -307,6 +317,7 @@ for do3D in True, False:
                     bb_image = np.real(bb_image)
                     ##########################################################################################
 
+            fig_vis.savefig("Visibilities.png")
             I_lsq_eq = s2image.Image(bb_image, pix_xyz)
             t2 = tt.time()
             #print(f'Elapsed time: {t2 - t1} seconds.')
@@ -318,6 +329,7 @@ for do3D in True, False:
             
             plt.savefig(outfilename)
             #plt.show()
+
 
             gaussian=np.exp(-(Lpix ** 2 + Mpix ** 2)/(4*lim))
             gridded_visibilities=np.sqrt(np.abs(np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(gaussian*bb_image)))))

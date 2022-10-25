@@ -88,14 +88,17 @@ if (len(sys.argv)> 1):
         ms_file = "/work/ska/MeerKAT/1569274256_sdp_l0_wtspec_J0159.0-3413.ms" # MEERKAT
         
         WSClean_image_path = "/scratch/izar/krishna/MeerKAT/WSClean/J0159.500_Pixels_0_1024_channels-image.fits" # all channels
+        #WSClean_image_path = "/scratch/izar/krishna/MeerKAT/WSClean/J0159.0500_Pixels_517_518_channels-image.fits"
         
         column_name = "CORRECTED_DATA" # CORRECTED_DATA is fully flagged DATA is also fully flagged MODEL_DATA is empty
         sampling = 2
         N_level = 1
         output_dir = "/scratch/izar/krishna/MeerKAT/"
         time_slice = 200
+        time_start_index = 4
+        time_end_index = None
 
-        channel_id = 517
+        channel_id = np.arange(1024)
 
         if (len(sys.argv) >=4):
             channel_start, channel_end = int(sys.argv[3]), int(sys.argv[3]) + 1
@@ -130,6 +133,8 @@ if (len(sys.argv)> 1):
         N_level = 4
         output_dir = "/scratch/izar/krishna/LOFAR/"
         time_slice = 100
+        time_start_index = 0
+        time_end_index = None
 
         channel_id = 0
         ms = measurement_set.LofarMeasurementSet(ms_file, N_station = 24)
@@ -156,6 +161,8 @@ if (len(sys.argv)> 1):
         N_level = 3
         output_dir = "/scratch/izar/krishna/MWA/"
         time_slice = 100
+        time_start_index = 0
+        time_end_index = None
 
         #channel_id = np.arange(0, 64, dtype = np.int)
         channel_id = int(4)
@@ -264,7 +271,7 @@ print("Grid size is:", px_grid.shape[1], px_grid.shape[2])
 # Parameter Estimation
 I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=0.95)
 for t, f, S in ProgressBar(
-        ms.visibilities(channel_id=[channel_id], time_id=slice(0, None, time_slice), column=column_name)
+        ms.visibilities(channel_id=[channel_id], time_id=slice(time_start_index, time_end_index, time_slice), column=column_name)
 ):
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
@@ -287,7 +294,7 @@ I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
 #I_mfs = bb_fd.Fourier_IMFS_Block(wl, pix_colat, pix_lon, N_FS, T_kernel, R, N_level, N_bits)
 I_mfs = bb_sd.Spatial_IMFS_Block(wl, px_grid, N_level, N_bits) # replace px_grid 
 for t, f, S in ProgressBar(
-        ms.visibilities(channel_id=[channel_id], time_id=slice(0, None, time_slice), column=column_name)
+        ms.visibilities(channel_id=[channel_id], time_id=slice(time_start_index, time_end_index, time_slice), column=column_name)
 ):
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
@@ -349,7 +356,7 @@ S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
 #S_mfs = bb_fd.Fourier_IMFS_Block(wl, pix_colat, pix_lon, N_FS, T_kernel, R, 1, N_bits)
 S_mfs = bb_sd.Spatial_IMFS_Block(wl, px_grid, 1, N_bits)
 for t, f, S in ProgressBar(
-        ms.visibilities(channel_id=[channel_id], time_id=slice(0, None, time_slice), column=column_name)
+        ms.visibilities(channel_id=[channel_id], time_id=slice(time_start_index, time_end_index, time_slice), column=column_name)
 ):
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
