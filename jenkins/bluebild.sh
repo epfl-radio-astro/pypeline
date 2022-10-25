@@ -89,7 +89,7 @@ function bb_create_python_venv() {
         plotly  sklearn nvtx \
         python-casacore cupy-cuda110 \
         bluebild_tools  tqdm \
-        tk
+        tk sphinx sphinx_rtd_theme
     pip install --no-deps \
         pycsou  pyFFS
     deactivate
