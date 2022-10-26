@@ -29,7 +29,7 @@ plotly==5.10.0
 pybind11==2.10.0
 #pycsou==1.0.6
 pyerfa==2.0.0.1
-pyFFS==2.2.1
+#pyFFS==2.2.1
 Pygments==2.13.0
 pyparsing==3.0.9
 pyproj==3.2.1
