@@ -27,12 +27,6 @@ sphinx:
 python:
    install:
    - requirements: docs/requirements.txt
-
-#python:
-#   version: 3.6
-#   install:
-#   - requirements: doc/requirements.txt
-#   - method: pip
-#     path: .
-#   system_packages: true
+    - method: pip
+      path: .
 
