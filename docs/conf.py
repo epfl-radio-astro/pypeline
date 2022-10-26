@@ -3,56 +3,15 @@
 # =======
 # Author : Sepand KASHANI [kashani.sepand@gmail.com]
 # #############################################################################
-
-import configparser
 import datetime
 import pathlib
 import re
 from typing import Mapping
 
-
-def setup_config() -> configparser.ConfigParser:
-    """
-    Load information contained in `setup.cfg`.
-    """
-    sphinx_src_dir = pathlib.Path(__file__).parent
-    setup_path = sphinx_src_dir / ".." / "setup.cfg"
-    setup_path = setup_path.resolve(strict=True)
-
-    with setup_path.open(mode="r") as f:
-        cfg = configparser.ConfigParser()
-        cfg.read_file(f)
-    return cfg
-
-
-def pkg_info() -> Mapping:
-    """
-    Load information contained in `PKG-INFO`.
-    """
-    sphinx_src_dir = pathlib.Path(__file__).parent
-    info_path = sphinx_src_dir / ".." / "pypeline.egg-info" / "PKG-INFO"
-    info_path = info_path.resolve(strict=True)
-
-    # Pattern definitions
-    pat_version = r"Version: (.+)$"
-
-    with info_path.open(mode="r") as f:
-        info = dict(version=None)
-        for line in f:
-            m = re.match(pat_version, line)
-            if m is not None:
-                info["version"] = m.group(1)
-    return info
-
-
 # -- Project information -----------------------------------------------------
-cfg, info = setup_config(), pkg_info()
-project = cfg.get("metadata", "name")
-copyright = (
-    f"{datetime.date.today().year}, Imaging of Things Group (ImoT)"
-)
-author = cfg.get("metadata", "author")
-version = release = info["version"]
+project = "bluebild-pypeline"
+author  = "TBD"
+version = "TBD"
 
 # -- General configuration ---------------------------------------------------
 extensions = [
