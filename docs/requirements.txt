@@ -12,7 +12,7 @@ fonttools==4.37.4
 healpy==1.16.1
 idna==3.4
 imagesize==1.4.1
---no-deps git+https://github.com/imagingofthings/ImoT_tools.git@dev#egg=ImoT_tools
+git+https://github.com/imagingofthings/ImoT_tools.git@dev#egg=ImoT_tools --install-option="--no-deps"
 importlib-metadata==5.0.0
 Jinja2==3.1.2
 joblib==1.2.0
