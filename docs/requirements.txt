@@ -12,8 +12,6 @@ fonttools==4.37.4
 healpy==1.16.1
 idna==3.4
 imagesize==1.4.1
-#git+https://github.com/imagingofthings/ImoT_tools.git@dev#egg=ImoT_tools --config-settings="--no-deps"
-# Attempt with forked repo, with no requirements.txt
 git+https://github.com/orliac/ImoT_tools@dev#egg=ImoT_tools
 importlib-metadata==5.0.0
 Jinja2==3.1.2
