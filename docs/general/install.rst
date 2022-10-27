@@ -8,6 +8,12 @@
 Installation
 ============
 
+The following describes how `pipeline` and `bluebild` (with its C++ CPU and
+GPU ports) can be install on the EPFL's GPU cluster 
+`izar https://www.epfl.ch/research/facilities/scitas/hardware/izar/`_ using
+the available GCC 9.3.0 software stack.
+
+
 After installing `Miniconda <https://conda.io/miniconda.html>`_ or `Anaconda
 <https://www.anaconda.com/download/#linux>`_, run the following:
 
