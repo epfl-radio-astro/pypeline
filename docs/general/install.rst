@@ -15,7 +15,6 @@ the available GCC 9.3.0 software stack.
 
 * Load the following modules::
 
-    ```
     module purge
     module load gcc/9.3.0-cuda
     module load python/3.7.7
@@ -25,30 +24,22 @@ the available GCC 9.3.0 software stack.
     module load fftw/3.3.8-mpi-openmp
     module load cmake
 
-    ```
+* Create a Python virtual environment `$VENV_NAME`::
 
+    python -m venv $VENV_NAME
+    source $VENV_NAME/bin/activate
+    pip install --upgrade pip
+    pip install \
+        numpy   astropy healpy \
+        numexpr pandas  pybind11 \
+        scipy   pbr     pyproj \
+        plotly  sklearn nvtx \
+        python-casacore cupy-cuda110 \
+        bluebild_tools  tqdm \
+        tk sphinx sphinx_rtd_theme
+    pip install --no-deps \
+        pycsou  pyFFS
 
-After installing `Miniconda <https://conda.io/miniconda.html>`_ or `Anaconda
-<https://www.anaconda.com/download/#linux>`_, run the following:
-
-* Install C++ performance libraries::
-
-    $ cd <pypeline_dir>/
-    $ conda create --name=pypeline       \
-                   --channel=defaults    \
-                   --channel=conda-forge \
-                   --file=conda_requirements.txt
-    $ source pypeline.sh --no_shell
-
-* Install `pypeline`::
-
-    $ cd <pypeline_dir>/
-    $ pip install -e .
-    $ python3 test.py                # Run test suite (optional, recommended)
-    $ python3 setup.py build_sphinx  # Generate documentation (optional)
-
-
-To launch a Python3 shell containing Pypeline, run ``pypeline.sh``.
 
 
 Remarks
