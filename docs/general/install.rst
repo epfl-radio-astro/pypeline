@@ -8,10 +8,14 @@
 Installation
 ============
 
-The following describes how `pipeline` and `bluebild` (with its C++ CPU and
-GPU ports) can be installed on the EPFL's GPU cluster 
+The following describes how ``pypeline`` and ``bluebild`` (with its C++ CPU and
+GPU ports) can be installed on EPFL's GPU cluster 
 `izar <https://www.epfl.ch/research/facilities/scitas/hardware/izar/>`_ using
 the available GCC 9.3.0 software stack.
+
+It is advised to choose a root location where to install ``pypeline`` (and ``bluebild``)
+and all their dependencies. This location is referred to as ``$ROOT`` hereinafter.
+
 
 * Load the following modules::
 
@@ -24,8 +28,9 @@ the available GCC 9.3.0 software stack.
     module load fftw/3.3.8-mpi-openmp
     module load cmake
 
-* Create a Python virtual environment $VENV_NAME::
+* Create a Python virtual environment ``$VENV_NAME``::
 
+    cd $ROOT
     python -m venv $VENV_NAME
     source $VENV_NAME/bin/activate
     pip install --upgrade pip
@@ -45,6 +50,7 @@ the available GCC 9.3.0 software stack.
   Official installation instructions can be found 
   `here <https://finufft.readthedocs.io/en/latest/install.html>`_ ::
 
+    cd $ROOT
     git clone https://github.com/flatironinstitute/finufft.git
     cd finufft
     # Only if you want to have debugging information
@@ -53,11 +59,12 @@ the available GCC 9.3.0 software stack.
     ###make perftest
     make python
 
-* Install Simon Frasch's fork of `cuFINUFFT <https://github.com/AdhocMan/cufinufft>`_:
+* Install S. Frasch's fork of `cuFINUFFT <https://github.com/AdhocMan/cufinufft>`_:
   
   Simon's fork contains an implementation for 3D FFT of type 3 which is not
   available from the `official cuFINUFFT <https://github.com/flatironinstitute/cufinufft>`_. ::
 
+    cd $ROOT
     git clone -b t3_d3 --single-branch https://github.com/AdhocMan/cufinufft.git
     cd cufinufft
     # Only if you want to have debugging information
@@ -74,4 +81,14 @@ the available GCC 9.3.0 software stack.
     cd $NINJA_DIR
     wget https://github.com/ninja-build/ninja/releases/download/v1.11.0/ninja-linux.zip
     unzip ninja-linux.zip
-  
+
+* Install G. Fourestey's `Marla <https://gitlab.com/ursache/marla>`_ library:
+
+  Marla will be installed in ``$ROOT``. We use branch ``dev`` as it contains 
+  some bug fixes for functions ``floor`` and ``floorh``. ::
+
+    cd $ROOT
+    git clone https://gitlab.com/ursache/marla.git
+    cd marla
+    git checkout dev
+
