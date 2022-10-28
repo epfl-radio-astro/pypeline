@@ -66,11 +66,13 @@ the available GCC 9.3.0 software stack.
     cat make.inc
     make all -j
 
+* Install `Ninja <https://ninja-build.org/>`_:
 
+  Ninja will be installed in ``$NINJA_DIR``, a location of your choice. ::
 
-
-
+    mkdir -pv $NINJA_DIR
+    cd $NINJA_DIR
+    rm -f *
+    wget https://github.com/ninja-build/ninja/releases/download/v1.11.0/ninja-linux.zip
+    unzip ninja-linux.zip
   
-
-    
-
