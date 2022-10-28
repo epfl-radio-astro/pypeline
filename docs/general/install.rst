@@ -13,8 +13,8 @@ GPU ports) can be installed on EPFL's GPU cluster
 `izar <https://www.epfl.ch/research/facilities/scitas/hardware/izar/>`_ using
 the available GCC 9.3.0 software stack.
 
-It is advised to choose a root location where to install ``pypeline`` (and ``bluebild``)
-and all their dependencies. This location is referred to as ``$ROOT`` hereinafter.
+Here we choose a root location where to install ``pypeline`` (and ``bluebild``)
+and all dependencies. This location is referred to as ``$PROJ_ROOT`` hereinafter.
 
 
 .. _modules:
@@ -37,7 +37,7 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
 
   .. code-block:: shell
 
-    cd $ROOT
+    cd $PROJ_ROOT
     python -m venv $VENV_NAME
     source $VENV_NAME/bin/activate
     pip install --upgrade pip
@@ -52,6 +52,14 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
     pip install --no-deps \
         pycsou  pyFFS
 
+.. warning::
+
+   In the following steps it is assumed that:
+  
+   1. Required `modules`_ are loaded
+   2. $VENV_NAME Python virtual environment is activated
+
+
 
 * Install `FINUFFT <https://finufft.readthedocs.io/en/latest/index.html>`_:
 
@@ -60,7 +68,7 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
 
   .. code-block:: shell
 
-    cd $ROOT
+    cd $PROJ_ROOT
     git clone https://github.com/flatironinstitute/finufft.git
     cd finufft
     # Only if you want to have debugging information
@@ -77,7 +85,7 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
 
   .. code-block:: shell
 
-    cd $ROOT
+    cd $PROJ_ROOT
     git clone -b t3_d3 --single-branch https://github.com/AdhocMan/cufinufft.git
     cd cufinufft
     # Only if you want to have debugging information
@@ -91,19 +99,18 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
 
   .. code-block:: shell
 
-    cd $ROOT
+    cd $PROJ_ROOT
     wget https://github.com/ninja-build/ninja/releases/download/v1.11.0/ninja-linux.zip
     unzip ninja-linux.zip
 
 
 * Install G. Fourestey's `Marla <https://gitlab.com/ursache/marla>`_ library:
 
-  Marla will be installed in ``$ROOT``. We use branch ``dev`` as it contains 
-  some bug fixes for functions ``floor`` and ``floorh``.
+  We use branch ``dev`` as it contains some bug fixes for functions ``floor`` and ``floorh``.
 
   .. code-block:: shell
 
-    cd $ROOT
+    cd $PROJ_ROOT
     git clone https://gitlab.com/ursache/marla.git
     cd marla
     git checkout dev
@@ -115,7 +122,7 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
 
   .. code-block:: shell
 
-    cd $ROOT
+    cd $PROJ_ROOT
     source $VENV_NAME/bin/activate
     git clone -b dev --single-branch https://github.com/imagingofthings/ImoT_tools.git
     cd ImoT_tools
@@ -124,14 +131,9 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
 
 * Intall `pypeline <https://github.com/epfl-radio-astro/pypeline>`_ from epfl-radio-astro's fork:
 
-  Assumptions:
-  
-  1. Required `modules`_ are loaded
-  2. $VENV_NAME Python virtual environment is activated
-
   .. code-block:: shell
 
-     cd $ROOT
+     cd $PROJ_ROOT
      git clone https://github.com/epfl-radio-astro/pypeline.git
      cd pypeline
      #EO: until PR to merge ci-master into master is done, use ci-master
@@ -147,13 +149,15 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
 
   .. code-block:: shell
 
-     cd $ROOT/pypeline/src/bluebild
+     cd $PROJ_ROOT/pypeline/src/bluebild
      BLUEBILD_CMAKE_ARGS="-DMARLA_ROOT=$ROOT/marla" pip install -v --no-deps .
 
 * Edit your .bashrc file with:
 
   .. code-block:: shell
 
-     export PATH=$ROOT/ninja:$ROOT/cufinufft/bin:$ROOT/Umpire/inst/usr/local/bin:$PATH
-     export LD_LIBRARY_PATH=$ROOT/finufft/lib:$ROOT/cufinufft/lib:$ROOT/Umpire/inst/usr/local/lib:$LD_LIBRARY_PATH
+     PROJ_ROOT=/path/to/your/project
+
+     export PATH=$PROJ_ROOT/ninja:$PROJ_ROOT/cufinufft/bin:$PROJ_ROOT/Umpire/inst/usr/local/bin:$PATH
+     export LD_LIBRARY_PATH=$PROJ_ROOT/finufft/lib:$PROJ_ROOT/cufinufft/lib:$PROJ_ROOT/Umpire/inst/usr/local/lib:$LD_LIBRARY_PATH
 
