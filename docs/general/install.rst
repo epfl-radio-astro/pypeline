@@ -140,12 +140,8 @@ and all dependencies. This location is referred to as ``$PROJ_ROOT`` hereinafter
      git checkout ci-master
      pip install -v --no-deps -e .
 
-* Compile C++ CPU/GPU ports of ``bluebild``
 
-  Assumptions:
-  
-  1. Required `modules`_ are loaded
-  2. $VENV_NAME Python virtual environment is activated
+* Compile CPU/GPU C++ ports of ``bluebild``
 
   .. code-block:: shell
 
