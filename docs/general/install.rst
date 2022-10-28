@@ -72,7 +72,6 @@ the available GCC 9.3.0 software stack.
 
     mkdir -pv $NINJA_DIR
     cd $NINJA_DIR
-    rm -f *
     wget https://github.com/ninja-build/ninja/releases/download/v1.11.0/ninja-linux.zip
     unzip ninja-linux.zip
   
