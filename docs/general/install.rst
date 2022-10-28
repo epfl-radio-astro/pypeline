@@ -19,7 +19,9 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
 
 .. _modules:
 
-* Load the following modules::
+* Load the following modules:
+
+  .. code-block:: shell
 
     module purge
     module load gcc/9.3.0-cuda
@@ -31,7 +33,9 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
     module load cmake
 
 
-* Create a Python virtual environment ``$VENV_NAME``::
+* Create a Python virtual environment ``$VENV_NAME``:
+
+  .. code-block:: shell
 
     cd $ROOT
     python -m venv $VENV_NAME
@@ -52,7 +56,9 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
 * Install `FINUFFT <https://finufft.readthedocs.io/en/latest/index.html>`_:
 
   Official installation instructions can be found 
-  `here <https://finufft.readthedocs.io/en/latest/install.html>`_ ::
+  `here <https://finufft.readthedocs.io/en/latest/install.html>`_.
+
+  .. code-block:: shell
 
     cd $ROOT
     git clone https://github.com/flatironinstitute/finufft.git
@@ -67,7 +73,9 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
 * Install S. Frasch's fork of `cuFINUFFT <https://github.com/AdhocMan/cufinufft>`_:
   
   Simon's fork contains an implementation for 3D FFT of type 3 which is not
-  available from the `official cuFINUFFT <https://github.com/flatironinstitute/cufinufft>`_. ::
+  available from the `official cuFINUFFT <https://github.com/flatironinstitute/cufinufft>`_.
+
+  .. code-block:: shell
 
     cd $ROOT
     git clone -b t3_d3 --single-branch https://github.com/AdhocMan/cufinufft.git
@@ -79,7 +87,9 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
     make all -j
 
 
-* Install `Ninja <https://ninja-build.org/>`_::
+* Install `Ninja <https://ninja-build.org/>`_:
+
+  .. code-block:: shell
 
     cd $ROOT
     wget https://github.com/ninja-build/ninja/releases/download/v1.11.0/ninja-linux.zip
@@ -89,7 +99,9 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
 * Install G. Fourestey's `Marla <https://gitlab.com/ursache/marla>`_ library:
 
   Marla will be installed in ``$ROOT``. We use branch ``dev`` as it contains 
-  some bug fixes for functions ``floor`` and ``floorh``. ::
+  some bug fixes for functions ``floor`` and ``floorh``.
+
+  .. code-block:: shell
 
     cd $ROOT
     git clone https://gitlab.com/ursache/marla.git
@@ -99,14 +111,15 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
 
 * Install `ImoT_tools <https://github.com/imagingofthings/ImoT_tools.git>`_:
 
-  We install the ``dev`` branch of ImoT_tools. ::
+  We install the ``dev`` branch of ImoT_tools.
+
+  .. code-block:: shell
 
     cd $ROOT
     source $VENV_NAME/bin/activate
     git clone -b dev --single-branch https://github.com/imagingofthings/ImoT_tools.git
     cd ImoT_tools
     pip install --no-deps .
-    deactivate
 
 
 * Intall `pypeline <https://github.com/epfl-radio-astro/pypeline>`_ from epfl-radio-astro's fork:
@@ -121,6 +134,26 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
      cd $ROOT
      git clone https://github.com/epfl-radio-astro/pypeline.git
      cd pypeline
+     #EO: until PR to merge ci-master into master is done, use ci-master
+     git checkout ci-master
      pip install -v --no-deps -e .
 
+* Compile C++ CPU/GPU ports of ``bluebild``
+
+  Assumptions:
+  
+  1. Required `modules`_ are loaded
+  2. $VENV_NAME Python virtual environment is activated
+
+  .. code-block:: shell
+
+     cd $ROOT/pypeline/src/bluebild
+     BLUEBILD_CMAKE_ARGS="-DMARLA_ROOT=$ROOT/marla" pip install -v --no-deps .
+
+* Edit your .bashrc file with:
+
+  .. code-block:: shell
+
+     export PATH=$ROOT/ninja:$ROOT/cufinufft/bin:$ROOT/Umpire/inst/usr/local/bin:$PATH
+     export LD_LIBRARY_PATH=$ROOT/finufft/lib:$ROOT/cufinufft/lib:$ROOT/Umpire/inst/usr/local/lib:$LD_LIBRARY_PATH
 
