@@ -17,6 +17,8 @@ It is advised to choose a root location where to install ``pypeline`` (and ``blu
 and all their dependencies. This location is referred to as ``$ROOT`` hereinafter.
 
 
+.. _modules:
+
 * Load the following modules::
 
     module purge
@@ -27,6 +29,7 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
     module load mvapich2/2.3.4
     module load fftw/3.3.8-mpi-openmp
     module load cmake
+
 
 * Create a Python virtual environment ``$VENV_NAME``::
 
@@ -45,6 +48,7 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
     pip install --no-deps \
         pycsou  pyFFS
 
+
 * Install `FINUFFT <https://finufft.readthedocs.io/en/latest/index.html>`_:
 
   Official installation instructions can be found 
@@ -58,6 +62,7 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
     make test -j
     ###make perftest
     make python
+
 
 * Install S. Frasch's fork of `cuFINUFFT <https://github.com/AdhocMan/cufinufft>`_:
   
@@ -73,14 +78,13 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
     cat make.inc
     make all -j
 
-* Install `Ninja <https://ninja-build.org/>`_:
 
-  Ninja will be installed in ``$NINJA_DIR``, a location of your choice. ::
+* Install `Ninja <https://ninja-build.org/>`_::
 
-    mkdir -pv $NINJA_DIR
-    cd $NINJA_DIR
+    cd $ROOT
     wget https://github.com/ninja-build/ninja/releases/download/v1.11.0/ninja-linux.zip
     unzip ninja-linux.zip
+
 
 * Install G. Fourestey's `Marla <https://gitlab.com/ursache/marla>`_ library:
 
@@ -91,4 +95,32 @@ and all their dependencies. This location is referred to as ``$ROOT`` hereinafte
     git clone https://gitlab.com/ursache/marla.git
     cd marla
     git checkout dev
+
+
+* Install `ImoT_tools <https://github.com/imagingofthings/ImoT_tools.git>`_:
+
+  We install the ``dev`` branch of ImoT_tools. ::
+
+    cd $ROOT
+    source $VENV_NAME/bin/activate
+    git clone -b dev --single-branch https://github.com/imagingofthings/ImoT_tools.git
+    cd ImoT_tools
+    pip install --no-deps .
+    deactivate
+
+
+* Intall `pypeline <https://github.com/epfl-radio-astro/pypeline>`_ from epfl-radio-astro's fork:
+
+  Assumptions:
+  
+  1. Required `modules`_ are loaded
+  2. $VENV_NAME Python virtual environment is activated
+
+  .. code-block:: shell
+
+     cd $ROOT
+     git clone https://github.com/epfl-radio-astro/pypeline.git
+     cd pypeline
+     pip install -v --no-deps -e .
+
 
