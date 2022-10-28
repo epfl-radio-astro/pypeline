@@ -24,7 +24,7 @@ the available GCC 9.3.0 software stack.
     module load fftw/3.3.8-mpi-openmp
     module load cmake
 
-* Create a Python virtual environment `$VENV_NAME`::
+* Create a Python virtual environment $VENV_NAME::
 
     python -m venv $VENV_NAME
     source $VENV_NAME/bin/activate
@@ -40,10 +40,37 @@ the available GCC 9.3.0 software stack.
     pip install --no-deps \
         pycsou  pyFFS
 
+* Install `FINUFFT <https://finufft.readthedocs.io/en/latest/index.html>`_:
+
+  Official installation instructions can be found 
+  `here <https://finufft.readthedocs.io/en/latest/install.html>`_ ::
+
+    git clone https://github.com/flatironinstitute/finufft.git
+    cd finufft
+    # Only if you want to have debugging information
+    echo "CXXFLAGS += -g -DFFTW_PLAN_SAFE" > make.inc
+    make test -j
+    ###make perftest
+    make python
+
+* Install Simon Frasch's fork of `cuFINUFFT <https://github.com/AdhocMan/cufinufft>`_:
+  
+  Simon's fork contains an implementation for 3D FFT of type 3 which is not
+  available from the `official cuFINUFFT <https://github.com/flatironinstitute/cufinufft>`_. ::
+
+    git clone -b t3_d3 --single-branch https://github.com/AdhocMan/cufinufft.git
+    cd cufinufft
+    # Only if you want to have debugging information
+    echo "CXXFLAGS  += -g" > make.inc
+    echo "NVCCFLAGS += -g" >> make.inc
+    cat make.inc
+    make all -j
 
 
-Remarks
--------
 
-Pypeline is developed and tested on x86_64 systems running Linux.
-It should also run correctly on macOS, but we provide no support for this.
+
+
+  
+
+    
+
