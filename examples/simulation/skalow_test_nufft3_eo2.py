@@ -61,9 +61,21 @@ uvw_frame = RX(np.pi/2 - source.dec.rad) @ RZ(np.pi/2 + source.ra.rad)
 # From https://ska-telescope.gitlab.io/external/rascil/_modules/rascil/processing_components/simulation/configurations.html#create_configuration_from_file
 low_location = coord.EarthLocation(lon=116.76444824 * u.deg, lat=-26.824722084 * u.deg, height=300.0)
 
+use_raw_vis  = True
+do3D         = False
+doPlan       = False
+rascil_fixed = True #True to use MS file generated with RASCIL containing crd bug fix
 
-ms_file = "./rascil_sim/ska-pipeline_simulation.ms"
-ms = measurement_set.SKALowMeasurementSet(ms_file, origin=low_location)
+
+#EO: rascil_sim_bugfix was generated with lastest RASCIL on 2022/10/28
+#    which contains a bug fix for the wrong coordinates being exported
+#    to MS files (see https://gitlab.com/ska-telescope/external/rascil/-/issues/69)
+if rascil_fixed:
+    ms_file = "/work/ska/orliac/rascil_crd_ms_issue/rascil_sim_bugfix/ska-pipeline_simulation.ms"
+    ms = measurement_set.SKALowMeasurementSet(ms_file, origin=None)
+else:
+    ms_file = "/work/ska/orliac/rascil_crd_ms_issue/rascil_sim/ska-pipeline_simulation.ms"
+    ms = measurement_set.SKALowMeasurementSet(ms_file, origin=low_location)
 
 read_coords_from_ms = False
 
@@ -89,16 +101,17 @@ lmn_grid = np.stack((Lpix, Mpix, Jpix), axis=0)
 pix_xyz = np.tensordot(uvw_frame.transpose(), lmn_grid, axes=1)
 
 
-use_raw_vis = False
-do3D        = False
-doPlan      = False
 
 for use_ms in True, False:
 
     print("####### use_ms =", use_ms, " doPlan =", doPlan)
     uvw_from_ms = use_ms
 
-    outfilename = 'test_skalow_nufft_' + ('msUVW_' if uvw_from_ms else '') + ('rawVis_' if use_raw_vis else 'BBVis')
+    if rascil_fixed:
+        outfilename = 'bugfix'
+    else:
+        outfilename = 'test'
+    outfilename += '_skalow_nufft_' + ('msUVW_' if uvw_from_ms else '') + ('rawVis_' if use_raw_vis else 'BBVis')
 
     gram = bb_gr.GramBlock()
 
