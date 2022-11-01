@@ -6,8 +6,8 @@
 set -x
 ROOT=`pwd` # Jenkins branch's workspace (checkout of pypeline Git repository)
 PYPELINE_ROOT=$ROOT
-if [ $USER == "orliac" ]; then    # for local dev
-    ROOT=~/SKA/epfl-radio-astro
+if [ $USER == "adas" ]; then    # for local dev
+    ROOT=/home/adas/bluebuild
     PYPELINE_ROOT=$ROOT/pypeline
 fi
 NINJA_DIR=$ROOT/ninja
