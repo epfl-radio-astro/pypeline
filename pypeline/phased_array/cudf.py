@@ -192,3 +192,47 @@ class Cudfparquet:
             Beamweight computer.
         """
         raise NotImplementedError
+
+    @chk.check(
+        dict(
+            channel_id=chk.accept_any(chk.has_integers, chk.is_instance(slice)),
+            time_id=chk.accept_any(chk.is_integer, chk.is_instance(slice)),
+            column=chk.is_instance(str),
+        )
+    )
+    def visibilities(self, channel_id, time_id, column):
+        
+        """
+        Extract visibility matrices.
+
+        Parameters
+        ----------
+        channel_id : array-like(int) or slice
+            Several CHANNEL_IDs from :py:attr:`~pypeline.phased_array.util.measurement_set.MeasurementSet.channels`.
+        time_id : int or slice
+            Several TIME_IDs from :py:attr:`~pypeline.phased_array.util.measurement_set.MeasurementSet.time`.
+        column : str
+            Column name from MAIN table where visibility data resides.
+
+            (This is required since several visibility-holding columns can co-exist.)
+
+        Returns
+        -------
+        iterable
+
+            Generator object returning (time, freq, S) triplets with:
+
+            * time (:py:class:`~astropy.time.Time`): moment the visibility was formed;
+            * freq (:py:class:`~astropy.units.Quantity`): center frequency of the visibility;
+            * S (:py:class:`~pypeline.phased_array.data_gen.statistics.VisibilityMatrix`)
+        """
+        df = cudf.read_parquet(self._cudf+'.parquet')
+        
+        if column not in df.columns:
+            raise ValueError(f"column={column} does not exist in {self._cudf}::MAIN.")
+            
+        channel_id = self.channels["CHANNEL_ID"][channel_id]
+        if chk.is_integer(time_id):
+            time_id = slice(time_id, time_id + 1, 1)
+        N_time = len(self.time)
+        time_start, time_stop, time_step = time_id.indices(N_time)
