@@ -1,0 +1,101 @@
+typedef char __nv_bool;
+# 209 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-haswell/gcc-4.8.5/gcc-9.3.0-prviuv7vpdzyyhhai7sqrxlgyedsjosg/lib/gcc/x86_64-pc-linux-gnu/9.3.0/include/stddef.h" 3
+typedef unsigned long size_t;
+#include "crt/device_runtime.h"
+# 254 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-haswell/gcc-4.8.5/gcc-9.3.0-prviuv7vpdzyyhhai7sqrxlgyedsjosg/include/c++/9.3.0/x86_64-pc-linux-gnu/bits/c++config.h" 3
+typedef unsigned long _ZSt6size_t;
+# 75 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+___device__(static  __no_sc__) enum cudaError cudaMalloc(void **, size_t);
+# 80 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+___device__(static  __no_sc__) enum cudaError cudaFuncGetAttributes(struct cudaFuncAttributes *, const void *);
+# 85 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+___device__(static  __no_sc__) enum cudaError cudaDeviceGetAttribute(int *, enum cudaDeviceAttr, int);
+# 90 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+___device__(static  __no_sc__) enum cudaError cudaGetDevice(int *);
+# 95 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+___device__(static  __no_sc__) enum cudaError cudaOccupancyMaxActiveBlocksPerMultiprocessor(int *, const void *, int, size_t);
+# 100 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+___device__(static  __no_sc__) enum cudaError cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(int *, const void *, int, size_t, unsigned);
+#include "common_functions.h"
+# 75 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+___device__(static  __no_sc__) enum cudaError cudaMalloc(
+# 75 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+void **p, 
+# 75 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+size_t s){
+# 76 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+{
+# 77 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+return cudaErrorUnknown;
+# 78 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+}}
+# 80 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+___device__(static  __no_sc__) enum cudaError cudaFuncGetAttributes(
+# 80 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+struct cudaFuncAttributes *p, 
+# 80 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+const void *c){
+# 81 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+{
+# 82 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+return cudaErrorUnknown;
+# 83 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+}}
+# 85 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+___device__(static  __no_sc__) enum cudaError cudaDeviceGetAttribute(
+# 85 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+int *value, 
+# 85 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+enum cudaDeviceAttr attr, 
+# 85 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+int device){
+# 86 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+{
+# 87 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+return cudaErrorUnknown;
+# 88 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+}}
+# 90 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+___device__(static  __no_sc__) enum cudaError cudaGetDevice(
+# 90 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+int *device){
+# 91 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+{
+# 92 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+return cudaErrorUnknown;
+# 93 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+}}
+# 95 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+___device__(static  __no_sc__) enum cudaError cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+# 95 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+int *numBlocks, 
+# 95 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+const void *func, 
+# 95 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+int blockSize, 
+# 95 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+size_t dynamicSmemSize){
+# 96 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+{
+# 97 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+return cudaErrorUnknown;
+# 98 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+}}
+# 100 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+___device__(static  __no_sc__) enum cudaError cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(
+# 100 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+int *numBlocks, 
+# 100 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+const void *func, 
+# 100 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+int blockSize, 
+# 100 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+size_t dynamicSmemSize, 
+# 100 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+unsigned flags){
+# 101 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+{
+# 102 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+return cudaErrorUnknown;
+# 103 "/ssoft/spack/arvine/v1/opt/spack/linux-rhel7-cascadelake/gcc-9.3.0/cuda-11.0.2-w4gi7m3vx64dpvuur2c6als7534h3z5v/include/cuda_device_runtime_api.h" 3
+}}

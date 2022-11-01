@@ -1,0 +1,5 @@
+/home/adas/bluebuild/pypeline/src/bluebild/_skbuild/linux-x86_64-3.7/cmake-install/python/bluebild/pybluebild.cpython-37m-x86_64-linux-gnu.so
+/home/adas/bluebuild/pypeline/src/bluebild/_skbuild/linux-x86_64-3.7/cmake-install/python/bluebild/__init__.py
+/home/adas/bluebuild/pypeline/src/bluebild/_skbuild/linux-x86_64-3.7/cmake-install/python/bluebild/_libs/libbluebild.so.0.1.0
+/home/adas/bluebuild/pypeline/src/bluebild/_skbuild/linux-x86_64-3.7/cmake-install/python/bluebild/_libs/libbluebild.so.1
+/home/adas/bluebuild/pypeline/src/bluebild/_skbuild/linux-x86_64-3.7/cmake-install/python/bluebild/_libs/libbluebild.so
