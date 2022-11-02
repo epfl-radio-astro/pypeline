@@ -6,3 +6,12 @@
 
 
 General information on ``pypeline`` and ``bluebild``.
+
+Motivations
+===========
+
+
+Copyrights
+==========
+
+
