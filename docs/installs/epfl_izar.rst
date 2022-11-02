@@ -157,3 +157,6 @@ and all dependencies. This location is referred to as ``$PROJ_ROOT`` hereinafter
      export PATH=$PROJ_ROOT/ninja:$PROJ_ROOT/cufinufft/bin:$PROJ_ROOT/Umpire/inst/usr/local/bin:$PATH
      export LD_LIBRARY_PATH=$PROJ_ROOT/finufft/lib:$PROJ_ROOT/cufinufft/lib:$PROJ_ROOT/Umpire/inst/usr/local/lib:$LD_LIBRARY_PATH
 
+  and then log out and log in again.
+
+Then you should be able to run example simulation pypelines such as `lofar_bootes_nufft3_cpp_data_proc.py <https://github.com/epfl-radio-astro/pypeline/blob/ci-master/examples/simulation/lofar_bootes_nufft3_cpp_data_proc.py>`_ or `lofar_bootes_ss_cpp.py <https://github.com/epfl-radio-astro/pypeline/blob/ci-master/examples/simulation/lofar_bootes_ss_cpp.py>`_.
