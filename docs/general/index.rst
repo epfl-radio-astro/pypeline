@@ -12,12 +12,3 @@ General
    :maxdepth: 1
 
    install
-
-Installation
-============
-
-.. toctree::
-   :maxdepth: 2
-
-   installs/index
-
