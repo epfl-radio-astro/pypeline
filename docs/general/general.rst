@@ -1,14 +1,8 @@
 .. ############################################################################
-.. index.rst
-.. =========
-.. Author : Sepand KASHANI [kashani.sepand@gmail.com]
+.. general.rst
+.. ===========
+.. Author : E. Orliac @EPFL
 .. ############################################################################
 
 
-General
-=======
-
-.. toctree::
-   :maxdepth: 1
-
-   general
+General information on ``pypeline`` and ``bluebild``.
