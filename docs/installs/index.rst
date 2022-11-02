@@ -1,23 +1,14 @@
 .. ############################################################################
 .. index.rst
 .. =========
-.. Author : Sepand KASHANI [kashani.sepand@gmail.com]
+.. Author : E. Orliac @EPFL
 .. ############################################################################
 
-
-General
-=======
-
-.. toctree::
-   :maxdepth: 1
-
-   install
-
-Installation
-============
+####################
+  Installation guides
+####################
 
 .. toctree::
    :maxdepth: 2
 
-   installs/index
-
+   epfl_izar
