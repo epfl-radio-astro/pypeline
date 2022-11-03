@@ -236,3 +236,88 @@ class Cudfparquet:
             time_id = slice(time_id, time_id + 1, 1)
         N_time = len(self.time)
         time_start, time_stop, time_step = time_id.indices(N_time)
+        
+        obstime = df['TIME'].explode().to_numpy()
+        unique_time = np.unique(obstime)[time_start:time_stop:time_step]
+        
+        df2 = df.loc[df['TIME'].isin(unique_time)]
+        
+        for t in unique_time:
+            df_sub = df2.loc[df2['TIME'] == t]
+            beam_id_0 = df_sub.ANTENNA1.to_numpy()
+            beam_id_1 = df_sub.ANTENNA2.to_numpy()
+            data_flag = df_sub.FLAG.explode().explode().to_numpy().reshape(len(df_sub.FLAG),len(df_sub.FLAG[0]),len(df_sub.FLAG[0][0]))
+            data = df_sub.data.explode().explode().to_numpy(dtype=np.float32).reshape(len(df_sub.data),len(df_sub.data[0]),len(df_sub.data[0][0])).view(np.complex64)
+            
+            # We only want XX and YY correlations
+            data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
+            data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
+            
+            # DataFrame description of visibility data.
+            # Each column represents a different channel.
+            S_full_idx = pd.MultiIndex.from_arrays((beam_id_0, beam_id_1), names=("B_0", "B_1"))
+            S_full = pd.DataFrame(data=data, columns=channel_id, index=S_full_idx)
+
+            # Drop rows of `S_full` corresponding to unwanted beams.
+            beam_id = np.unique(self.instrument._layout.index.get_level_values("STATION_ID"))
+            N_beam = len(beam_id)
+            i, j = np.triu_indices(N_beam, k=0)
+            wanted_index = pd.MultiIndex.from_arrays((beam_id[i], beam_id[j]), names=("B_0", "B_1"))
+            index_to_drop = S_full_idx.difference(wanted_index)
+            S_trunc = S_full.drop(index=index_to_drop)
+
+            # Depending on the dataset, some (ANTENNA1, ANTENNA2) pairs that have correlation=0 are
+            # omitted in the table.
+            # This is problematic as the previous DataFrame construction could be potentially
+            # missing entire antenna ranges.
+            # To fix this issue, we augment the dataframe to always make sure `S_trunc` matches the
+            # desired shape.
+            index_diff = wanted_index.difference(S_trunc.index)
+            N_diff = len(index_diff)
+
+            S_fill_in = pd.DataFrame(
+                data=np.zeros((N_diff, len(channel_id)), dtype=data.dtype),
+                columns=channel_id,
+                index=index_diff,
+            )
+            S = pd.concat([S_trunc, S_fill_in], axis=0, ignore_index=False).sort_index(
+                level=["B_0", "B_1"]
+            )
+
+            # Break S into columns and stream out
+            t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
+            f = self.channels["FREQUENCY"]
+            beam_idx = pd.Index(beam_id, name="BEAM_ID")
+            for ch_id in channel_id:
+                v = _series2array(S[ch_id].rename("S", inplace=True))
+                visibility = vis.VisibilityMatrix(v, beam_idx)
+                yield t, f[ch_id], visibility
+                
+
+def _series2array(visibility: pd.Series) -> np.ndarray:
+    b_idx_0 = visibility.index.get_level_values("B_0").to_series()
+    b_idx_1 = visibility.index.get_level_values("B_1").to_series()
+
+    row_map = (
+        pd.concat(objs=(b_idx_0, b_idx_1), ignore_index=True)
+        .drop_duplicates()
+        .to_frame(name="BEAM_ID")
+        .assign(ROW_ID=lambda df: np.arange(len(df)))
+    )
+    col_map = row_map.rename(columns={"ROW_ID": "COL_ID"})
+
+    data = (
+        visibility.reset_index()
+        .merge(row_map, left_on="B_0", right_on="BEAM_ID")
+        .merge(col_map, left_on="B_1", right_on="BEAM_ID")
+        .loc[:, ["ROW_ID", "COL_ID", "S"]]
+    )
+
+    N_beam = len(row_map)
+    S = np.zeros(shape=(N_beam, N_beam), dtype=complex)
+    S[data.ROW_ID.values, data.COL_ID.values] = data.S.values
+    S_diag = np.diag(S)
+    S = S + S.conj().T
+    S[np.diag_indices_from(S)] = S_diag
+    return S
+
