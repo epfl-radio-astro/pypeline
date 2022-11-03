@@ -321,3 +321,62 @@ def _series2array(visibility: pd.Series) -> np.ndarray:
     S[np.diag_indices_from(S)] = S_diag
     return S
 
+
+class LofarMeasurementSet(MeasurementSet):
+    """
+    LOw-Frequency ARray (LOFAR) Measurement Set reader.
+    """
+
+    @chk.check(
+        dict(
+            file_name=chk.is_instance(str),
+            N_station=chk.allow_None(chk.is_integer),
+            station_only=chk.is_boolean,
+        )
+    )
+    def __init__(self, file_name, N_station=None, station_only=False):
+        """
+        Parameters
+        ----------
+        file_name : str
+            Name of the MS file.
+        N_station : int
+            Number of stations to use. (Default = all)
+
+            Sometimes only a subset of an instrument’s stations are desired.
+            Setting `N_station` limits the number of stations to those that appear first when sorted
+            by STATION_ID.
+        station_only : bool
+            If :py:obj:`True`, model LOFAR stations as single-element antennas. (Default = False)
+        """
+        super().__init__(file_name)
+
+        if N_station is not None:
+            if N_station <= 0:
+                raise ValueError("Parameter[N_station] must be positive.")
+        self._N_station = N_station
+        self._station_only = station_only
+        
+        
+    @property
+    def beamformer(self):
+        """
+        Each dataset has been beamformed in a specific way.
+        This property outputs the correct beamformer to compute the beamforming weights.
+
+        Returns
+        -------
+        :py:class:`~pypeline.phased_array.beamforming.MatchedBeamformerBlock`
+            Beamweight computer.
+        """
+        if self._beamformer is None:
+            # LOFAR uses Matched-Beamforming exclusively, with a single beam output per station.
+            XYZ = self.instrument._layout
+            beam_id = np.unique(XYZ.index.get_level_values("STATION_ID"))
+
+            direction = self.field_center
+            beam_config = [(_, _, direction) for _ in beam_id]
+            self._beamformer = beamforming.MatchedBeamformerBlock(beam_config)
+
+        return self._beamformer
+
