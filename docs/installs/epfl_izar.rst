@@ -146,9 +146,9 @@ and all dependencies. This location is referred to as ``$PROJ_ROOT`` hereinafter
   .. code-block:: shell
 
      cd $PROJ_ROOT/pypeline/src/bluebild
-     BLUEBILD_CMAKE_ARGS="-DMARLA_ROOT=$ROOT/marla" pip install -v --no-deps .
+     BLUEBILD_CMAKE_ARGS="-DMARLA_ROOT=$PROJ_ROOT/marla" pip install -v --no-deps .
 
-* Edit your .bashrc file with:
+* Edit your ``.bashrc`` file with:
 
   .. code-block:: shell
 
@@ -157,6 +157,13 @@ and all dependencies. This location is referred to as ``$PROJ_ROOT`` hereinafter
      export PATH=$PROJ_ROOT/ninja:$PROJ_ROOT/cufinufft/bin:$PROJ_ROOT/Umpire/inst/usr/local/bin:$PATH
      export LD_LIBRARY_PATH=$PROJ_ROOT/finufft/lib:$PROJ_ROOT/cufinufft/lib:$PROJ_ROOT/Umpire/inst/usr/local/lib:$LD_LIBRARY_PATH
 
-  and then log out and log in again.
+.. warning::
 
-Then you should be able to run example simulation pypelines such as `lofar_bootes_nufft3_cpp_data_proc.py <https://github.com/epfl-radio-astro/pypeline/blob/ci-master/examples/simulation/lofar_bootes_nufft3_cpp_data_proc.py>`_ or `lofar_bootes_ss_cpp.py <https://github.com/epfl-radio-astro/pypeline/blob/ci-master/examples/simulation/lofar_bootes_ss_cpp.py>`_.
+   1. Log out and log in again, or
+   2. Resource your ``~/.bashrc`` file
+
+
+Testing the installation
+------------------------
+
+Now you should be able to run example simulation pypelines such as `lofar_bootes_nufft3_cpp_data_proc.py <https://github.com/epfl-radio-astro/pypeline/blob/ci-master/examples/simulation/lofar_bootes_nufft3_cpp_data_proc.py>`_ or `lofar_bootes_ss_cpp.py <https://github.com/epfl-radio-astro/pypeline/blob/ci-master/examples/simulation/lofar_bootes_ss_cpp.py>`_.
