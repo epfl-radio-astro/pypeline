@@ -163,6 +163,7 @@ class MeasurementSet:
             table = ct.taql(query)
 
             f = table.getcell("CHAN_FREQ", 0).flatten() * u.Hz
+            print(f)
             f_id = range(len(f))
             self._channels = tb.QTable(dict(CHANNEL_ID=f_id, FREQUENCY=f))
 

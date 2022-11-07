@@ -7,7 +7,7 @@
 """
 Cudf file readers and tools.
 """
-
+import pathlib
 import dask
 import dask.array as da
 import dask_cudf
@@ -17,6 +17,8 @@ import astropy.coordinates as coord
 import astropy.table as tb
 import astropy.time as time
 import astropy.units as u
+import imot_tools.util.argcheck as chk
+import pandas as pd
 
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.instrument as instrument
@@ -99,8 +101,8 @@ class Cudfparquet:
         if not path.exists():
             raise FileNotFoundError(f"{file_name} does not exist.")
 
-        if not path.is_dir():
-            raise NotADirectoryError(f"{file_name} is not a directory, so cannot be an parquet file.")
+        # if not path.is_dir():
+        #     raise NotADirectoryError(f"{file_name} is not a directory, so cannot be an parquet file.")
 
         self._cudf = str(path)
 
@@ -121,8 +123,9 @@ class Cudfparquet:
         """
 
         if self._field_center is None:
-            df = cudf.read_parquet(self._cudf+'_FIELD'+'.parquet')
-
+            path = pathlib.Path(self._cudf).absolute()
+            df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'FIELD'}{path.suffix}")
+            
             lon, lat = df['REFERENCE_DIR'].explode()[0]
             self._field_center = coord.SkyCoord(ra=lon * u.rad, dec=lat * u.rad, frame="icrs")
 
@@ -143,9 +146,10 @@ class Cudfparquet:
         """
         
         if self._channels is None:
-            df = cudf.read_parquet(self._cudf+'_SPECTRAL_WINDOW'+'.parquet')
+            path = pathlib.Path(self._cudf).absolute()
+            df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'SPECTRAL_WINDOW'}{path.suffix}")
 
-            f = df['CHAN_FREQ'].explode()[0] * u.Hz
+            f = df['CHAN_FREQ'].list.leaves.to_numpy() * u.Hz
             f_id = range(len(f))
             self._channels = tb.QTable(dict(CHANNEL_ID=f_id, FREQUENCY=f))
 
@@ -165,7 +169,7 @@ class Cudfparquet:
             * TIME : :py:class:`~astropy.time.Time`
         """
         if self._time is None:
-            df = cudf.read_parquet(self._cudf+'.parquet')
+            df = cudf.read_parquet(self._cudf)
             
             time_array = df['TIME'].explode().to_numpy()
             t = time.Time(np.unique(time_array), format="mjd", scale="utc")
@@ -326,7 +330,7 @@ def _series2array(visibility: pd.Series) -> np.ndarray:
     return S
 
 
-class LofarMeasurementSet(MeasurementSet):
+class LofarMeasurementSet(Cudfparquet):
     """
     LOw-Frequency ARray (LOFAR) Measurement Set reader.
     """
@@ -444,7 +448,7 @@ class LofarMeasurementSet(MeasurementSet):
         return self._beamformer
     
     
-class MwaMeasurementSet(MeasurementSet):
+class MwaMeasurementSet(Cudfparquet):
     """
     Murchison Widefield Array (MWA) Measurement Set reader.
     """
