@@ -361,7 +361,66 @@ class LofarMeasurementSet(MeasurementSet):
         self._N_station = N_station
         self._station_only = station_only
         
-        
+    
+    @property
+    def instrument(self):
+        """
+        Returns
+        -------
+        :py:class:`~pypeline.phased_array.instrument.EarthBoundInstrumentGeometryBlock`
+            Instrument position computer.
+        """
+        if self._instrument is None:
+            # Following the LOFAR MS file specification from https://www.astron.nl/lofarwiki/lib/exe/fetch.php?media=public:documents:ms2_description_for_lofar_2.08.00.pdf,
+            # the special LOFAR_ANTENNA_FIELD sub-table must be used due to the hierarchical design
+            # of LOFAR.
+            # Some remarks on the required fields:
+            # - ANTENNA_ID: equivalent to STATION_ID field in `InstrumentGeometry.index[0]`.
+            # - POSITION: absolute station positions in ITRF coordinates.
+            #             This does not necessarily correspond to the station centroid.
+            # - ELEMENT_OFFSET: offset of each antenna in a station.
+            #                   When combined with POSITION, it gives the absolute antenna positions
+            #                   in ITRF.
+            # - ELEMENT_FLAG: True/False value for each (station, antenna, polarization) pair.
+            #                 If any of the polarization flags is True for a given antenna, then the
+            #                 antenna can be discarded from that station.
+            
+            df = cudf.read_parquet(self._cudf+'_LOFAR_ANTENNA_FIELD'+'.parquet')
+            
+            station_id = df.ANTENNA_ID.to_numpy()
+            station_mean = df.POSITION.list.leaves.to_numpy().reshape(len(df.POSITION),3)
+            antenna_offset = df.ELEMENT_OFFSET.list.leaves.to_numpy().reshape(len(df.ELEMENT_OFFSET),len(df.ELEMENT_OFFSET[0]),len(df.ELEMENT_OFFSET[0][0]))
+            antenna_flag = df.ELEMENT_FLAG.list.leaves.to_numpy().reshape(len(df.ELEMENT_FLAG),len(df.ELEMENT_FLAG[0]),len(df.ELEMENT_FLAG[0][0]))
+            
+            # Form DataFrame that holds all antennas, then filter out flagged antennas.
+            N_station, N_antenna, _ = antenna_offset.shape
+            station_mean = np.reshape(station_mean, (N_station, 1, 3))
+            antenna_xyz = np.reshape(station_mean + antenna_offset, (N_station * N_antenna, 3))
+            antenna_flag = np.reshape(antenna_flag.any(axis=2), (N_station * N_antenna))
+
+            cfg_idx = pd.MultiIndex.from_product(
+                [station_id, range(N_antenna)], names=("STATION_ID", "ANTENNA_ID")
+            )
+            cfg = pd.DataFrame(data=antenna_xyz, columns=("X", "Y", "Z"), index=cfg_idx).loc[
+                ~antenna_flag
+            ]
+
+            # If in `station_only` mode, return centroid of each station only.
+            # Why do we not just use `station_mean` above? Because it arbitrarily
+            # points to some sub-antenna, not the station centroid.
+            if self._station_only:
+                cfg = cfg.groupby("STATION_ID").mean()
+                station_id = cfg.index.get_level_values("STATION_ID")
+                cfg.index = pd.MultiIndex.from_product(
+                    [station_id, [0]], names=["STATION_ID", "ANTENNA_ID"]
+                )
+
+            # Finally, only keep the stations that were specified in `__init__()`.
+            XYZ = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
+            self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ, self._N_station)
+
+        return self._instrument
+    
     @property
     def beamformer(self):
         """
