@@ -163,7 +163,6 @@ class MeasurementSet:
             table = ct.taql(query)
 
             f = table.getcell("CHAN_FREQ", 0).flatten() * u.Hz
-            print(f)
             f_id = range(len(f))
             self._channels = tb.QTable(dict(CHANNEL_ID=f_id, FREQUENCY=f))
 
@@ -259,6 +258,7 @@ class MeasurementSet:
             raise ValueError(f"column={column} does not exist in {self._msf}::MAIN.")
 
         channel_id = self.channels["CHANNEL_ID"][channel_id]
+
         if chk.is_integer(time_id):
             time_id = slice(time_id, time_id + 1, 1)
         N_time = len(self.time)

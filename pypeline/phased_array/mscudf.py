@@ -234,28 +234,31 @@ class Cudfparquet:
             * freq (:py:class:`~astropy.units.Quantity`): center frequency of the visibility;
             * S (:py:class:`~pypeline.phased_array.data_gen.statistics.VisibilityMatrix`)
         """
-        df = cudf.read_parquet(self._cudf+'.parquet')
+        df = cudf.read_parquet(self._cudf)
+        df.head()
         
         if column not in df.columns:
             raise ValueError(f"column={column} does not exist in {self._cudf}::MAIN.")
             
         channel_id = self.channels["CHANNEL_ID"][channel_id]
+        
         if chk.is_integer(time_id):
             time_id = slice(time_id, time_id + 1, 1)
         N_time = len(self.time)
         time_start, time_stop, time_step = time_id.indices(N_time)
         
+        
         obstime = df['TIME'].explode().to_numpy()
         unique_time = np.unique(obstime)[time_start:time_stop:time_step]
         
         df2 = df.loc[df['TIME'].isin(unique_time)]
-        
+    
         for t in unique_time:
-            df_sub = df2.loc[df2['TIME'] == t]
+            df_sub = df2.loc[df2['TIME'] == t].reset_index()
             beam_id_0 = df_sub.ANTENNA1.to_numpy()
             beam_id_1 = df_sub.ANTENNA2.to_numpy()
-            data_flag = df_sub.FLAG.explode().explode().to_numpy().reshape(len(df_sub.FLAG),len(df_sub.FLAG[0]),len(df_sub.FLAG[0][0]))
-            data = df_sub.data.explode().explode().to_numpy(dtype=np.float32).reshape(len(df_sub.data),len(df_sub.data[0]),len(df_sub.data[0][0])).view(np.complex64)
+            data_flag = df_sub.FLAG.list.leaves.to_numpy().reshape(len(df_sub.FLAG),len(df_sub.FLAG[0]),len(df_sub.FLAG[0][0]))
+            data = df_sub.DATA.explode().explode().to_numpy(dtype=np.float32).reshape(len(df_sub.DATA),len(df_sub.DATA[0]),len(df_sub.DATA[0][0])).view(np.complex64)
             
             # We only want XX and YY correlations
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
@@ -293,7 +296,7 @@ class Cudfparquet:
             )
 
             # Break S into columns and stream out
-            t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
+            t = df_sub.TIME[0]
             f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
             for ch_id in channel_id:
@@ -389,7 +392,9 @@ class LofarMeasurementSet(Cudfparquet):
             #                 If any of the polarization flags is True for a given antenna, then the
             #                 antenna can be discarded from that station.
             
-            df = cudf.read_parquet(self._cudf+'_LOFAR_ANTENNA_FIELD'+'.parquet')
+            
+            path = pathlib.Path(self._cudf).absolute()
+            df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'LOFAR_ANTENNA_FIELD'}{path.suffix}")
             
             station_id = df.ANTENNA_ID.to_numpy()
             station_mean = df.POSITION.list.leaves.to_numpy().reshape(len(df.POSITION),3)
@@ -481,7 +486,10 @@ class MwaMeasurementSet(Cudfparquet):
             #               implicitly by its row-ordering.
             #               In other words, the station corresponding to ANTENNA1=k in the MAIN
             #               table is described by the k-th row of the ANTENNA sub-table.
-            df = cudf.read_parquet(self._cudf+'_ANTENNA'+'.parquet')
+            
+            path = pathlib.Path(self._cudf).absolute()
+            df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'ANTENNA'}{path.suffix}")
+            
             station_mean = df.POSITION.list.leaves.to_numpy().reshape(len(df.POSITION),3)
 
             N_station = len(station_mean)
