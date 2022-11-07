@@ -13,6 +13,10 @@ import dask.array as da
 import dask_cudf
 import cudf
 import numpy as np
+import astropy.coordinates as coord
+import astropy.table as tb
+import astropy.time as time
+import astropy.units as u
 
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.instrument as instrument
