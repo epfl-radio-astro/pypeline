@@ -13,6 +13,7 @@ import dask.array as da
 import dask_cudf
 import cudf
 import numpy as np
+import cupy as cp
 import astropy.coordinates as coord
 import astropy.table as tb
 import astropy.time as time
@@ -208,7 +209,7 @@ class Cudfparquet:
             column=chk.is_instance(str),
         )
     )
-    def visibilities(self, channel_id, time_id, column):
+    def visibilities(self, df, channel_id, time_id, column):
         
         """
         Extract visibility matrices.
@@ -234,8 +235,7 @@ class Cudfparquet:
             * freq (:py:class:`~astropy.units.Quantity`): center frequency of the visibility;
             * S (:py:class:`~pypeline.phased_array.data_gen.statistics.VisibilityMatrix`)
         """
-        df = cudf.read_parquet(self._cudf)
-        df.head()
+        #df = cudf.read_parquet(self._cudf)
         
         if column not in df.columns:
             raise ValueError(f"column={column} does not exist in {self._cudf}::MAIN.")
