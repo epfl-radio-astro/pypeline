@@ -80,6 +80,32 @@ def filter_data(S, W):
 
     return S_f, W_f
 
+
+def load_dataframe(allcol = True, use_cols = []):
+
+    """
+    Load the dataframe into GPU and returns
+
+    Parameters
+    ----------
+    allcol : bool
+        If allcol = True the whole dataframe will be loaded. Else it will load partial dataframe with columns
+        passed as use_cols
+    use_cols : list
+        list of the columns which should be loaded instead of the whole dataframe 
+
+    Returns
+    -------
+    cudf dataframe (parquet format)
+        Cudf dataframe with the columns wanted
+    """
+    if allcol == True:
+        df = cudf.read_parquet(self._cudf)
+    else: 
+        df = cudf.read_parquet(self._cudf, usecols = use_cols)
+
+    return df
+
 class Cudfparquet:
     """
     Cudf parquet data format reader.
@@ -106,6 +132,9 @@ class Cudfparquet:
         #     raise NotADirectoryError(f"{file_name} is not a directory, so cannot be an parquet file.")
 
         self._cudf = str(path)
+        self._dataframe = cudf.read_parquet(self._cudf)
+        self._field_df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'FIELD'}{path.suffix}")
+        self._spectral_window_df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'SPECTRAL_WINDOW'}{path.suffix}")
 
         # Buffered attributes
         self._field_center = None
@@ -113,6 +142,7 @@ class Cudfparquet:
         self._time = None
         self._instrument = None
         self._beamformer = None
+
         
     @property
     def field_center(self):
@@ -124,9 +154,9 @@ class Cudfparquet:
         """
 
         if self._field_center is None:
-            path = pathlib.Path(self._cudf).absolute()
-            df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'FIELD'}{path.suffix}")
-            
+            #path = pathlib.Path(self._cudf).absolute()
+            #df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'FIELD'}{path.suffix}")
+            df = self._field_df
             lon, lat = df['REFERENCE_DIR'].explode()[0]
             self._field_center = coord.SkyCoord(ra=lon * u.rad, dec=lat * u.rad, frame="icrs")
 
@@ -147,9 +177,11 @@ class Cudfparquet:
         """
         
         if self._channels is None:
-            path = pathlib.Path(self._cudf).absolute()
-            df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'SPECTRAL_WINDOW'}{path.suffix}")
+            #path = pathlib.Path(self._cudf).absolute()
+            #df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'SPECTRAL_WINDOW'}{path.suffix}")
 
+            df = self._spectral_window_df
+            
             f = df['CHAN_FREQ'].list.leaves.to_numpy() * u.Hz
             f_id = range(len(f))
             self._channels = tb.QTable(dict(CHANNEL_ID=f_id, FREQUENCY=f))
@@ -169,8 +201,10 @@ class Cudfparquet:
             * TIME_ID : int
             * TIME : :py:class:`~astropy.time.Time`
         """
+
         if self._time is None:
-            df = cudf.read_parquet(self._cudf)
+            #df = cudf.read_parquet(self._cudf)
+            df = self._dataframe
             
             time_array = df['TIME'].explode().to_numpy()
             t = time.Time(np.unique(time_array), format="mjd", scale="utc")
@@ -209,7 +243,7 @@ class Cudfparquet:
             column=chk.is_instance(str),
         )
     )
-    def visibilities(self, df, channel_id, time_id, column):
+    def visibilities(self, channel_id, time_id, column):
         
         """
         Extract visibility matrices.
@@ -236,6 +270,7 @@ class Cudfparquet:
             * S (:py:class:`~pypeline.phased_array.data_gen.statistics.VisibilityMatrix`)
         """
         #df = cudf.read_parquet(self._cudf)
+        df = self._dataframe
         
         if column not in df.columns:
             raise ValueError(f"column={column} does not exist in {self._cudf}::MAIN.")
@@ -368,6 +403,9 @@ class LofarMeasurementSet(Cudfparquet):
         self._N_station = N_station
         self._station_only = station_only
         
+        path = pathlib.Path(file_name).absolute()
+        self._lofar_antenna_field_df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'LOFAR_ANTENNA_FIELD'}{path.suffix}")
+        
     
     @property
     def instrument(self):
@@ -393,8 +431,9 @@ class LofarMeasurementSet(Cudfparquet):
             #                 antenna can be discarded from that station.
             
             
-            path = pathlib.Path(self._cudf).absolute()
-            df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'LOFAR_ANTENNA_FIELD'}{path.suffix}")
+            #path = pathlib.Path(self._cudf).absolute()
+            #df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'LOFAR_ANTENNA_FIELD'}{path.suffix}")
+            df = self._lofar_antenna_field_df
             
             station_id = df.ANTENNA_ID.to_numpy()
             station_mean = df.POSITION.list.leaves.to_numpy().reshape(len(df.POSITION),3)
@@ -467,6 +506,8 @@ class MwaMeasurementSet(Cudfparquet):
             Name of the MS file.
         """
         super().__init__(file_name)
+        path = pathlib.Path(file_name).absolute()
+        self._mwa_antenna_df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'ANTENNA'}{path.suffix}")
         
     @property
     def instrument(self):
@@ -487,9 +528,10 @@ class MwaMeasurementSet(Cudfparquet):
             #               In other words, the station corresponding to ANTENNA1=k in the MAIN
             #               table is described by the k-th row of the ANTENNA sub-table.
             
-            path = pathlib.Path(self._cudf).absolute()
-            df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'ANTENNA'}{path.suffix}")
+            #path = pathlib.Path(self._cudf).absolute()
+            #df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'ANTENNA'}{path.suffix}")
             
+            df = self._mwa_antenna_df
             station_mean = df.POSITION.list.leaves.to_numpy().reshape(len(df.POSITION),3)
 
             N_station = len(station_mean)
