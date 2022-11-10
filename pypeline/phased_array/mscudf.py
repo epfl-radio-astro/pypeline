@@ -302,15 +302,33 @@ class Cudfparquet:
             # DataFrame description of visibility data.
             # Each column represents a different channel.
             S_full_idx = pd.MultiIndex.from_arrays((beam_id_0, beam_id_1), names=("B_0", "B_1"))
+            S_full_idx_cudf = cudf.MultiIndex.from_tuples(zip(beam_id_0, beam_id_1), names=("B_0", "B_1"))
+            
             S_full = pd.DataFrame(data=data, columns=channel_id, index=S_full_idx)
-
+            
+            cols = cudf.MultiIndex.from_product([np.array(channel_id),['real','imag']])
+            m, n = data.shape
+            S_full_cudf = cudf.DataFrame(data.flatten().view(np.float32).reshape(data.shape[0],data.shape[1]*2).tolist(), columns=cols, index=S_full_idx_cudf)
+            
+            
             # Drop rows of `S_full` corresponding to unwanted beams.
             beam_id = np.unique(self.instrument._layout.index.get_level_values("STATION_ID"))
             N_beam = len(beam_id)
             i, j = np.triu_indices(N_beam, k=0)
             wanted_index = pd.MultiIndex.from_arrays((beam_id[i], beam_id[j]), names=("B_0", "B_1"))
+
+            wanted_index_cudf = cudf.MultiIndex.from_tuples(zip(beam_id[i], beam_id[j]), names=("B_0", "B_1"))
+            
             index_to_drop = S_full_idx.difference(wanted_index)
+            
+            #index_to_drop_cudf = S_full_idx_cudf.difference(wanted_index_cudf)
+            
+            index_to_drop_cudf = cudf.MultiIndex.from_product([[0],[1,2]])
+            print(index_to_drop_cudf)
             S_trunc = S_full.drop(index=index_to_drop)
+            S_trunc_cudf = S_full_cudf.drop(index=index_to_drop_cudf)
+            
+            
 
             # Depending on the dataset, some (ANTENNA1, ANTENNA2) pairs that have correlation=0 are
             # omitted in the table.
@@ -416,7 +434,7 @@ class LofarMeasurementSet(Cudfparquet):
             Instrument position computer.
         """
         if self._instrument is None:
-            # Following the LOFAR MS file specification from https://www.astron.nl/lofarwiki/lib/exe/fetch.php?media=public:documents:ms2_description_for_lofar_2.08.00.pdf,
+            # Following the LOFAR MS file specification from https://www.astron.nl/lofarwiki/lib/exe/fetch.php? media=public:documents:ms2_description_for_lofar_2.08.00.pdf,
             # the special LOFAR_ANTENNA_FIELD sub-table must be used due to the hierarchical design
             # of LOFAR.
             # Some remarks on the required fields:
@@ -452,6 +470,7 @@ class LofarMeasurementSet(Cudfparquet):
             cfg = pd.DataFrame(data=antenna_xyz, columns=("X", "Y", "Z"), index=cfg_idx).loc[
                 ~antenna_flag
             ]
+
 
             # If in `station_only` mode, return centroid of each station only.
             # Why do we not just use `station_mean` above? Because it arbitrarily
