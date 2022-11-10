@@ -6,19 +6,24 @@
 set -x
 ROOT=`pwd` # Jenkins branch's workspace (checkout of pypeline Git repository)
 PYPELINE_ROOT=$ROOT
-if [ $USER == "adas" ]; then    # for local dev
-    ROOT=/home/adas/bluebuild
+if [ $USER == "orliac" ]; then    # for local dev
+    ROOT=~/SKA/epfl-radio-astro
     PYPELINE_ROOT=$ROOT/pypeline
 fi
+export PYPELINE_ROOT=${PYPELINE_ROOT}
 NINJA_DIR=$ROOT/ninja
+umpire_DIR=$ROOT/Umpire/inst/usr/local
 export FINUFFT_ROOT=$ROOT/finufft
 export CUFINUFFT_ROOT=$ROOT/cufinufft
 export MARLA_ROOT=$ROOT/marla
 IMOT_TOOLS_ROOT=$ROOT/ImoT_tools
-export PATH=$NINJA_DIR:$FINUFFT_ROOT:$CUFINUFFT_ROOT:$PATH
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$FINUFFT_ROOT/lib:$CUFINUFFT_ROOT/lib
+export PATH=$NINJA_DIR:$FINUFFT_ROOT:$CUFINUFFT_ROOT/bin:$umpire_DIR/bin:$PATH
+export LD_LIBRARY_PATH=$FINUFFT_ROOT/lib:$CUFINUFFT_ROOT/lib:$umpire_DIR/lib:$LD_LIBRARY_PATH
+#export ICCCFG="/work/ska/soft/intel/icc.cfg"
+#export ICPCCFG="/work/ska/soft/intel/icpc.cfg"
+#unset ICCCFG
+#unset ICPCCFG
 set +x
-
 
 # Set Python virtual environment name
 VENV_NAME=PYPE1102
@@ -26,25 +31,53 @@ VENV_NAME=PYPE1102
 
 function bb_activate_venv() {
     source $ROOT/$VENV_NAME/bin/activate
+    export PYTHONPATH=${PYPELINE_ROOT}/jenkins:${PYTHON_PATH}
+}
+
+function bb_load_stack() {
+    COMPILER=$1
+    case $COMPILER in
+        intel)
+            bb_load_intel_stack
+            ;;
+        gcc)
+            bb_load_gcc_stack
+            ;;
+        *)
+            echo "-E- Fatal. Unknown software stack. Use intel or gcc."
+            return 1
+            ;;
+    esac
 }
 
 function bb_load_gcc_stack() {
     module purge
     module load gcc/9.3.0-cuda
+    module load python/3.7.7
     module load cuda/11.0.2
     module load openblas/0.3.10-openmp
     module load mvapich2/2.3.4
     module load fftw/3.3.8-mpi-openmp
     module load cmake
-    module list
+}
+
+function bb_load_intel_stack() {
+    module purge
+    module load intel/19.0.5
+    module load python/3.7.7
+    module load intel-mpi/2019.5.281
+    module load intel-mkl/2019.5.281
+    module load fftw/3.3.8-mpi-openmp
+    module load cuda/11.0.2
+    module load cmake
+    export LD_PRELOAD=${LD_PRELOAD}:$MKLROOT/lib/intel64/libmkl_def.so:$MKLROOT/lib/intel64/libmkl_avx2.so:$MKLROOT/lib/intel64/libmkl_core.so:$MKLROOT/lib/intel64/libmkl_intel_lp64.so:$MKLROOT/lib/intel64/libmkl_intel_thread.so
+    export LD_PRELOAD=${LD_PRELOAD}:$INTEL_MKL_ROOT/lib/intel64/libiomp5.so
 }
 
 function bb_create_python_venv() {
     ENTRY=`pwd`
+    bb_load_stack $1 || return 1
     cd $ROOT
-    #EO: Python 3.7.7 not available in gcc/9.3.0 stacks
-    module purge
-    module load gcc python/3.7.7
     [ -d $VENV_NAME ] && rm -r ./$VENV_NAME
     python -m venv $VENV_NAME
     source $VENV_NAME/bin/activate
@@ -56,7 +89,7 @@ function bb_create_python_venv() {
         plotly  sklearn nvtx \
         python-casacore cupy-cuda110 \
         bluebild_tools  tqdm \
-        tk
+        tk sphinx sphinx_rtd_theme
     pip install --no-deps \
         pycsou  pyFFS
     deactivate
@@ -73,9 +106,27 @@ function bb_pip_install() {
     fi
 }
 
+# Umpire
+# https://umpire.readthedocs.io/en/develop/sphinx/getting_started.html#installation
+#
+function bb_install_umpire() {
+    ENTRY=`pwd`
+    bb_load_stack $1 || return 1
+    cd $ROOT
+    [ -d Umpire ] && rm -rf Umpire
+    git clone --recursive https://github.com/LLNL/Umpire.git
+    cd Umpire
+    mkdir build && cd build
+    cmake -DENABLE_CUDA=On ../
+    make -j
+    make DESTDIR=../inst install
+    module purge
+    cd $ENTRY
+}
+
 function bb_install_finufft {
     ENTRY=`pwd`
-    bb_load_gcc_stack
+    bb_load_stack $1 || return 1
     bb_activate_venv
     cd $ROOT
     [ -d finufft ] && rm -rf finufft
@@ -100,7 +151,7 @@ function bb_install_finufft {
 #
 function bb_install_cufinufft {
     ENTRY=`pwd`
-    bb_load_gcc_stack
+    bb_load_stack $1 || return 1
     cd $ROOT
     [ -d cufinufft ] && rm -rf ./cufinufft
     git clone https://github.com/AdhocMan/cufinufft.git
@@ -132,16 +183,55 @@ function bb_install_ninja {
     cd $ENTRY
 }
 
+function bb_set_compilation_frame() {
+    COMPILER=$1
+    case $COMPILER in
+        intel)
+            bb_load_intel_stack            
+            BLUEBILD_CMAKE_ARGS="-DMARLA_ROOT=$MARLA_ROOT \
+                                 -DBLUEBILD_BUILD_TYPE=DEBUG \
+                                 -DCMAKE_CXX_FLAGS_DEBUG=\"-g -DNDEBUG -fPIC -m64 -Ofast -qopenmp -qopt-report=2 -qopt-report-phase=vec -xCORE-AVX512 -qopt-zmm-usage=high\" \
+                                 -DCMAKE_CUDA_FLAGS_DEBUG=\"-g -lineinfo\""
+            ;;
+        gcc)
+            bb_load_gcc_stack
+            BLUEBILD_CMAKE_ARGS="-DMARLA_ROOT=$MARLA_ROOT \
+                                 -DBLUEBILD_BUILD_TYPE=DEBUG \
+                                 -DCMAKE_CXX_FLAGS_DEBUG=\"-g -Ofast -march=skylake-avx512 -mprefer-vector-width=512 -ftree-vectorize\" \
+                                 -DCMAKE_CUDA_FLAGS_DEBUG=\"-g -lineinfo\""
+            ;;
+        *)
+            echo "-E- Fatal. Unknown software stack. Use intel or gcc."
+            return 1
+            ;;
+    esac
+    echo "${BLUEBILD_CMAKE_ARGS}"
+}
+
+# Argument 1: 'intel' or 'gcc' to choose the software stack
+#
 function bb_install_bluebild() {
+    BLUEBILD_CMAKE_ARGS=$(bb_set_compilation_frame $1)
     ENTRY=`pwd`
-    bb_load_gcc_stack
+    bb_load_stack $1 || return 1
+    module list
     bb_activate_venv
     cd $PYPELINE_ROOT/src/bluebild
     [ -d _skbuild ] && rm -r _skbuild
-    BLUEBILD_CMAKE_ARGS="-DMARLA_ROOT=$MARLA_ROOT \
-                         -DBLUEBILD_BUILD_TYPE=DEBUG \
-                         -DCMAKE_CXX_FLAGS_DEBUG=\"-g -Ofast -march=skylake-avx512 -mprefer-vector-width=512 -ftree-vectorize\" \
-                         -DCMAKE_CUDA_FLAGS_DEBUG=\"-g -lineinfo\""
+    echo ${BLUEBILD_CMAKE_ARGS}
+    BLUEBILD_CMAKE_ARGS=${BLUEBILD_CMAKE_ARGS} pip install -v --no-deps .
+    deactivate
+    module purge
+    cd $ENTRY
+}
+
+function bb_compile_bluebild() {
+    BLUEBILD_CMAKE_ARGS=$(bb_set_compilation_frame $1)
+    ENTRY=`pwd`
+    bb_load_stack $1 || return 1
+    module list
+    bb_activate_venv
+    cd $PYPELINE_ROOT/src/bluebild
     BLUEBILD_CMAKE_ARGS=${BLUEBILD_CMAKE_ARGS} pip install -v --no-deps .
     deactivate
     module purge
@@ -150,7 +240,7 @@ function bb_install_bluebild() {
 
 function bb_install_pypeline() {
     ENTRY=`pwd`
-    bb_load_gcc_stack
+    bb_load_stack $1 || return 1
     bb_activate_venv
     cd $PYPELINE_ROOT
     pip install -v --no-deps .
@@ -194,7 +284,7 @@ function bb_install_imot_tools() {
         return 1
     fi
     git checkout dev
-    pip install --no-deps .
+    pip install --no-deps -e .
     deactivate
     cd $ENTRY
 }
