@@ -27,7 +27,7 @@ public:
 
   virtual auto size() -> std::uint_least64_t = 0;
 
-    virtual auto print() -> void = 0;
+  virtual auto print() -> void = 0;
 };
 }  // namespace bluebild
 

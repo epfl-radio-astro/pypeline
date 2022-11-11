@@ -52,7 +52,7 @@ pipeline {
                 sh "mkdir -pv ${env.TEST_DIR}"
 
                 //EO: with --full it deletes and rebuild all dependencies
-                sh "srun --partition build --time 00-01:00:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 20 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_install.sh --full"
+                sh "srun --partition debug --time 00-01:00:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 20 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_install.sh --full"
 
                 sh "cat ${env.TEST_DIR}/slurm-*.out"
             }
@@ -65,7 +65,7 @@ pipeline {
             }
             steps {
                 sh "mkdir -pv ${env.DOC_DIR}"
-                //sh 'sh ./jenkins/build_documentation.sh'                
+                sh "sh ./jenkins/build_documentation.sh ${BB_SH_LIB}"
             }
         }
 

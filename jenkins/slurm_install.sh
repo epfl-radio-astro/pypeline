@@ -11,17 +11,19 @@ SCRIPT_DIR=$(dirname "$SCRIPT")
 
 source $SCRIPT_DIR/bluebild.sh
 
+STACK=gcc
+
 if [[ $1 == "--full" ]]; then
     echo "-I- full installation requested"
-    time bb_create_python_venv
+    time bb_create_python_venv $STACK
     time bb_install_ninja
-    time bb_install_finufft
-    time bb_install_cufinufft
-    time bb_install_imot_tools
+    time bb_install_finufft $STACK
+    time bb_install_cufinufft $STACK
+    time bb_install_imot_tools $STACK
     time bb_install_marla
 else
     echo "-I- partial installation requested: will only install bluebild and pypeline"
 fi
 
-time bb_install_bluebild
-time bb_install_pypeline
+time bb_install_bluebild $STACK
+time bb_install_pypeline $STACK

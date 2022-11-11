@@ -31,7 +31,7 @@ public:
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
         ,
         allocPinned_(new UmpireAllocator("PINNED")),
-        allocGPU_(new UmpireAllocator("DEVICE")),
+        allocGPU_(new UmpireAllocator("DEVICE"))
 #endif // CUDA / ROCM
 #else // UMPIRE
         allocHost_(new PoolAllocator(std::malloc, std::free))

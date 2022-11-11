@@ -16,8 +16,6 @@ public:
 
   SSHost(const size_t N, const T wl, const T *x);
 
-  void execute(const int iter);
-
 private:
   ssType ss_;
 };

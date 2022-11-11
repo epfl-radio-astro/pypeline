@@ -44,6 +44,8 @@ public:
     return alloc_.getActualSize();
   }
 
+  auto print() -> void override {}
+
 private:
   // umpire::ResourceManager manager_;
   umpire::Allocator alloc_;

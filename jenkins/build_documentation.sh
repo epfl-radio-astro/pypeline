@@ -2,14 +2,12 @@
 
 set -e
 
-module load gcc
-module load fftw
-module load cuda/11.0.2;
+# $1: absolute path to bluebild Bash library
+# ------------------------------------------
+source "$1"
 
-CONDA_ENV=pype-111
-eval "$(conda shell.bash hook)"
-conda activate $CONDA_ENV
-
+bb_load_stack gcc
+bb_activate_venv
 
 # Output directory must be defined and existing
 if [[ -z "${DOC_DIR}" ]]; then

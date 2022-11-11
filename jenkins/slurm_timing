@@ -22,7 +22,9 @@ source "$1"
 # ------------------------
 bb_check_input_file "$2"
 
-bb_load_gcc_stack
+STACK=gcc
+
+bb_load_stack $STACK
 bb_activate_venv
 PYTHON=$(which python)
 bb_print_env
