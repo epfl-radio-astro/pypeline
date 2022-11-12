@@ -48,6 +48,19 @@ void cblas_csymm(const CBLAS_LAYOUT layout, const CBLAS_SIDE Side, const CBLAS_U
 void cblas_zsymm(const CBLAS_LAYOUT layout, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo,
                  const int M, const int N, const void *alpha, const void *A, const int lda,
                  const void *B, const int ldb, const void *beta, void *C, const int ldc);
+
+void cblas_saxpy(const int n, const float a, const float *x, const int incx,
+                 float *y, const int incy);
+
+void cblas_daxpy(const int n, const double a, const double *x, const int incx,
+                 double *y, const int incy);
+
+void cblas_caxpy(const int n, const void *a, const void *x, const int incx,
+                 void *y, const int incy);
+
+void cblas_zaxpy(const int n, const void *a, const void *x, const int incx,
+                 void *y, const int incy);
+
 #else
 
 
@@ -90,6 +103,19 @@ void zsymm_(const char *SIDE, const char *UPLO, const int *M, const int *N,
             const void *ALPHA, const void *A, const int *LDA, const void *B,
             const int *LDB, const void *BETA, void *C, const int *LDC,
             int SIDE_len, int UPLO_len);
+
+void saxpy_(const int *n, const void *a, const void *x, const int *incx,
+            void *y, const int *incy);
+
+void daxpy_(const int *n, const void *a, const void *x, const int *incx,
+            void *y, const int *incy);
+
+void caxpy_(const int *n, const void *a, const void *x, const int *incx,
+            void *y, const int *incy);
+
+void zaxpy_(const int *n, const void *a, const void *x, const int *incx,
+            void *y, const int *incy);
+
 
 #endif
 }
@@ -214,6 +240,44 @@ inline auto symm(const CBLAS_LAYOUT layout, const CBLAS_SIDE Side, const CBLAS_U
 #else
   zsymm_(cblas_side_to_string(Side), cblas_uplo_to_string(Uplo), &M, &N, &alpha,
          A, &lda, B, &ldb, &beta, C, &ldc, 1, 1);
+#endif
+}
+
+inline auto axpy(const int n, const float a, const float *x, const int incx,
+                 float *y, const int incy) -> void {
+#ifdef BLUEBILD_BLAS_C
+  cblas_saxpy(n, a, x, incx, y, incy);
+#else
+  saxpy_(&n, &a, x, &incx, y, &incy);
+#endif
+}
+
+inline auto axpy(const int n, const double a, const double *x, const int incx,
+                 double *y, const int incy) -> void {
+#ifdef BLUEBILD_BLAS_C
+  cblas_daxpy(n, a, x, incx, y, incy);
+#else
+  daxpy_(&n, &a, x, &incx, y, &incy);
+#endif
+}
+
+inline auto axpy(const int n, const std::complex<float> a,
+                 const std::complex<float> *x, const int incx,
+                 std::complex<float> *y, const int incy) -> void {
+#ifdef BLUEBILD_BLAS_C
+  cblas_caxpy(n, &a, x, incx, y, incy);
+#else
+  caxpy_(&n, &a, x, &incx, y, &incy);
+#endif
+}
+
+inline auto axpy(const int n, const std::complex<double> a,
+                 const std::complex<double> *x, const int incx,
+                 std::complex<double> *y, const int incy) -> void {
+#ifdef BLUEBILD_BLAS_C
+  cblas_zaxpy(n, &a, x, incx, y, incy);
+#else
+  zaxpy_(&n, &a, x, &incx, y, &incy);
 #endif
 }
 

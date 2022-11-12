@@ -4,6 +4,7 @@
 #include <complex.h>
 #include <iostream>
 #include <algorithm>
+#include <limits>
 
 #include "bluebild/bluebild.h"
 #include "bluebild/config.h"
@@ -14,7 +15,7 @@
 #include "memory/allocator.hpp"
 #include "memory/buffer.hpp"
 #include "host/gemmexp.hpp"
-#include "host/omp_definitions.hpp"
+#include "host/blas_api.hpp"
 #include "util.hpp"
 
 
@@ -88,34 +89,38 @@ auto StandardSynthesisHost<T>::collect(
   blas::gemm(CblasColMajor, CblasNoTrans, CblasNoTrans, nAntenna_, nEig, nBeam_,
              {1, 0}, w, ldw, v.get(), nBeam_, {0, 0}, vUnbeam.get(), nAntenna_);
 
-
   T alpha = 2.0 * M_PI / wl;
 
-  BLUEBILD_OMP_PRAGMA("omp parallel") {
-    gemmexp(nEig, nPixel_, nAntenna_, alpha, vUnbeam.get(), nAntenna_,
-            xyzCentered.get(), nAntenna_, pixelX_.get(), pixelY_.get(),
-            pixelZ_.get(), unlayeredStats.get(), nPixel_);
+  gemmexp(nEig, nPixel_, nAntenna_, alpha, vUnbeam.get(), nAntenna_,
+          xyzCentered.get(), nAntenna_, pixelX_.get(), pixelY_.get(),
+          pixelZ_.get(), unlayeredStats.get(), nPixel_);
 
-    // cluster eigenvalues / vectors based on invervals
-    for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
-      apply_filter(filter_.get()[idxFilter], nEig, d.get(), dFiltered.get());
-      for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
-        std::size_t start, size;
-        std::tie(start, size) = find_interval_indices<T>(
-            nEig, d.get(), intervals[idxInt * ldIntervals],
-            intervals[idxInt * ldIntervals + 1]);
+  // cluster eigenvalues / vectors based on invervals
+  for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
+    apply_filter(filter_.get()[idxFilter], nEig, d.get(), dFiltered.get());
+    for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
+      std::size_t start, size;
+      std::tie(start, size) = find_interval_indices<T>(
+          nEig, d.get(), intervals[idxInt * ldIntervals],
+          intervals[idxInt * ldIntervals + 1]);
 
-        auto imgCurrent =
-            img_.get() + (idxFilter * nIntervals_ + idxInt) * nPixel_;
-        for (std::size_t idxEig = start; idxEig < start + size; ++idxEig) {
-          const auto scale = dFiltered.get()[idxEig];
-          auto unlayeredStatsCurrent = unlayeredStats.get() + nPixel_ * idxEig;
+      auto imgCurrent =
+          img_.get() + (idxFilter * nIntervals_ + idxInt) * nPixel_;
+      for (std::size_t idxEig = start; idxEig < start + size; ++idxEig) {
+        const auto scale = dFiltered.get()[idxEig];
+        auto unlayeredStatsCurrent = unlayeredStats.get() + nPixel_ * idxEig;
 
-          BLUEBILD_OMP_PRAGMA("omp for schedule(static) nowait")
-          for (std::size_t idxPix = 0; idxPix < nPixel_; ++idxPix) {
-            imgCurrent[idxPix] += scale * unlayeredStatsCurrent[idxPix];
-          }
+        constexpr auto maxInt = static_cast<std::size_t>(std::numeric_limits<int>::max());
+
+        for (std::size_t idxPix = 0; idxPix < nPixel_; idxPix += maxInt) {
+          const auto nPixBlock = std::min(nPixel_ - idxPix, maxInt);
+          blas::axpy(nPixBlock, scale, unlayeredStatsCurrent + idxPix, 1,
+                     imgCurrent + idxPix, 1);
         }
+
+        // for (std::size_t idxPix = 0; idxPix < nPixel_; ++idxPix) {
+        //   imgCurrent[idxPix] += scale * unlayeredStatsCurrent[idxPix];
+        // }
       }
     }
   }
