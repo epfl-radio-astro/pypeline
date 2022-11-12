@@ -1,9 +1,12 @@
 #include "host/gemmexp.hpp"
 #include "host/omp_definitions.hpp"
-#include "marla_sincos.hpp"
 #include <cmath>
 #include <complex>
 #include <iostream>
+
+#ifdef BLUEBILD_VC
+#include <Vc/Vc>
+#endif
 
 namespace bluebild {
 
@@ -15,8 +18,85 @@ auto gemmexp(std::size_t nEig, std::size_t nPixel, std::size_t nAntenna,
              const T *__restrict__ pixelZ, T *__restrict__ out,
              std::size_t ldout) -> void {
 
-  T sinValue = 0;
-  T cosValue = 0;
+#ifdef BLUEBILD_VC
+
+  using simdType = Vc::Vector<T>;
+  constexpr std::size_t simdSize = simdType::size();
+
+  const simdType alphaVec = alpha;
+  const typename simdType::IndexType indexComplex(
+      [](auto &&n) { return 2 * n; });
+
+  BLUEBILD_OMP_PRAGMA("omp parallel for schedule(static)")
+  for (std::size_t idxPix = 0; idxPix < nPixel; ++idxPix) {
+    const simdType pX = pixelX[idxPix];
+    const simdType pY = pixelY[idxPix];
+    const simdType pZ = pixelZ[idxPix];
+
+    for (std::size_t idxEig = 0; idxEig < nEig; ++idxEig) {
+      simdType sumReal = 0;
+      simdType sumImag = 0;
+
+      std::size_t idxAnt = 0;
+      for (; idxAnt + simdSize <= nAntenna; idxAnt += simdSize) {
+        simdType x(xyz + idxAnt, Vc::Unaligned);
+        simdType y(xyz + ldxyz + idxAnt, Vc::Unaligned);
+        simdType z(xyz + 2 * ldxyz + idxAnt, Vc::Unaligned);
+
+        const auto imag = alphaVec * Vc::fma(pX, x, Vc::fma(pY, y, pZ * z));
+
+        simdType cosValue, sinValue;
+        Vc::sincos(imag, &sinValue, &cosValue);
+
+        const T *vUnbeamScalarPtr =
+            reinterpret_cast<const T *>(vUnbeam + idxEig * ldv + idxAnt);
+        simdType vValueReal(vUnbeamScalarPtr, indexComplex);
+        simdType vValueImag(vUnbeamScalarPtr + 1, indexComplex);
+
+        sumReal += vValueReal * cosValue - vValueImag * sinValue;
+        sumImag += Vc::fma(vValueReal, sinValue, vValueImag * cosValue);
+      }
+
+      const auto tail = nAntenna - idxAnt;
+      if (tail) {
+        simdType x, y, z;
+        x.setZero();
+        y.setZero();
+        z.setZero();
+        for (std::size_t i = 0; i < tail; ++i) {
+          x[i] = xyz[idxAnt + i];
+          y[i] = xyz[idxAnt + ldxyz + i];
+          z[i] = xyz[idxAnt + 2 * ldxyz + i];
+        }
+        const auto imag = alphaVec * Vc::fma(pX, x, Vc::fma(pY, y, pZ * z));
+
+        simdType cosValue, sinValue;
+        Vc::sincos(imag, &sinValue, &cosValue);
+
+        simdType vValueReal;
+        simdType vValueImag;
+        for (std::size_t i = 0; i < tail; ++i) {
+          const auto vValue = vUnbeam[idxEig * ldv + idxAnt + i];
+          vValueReal[i] = vValue.real();
+          vValueImag[i] = vValue.imag();
+        }
+        auto tailSumReal = vValueReal * cosValue - vValueImag * sinValue;
+        auto tailSumImag = Vc::fma(vValueReal, sinValue, vValueImag * cosValue);
+
+        for (std::size_t i = 0; i < tail; ++i) {
+          sumReal[i] += tailSumReal[i];
+          sumImag[i] += tailSumImag[i];
+        }
+      }
+
+      const T sumRealScalar = sumReal.sum();
+      const T sumImagScalar = sumImag.sum();
+      out[idxEig * ldout + idxPix] =
+          sumRealScalar * sumRealScalar + sumImagScalar * sumImagScalar;
+    }
+  }
+
+#else
 
   BLUEBILD_OMP_PRAGMA("omp parallel for schedule(static)")
   for (std::size_t idxPix = 0; idxPix < nPixel; ++idxPix) {
@@ -28,13 +108,9 @@ auto gemmexp(std::size_t nEig, std::size_t nPixel, std::size_t nAntenna,
       for (std::size_t idxAnt = 0; idxAnt < nAntenna; ++idxAnt) {
         const auto imag = alpha * (pX * xyz[idxAnt] + pY * xyz[idxAnt + ldxyz] +
                                    pZ * xyz[idxAnt + 2 * ldxyz]);
-        // TODO: marla seems to be slower?
-// #ifndef __INTEL_COMPILER
-//         marla_sincos(imag, &sinValue, &cosValue);
-// #else
-        sinValue = std::sin(imag);
-        cosValue = std::cos(imag);
-// #endif
+        const auto sinValue = std::sin(imag);
+        const auto cosValue = std::cos(imag);
+
         pixSum += vUnbeam[idxEig * ldv + idxAnt] *
                   std::complex<T>(cosValue, sinValue);
       }
@@ -42,6 +118,8 @@ auto gemmexp(std::size_t nEig, std::size_t nPixel, std::size_t nAntenna,
           pixSum.real() * pixSum.real() + pixSum.imag() * pixSum.imag();
     }
   }
+#endif
+
 }
 
 template auto

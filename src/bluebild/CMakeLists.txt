@@ -45,6 +45,7 @@ option(BLUEBILD_PYTHON "Build python module" ON)
 option(BLUEBILD_MAGMA "Use MAGMA library as eigensolver" OFF)
 option(BLUEBILD_PYBIND11_DOWNLOAD "Download pybind11 instead of looking for installation" OFF)
 option(BLUEBILD_UMPIRE "Use Umpire memory pool library" OFF)
+option(BLUEBILD_VC "Use VC vectorization library" OFF)
 option(BLUEBILD_OMP "Use OpenMP for multi-threading" ON)
 
 set(BLUEBILD_GPU "OFF" CACHE STRING "GPU backend")
@@ -184,6 +185,11 @@ endif()
 if(BLUEBILD_OMP)
   find_package(OpenMP REQUIRED)
   list(APPEND BLUEBILD_EXTERNAL_LIBS OpenMP::OpenMP_CXX)
+endif()
+
+if(BLUEBILD_VC)
+  find_package(Vc CONFIG REQUIRED)
+  list(APPEND BLUEBILD_EXTERNAL_LIBS Vc::Vc)
 endif()
 
 # check if C api is available for blas and lapack
