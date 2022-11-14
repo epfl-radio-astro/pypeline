@@ -91,13 +91,6 @@ auto NufftSynthesisGPU<T>::collect(
                                               nBeam_ * nEig);
   auto d = create_buffer<T>(ctx_->allocators().gpu(), nEig);
 
-  // if (s)
-  //   intensity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, s, lds, w, ldw,
-  //                            xyz, ldxyz, d.get(), v.get(), nBeam_);
-  // else
-  //   sensitivity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, w, ldw, xyz,
-  //                              ldxyz, d.get(), v.get(), nBeam_);
-
   {
     auto g = create_buffer<gpu::ComplexType<T>>(ctx_->allocators().gpu(),
                                                 nBeam_ * nBeam_);
