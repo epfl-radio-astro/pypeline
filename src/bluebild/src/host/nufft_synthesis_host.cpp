@@ -7,8 +7,8 @@
 
 #include "bluebild/config.h"
 #include "bluebild/exceptions.hpp"
-#include "host/intensity_field_data_host.hpp"
-#include "host/sensitivity_field_data_host.hpp"
+#include "host/eigensolver_host.hpp"
+#include "host/gram_matrix_host.hpp"
 #include "host/nufft_3d3_host.hpp"
 #include "host/nufft_synthesis_host.hpp"
 #include "host/virtual_vis_host.hpp"
@@ -85,12 +85,21 @@ auto NufftSynthesisHost<T>::collect(std::size_t nEig, T wl, const T *intervals,
       create_buffer<std::complex<T>>(ctx_->allocators().host(), nBeam_ * nEig);
   auto d = create_buffer<T>(ctx_->allocators().host(), nEig);
 
-  if (s)
-    intensity_field_data_host(*ctx_, wl, nAntenna_, nBeam_, nEig, s, lds, w,
-                              ldw, xyz, ldxyz, d.get(), v.get(), nBeam_);
-  else
-    sensitivity_field_data_host(*ctx_, wl, nAntenna_, nBeam_, nEig, w, ldw, xyz,
-                                ldxyz, d.get(), v.get(), nBeam_);
+  {
+    auto g = create_buffer<std::complex<T>>(ctx_->allocators().host(), nBeam_ * nBeam_);
+
+    gram_matrix_host<T>(*ctx_, nAntenna_, nBeam_, w, ldw, xyz, ldxyz, wl, g.get(), nBeam_);
+
+    std::size_t nEigOut = 0;
+    // Note different order of s and g input
+    if (s)
+      eigh_host<T>(*ctx_, nBeam_, nEig, s, lds, g.get(), nBeam_, &nEigOut,
+                   d.get(), v.get(), nBeam_);
+    else {
+      eigh_host<T>(*ctx_, nBeam_, nEig, g.get(), nBeam_, nullptr, 0, &nEigOut,
+                   d.get(), v.get(), nBeam_);
+    }
+  }
 
   auto virtVisPtr = virtualVis_.get() + inputCount_ * nAntenna_ * nAntenna_;
 

@@ -28,6 +28,8 @@ import time as tt
 import matplotlib.pyplot as plt
 
 
+# Create context with selected processing unit.
+# Options are "AUTO", "CPU" and "GPU".
 ctx = bluebild.Context("AUTO")
 
 # Observation
@@ -54,7 +56,7 @@ obs_end = time[-1]
 # Imaging
 N_pix = 350
 eps = 1e-3
-precision = 'single'
+precision = "single"
 
 t1 = tt.time()
 N_level = 3
@@ -78,12 +80,21 @@ for t in ProgressBar(time[::200]):
     S = vis(XYZ, W, wl)
     I_est.collect(S, G)
 
-N_eig, intervals = I_est.infer_parameters()
+N_eig, intensity_intervals = I_est.infer_parameters()
 
 # Imaging
-imager = bluebild.NufftSynthesis(ctx, N_antenna, N_station, intervals.shape[0],
-            ["LSQ", "SQRT"], lmn_grid[0], lmn_grid[1],
-            lmn_grid[2], precision, eps)
+imager = bluebild.NufftSynthesis(
+    ctx,
+    N_antenna,
+    N_station,
+    intensity_intervals.shape[0],
+    ["LSQ", "SQRT"],
+    lmn_grid[0],
+    lmn_grid[1],
+    lmn_grid[2],
+    precision,
+    eps,
+)
 
 for t in ProgressBar(time[::time_slice]):
     XYZ = dev(t)
@@ -91,10 +102,10 @@ for t in ProgressBar(time[::time_slice]):
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
     uvw = frame.uvw_to_nufft_base(wl, UVW_baselines_t)
-    imager.collect(N_eig, wl, intervals, W.data, XYZ.data, uvw, S.data)
+    imager.collect(N_eig, wl, intensity_intervals, W.data, XYZ.data, uvw, S.data)
 
-lsq_image = imager.get("LSQ").reshape((-1,N_pix,N_pix))
-sqrt_image = imager.get("SQRT").reshape((-1,N_pix,N_pix))
+lsq_image = imager.get("LSQ").reshape((-1, N_pix, N_pix))
+sqrt_image = imager.get("SQRT").reshape((-1, N_pix, N_pix))
 
 ### Sensitivity Field =========================================================
 # Parameter Estimation
@@ -108,48 +119,81 @@ for t in ProgressBar(time[::200]):
 N_eig = S_est.infer_parameters()
 
 # Imaging
-intervals = np.array([[0, np.finfo('f').max]])
-imager = None
-imager = bluebild.NufftSynthesis(ctx, N_antenna, N_station, intervals.shape[0],
-            ["LSQ"], lmn_grid[0], lmn_grid[1], lmn_grid[2], precision, eps)
+sensitivity_intervals = np.array([[0, np.finfo("f").max]])
+imager = None  # release previous imager first to some additional memory
+imager = bluebild.NufftSynthesis(
+    ctx,
+    N_antenna,
+    N_station,
+    sensitivity_intervals.shape[0],
+    ["INV_SQ"],
+    lmn_grid[0],
+    lmn_grid[1],
+    lmn_grid[2],
+    precision,
+    eps,
+)
+
 for t in ProgressBar(time[::time_slice]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
     UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
     uvw = frame.uvw_to_nufft_base(wl, UVW_baselines_t)
-    imager.collect(N_eig, wl, intervals, W.data, XYZ.data, uvw, None)
+    imager.collect(N_eig, wl, sensitivity_intervals, W.data, XYZ.data, uvw, None)
 
-sensitivity_image = imager.get("LSQ").reshape((-1,N_pix,N_pix))
+sensitivity_image = imager.get("INV_SQ").reshape((-1, N_pix, N_pix))
 
-
+# Plot Results ================================================================
 I_lsq_eq = s2image.Image(lsq_image / sensitivity_image, xyz_grid)
 I_sqrt_eq = s2image.Image(sqrt_image / sensitivity_image, xyz_grid)
 t2 = tt.time()
-print(f'Elapsed time: {t2 - t1} seconds.')
+print(f"Elapsed time: {t2 - t1} seconds.")
 
 plt.figure()
 ax = plt.gca()
-I_lsq_eq.draw(catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'), show_gridlines=False, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5))
-ax.set_title(f'Bluebild least-squares, sensitivity-corrected image (NUFFT)\n'
-             f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180 / np.pi)} degrees.\n'
-             f'Run time {np.floor(t2 - t1)} seconds.')
+I_lsq_eq.draw(
+    catalog=sky_model.xyz.T,
+    ax=ax,
+    data_kwargs=dict(cmap="cubehelix"),
+    show_gridlines=False,
+    catalog_kwargs=dict(s=30, linewidths=0.5, alpha=0.5),
+)
+ax.set_title(
+    f"Bluebild least-squares, sensitivity-corrected image (NUFFT)\n"
+    f"Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180 / np.pi)} degrees.\n"
+    f"Run time {np.floor(t2 - t1)} seconds."
+)
 
 plt.figure()
 ax = plt.gca()
-I_sqrt_eq.draw(catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'), show_gridlines=False, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5))
-ax.set_title(f'Bluebild sqrt, sensitivity-corrected image (NUFFT)\n'
-             f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180 / np.pi)} degrees.\n'
-             f'Run time {np.floor(t2 - t1)} seconds.')
+I_sqrt_eq.draw(
+    catalog=sky_model.xyz.T,
+    ax=ax,
+    data_kwargs=dict(cmap="cubehelix"),
+    show_gridlines=False,
+    catalog_kwargs=dict(s=30, linewidths=0.5, alpha=0.5),
+)
+ax.set_title(
+    f"Bluebild sqrt, sensitivity-corrected image (NUFFT)\n"
+    f"Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180 / np.pi)} degrees.\n"
+    f"Run time {np.floor(t2 - t1)} seconds."
+)
 
 plt.figure()
-titles = ['Strong sources', 'Mild sources', 'Faint Sources']
+titles = ["Strong sources", "Mild sources", "Faint Sources"]
 for i in range(lsq_image.shape[0]):
     plt.subplot(1, N_level, i + 1)
     ax = plt.gca()
     plt.title(titles[i])
-    I_lsq_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'),
-                  catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5), show_gridlines=False)
+    I_lsq_eq.draw(
+        index=i,
+        catalog=sky_model.xyz.T,
+        ax=ax,
+        data_kwargs=dict(cmap="cubehelix"),
+        catalog_kwargs=dict(s=30, linewidths=0.5, alpha=0.5),
+        show_gridlines=False,
+    )
 
-plt.suptitle(f'Bluebild Eigenmaps')
+plt.suptitle(f"Bluebild Eigenmaps")
 #  plt.show()
-plt.savefig('final_bb.png')
+plt.savefig("final_bb.png")

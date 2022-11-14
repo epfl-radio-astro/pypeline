@@ -5,11 +5,11 @@
 
 #include "bluebild/config.h"
 #include "bluebild/exceptions.hpp"
-#include "gpu/intensity_field_data_gpu.hpp"
+#include "gpu/eigensolver_gpu.hpp"
+#include "gpu/gram_matrix_gpu.hpp"
 #include "gpu/kernels/add_vector.hpp"
 #include "gpu/nufft_3d3_gpu.hpp"
 #include "gpu/nufft_synthesis_gpu.hpp"
-#include "gpu/sensitivity_field_data_gpu.hpp"
 #include "gpu/util/gpu_runtime_api.hpp"
 #include "gpu/virtual_vis_gpu.hpp"
 
@@ -91,12 +91,29 @@ auto NufftSynthesisGPU<T>::collect(
                                               nBeam_ * nEig);
   auto d = create_buffer<T>(ctx_->allocators().gpu(), nEig);
 
-  if (s)
-    intensity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, s, lds, w, ldw,
-                             xyz, ldxyz, d.get(), v.get(), nBeam_);
-  else
-    sensitivity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, w, ldw, xyz,
-                               ldxyz, d.get(), v.get(), nBeam_);
+  // if (s)
+  //   intensity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, s, lds, w, ldw,
+  //                            xyz, ldxyz, d.get(), v.get(), nBeam_);
+  // else
+  //   sensitivity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, w, ldw, xyz,
+  //                              ldxyz, d.get(), v.get(), nBeam_);
+
+  {
+    auto g = create_buffer<gpu::ComplexType<T>>(ctx_->allocators().gpu(),
+                                                nBeam_ * nBeam_);
+
+    gram_matrix_gpu<T>(*ctx_, nAntenna_, nBeam_, w, ldw, xyz, ldxyz, wl,
+                       g.get(), nBeam_);
+
+    std::size_t nEigOut = 0;
+    // Note different order of s and g input
+    if (s)
+      eigh_gpu<T>(*ctx_, nBeam_, nEig, s, lds, g.get(), nBeam_, &nEigOut,
+                  d.get(), v.get(), nBeam_);
+    else
+      eigh_gpu<T>(*ctx_, nBeam_, nEig, g.get(), nBeam_, nullptr, 0, &nEigOut,
+                  d.get(), v.get(), nBeam_);
+  }
 
   auto virtVisPtr = virtualVis_.get() + inputCount_ * nAntenna_ * nAntenna_;
 

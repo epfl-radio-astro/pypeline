@@ -193,8 +193,8 @@ TEST_P(NufftSynthesisLofarDouble, Intensity_INV) { this->test_intensity(BLUEBILD
 TEST_P(NufftSynthesisLofarSingle, Intensity_SQRT) { this->test_intensity(BLUEBILD_FILTER_SQRT, "sqrt"); }
 TEST_P(NufftSynthesisLofarDouble, Intensity_SQRT) { this->test_intensity(BLUEBILD_FILTER_SQRT, "sqrt"); }
 
-TEST_P(NufftSynthesisLofarSingle, Sensitivity_LSQ) { this->test_sensitivity(BLUEBILD_FILTER_LSQ, "lsq"); }
-TEST_P(NufftSynthesisLofarDouble, Sensitivity_LSQ) { this->test_sensitivity(BLUEBILD_FILTER_LSQ, "lsq"); }
+TEST_P(NufftSynthesisLofarSingle, Sensitivity_INV_SQ) { this->test_sensitivity(BLUEBILD_FILTER_INV_SQ, "inv_sq"); }
+TEST_P(NufftSynthesisLofarDouble, Sensitivity_INV_SQ) { this->test_sensitivity(BLUEBILD_FILTER_INV_SQ, "inv_sq"); }
 
 
 static auto param_type_names(

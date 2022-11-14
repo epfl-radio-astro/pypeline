@@ -179,8 +179,8 @@ TEST_P(StandardSynthesisLofarDouble, Intensity_LSQ) { this->test_intensity(BLUEB
 TEST_P(StandardSynthesisLofarSingle, Intensity_STD) { this->test_intensity(BLUEBILD_FILTER_STD, "std"); }
 TEST_P(StandardSynthesisLofarDouble, Intensity_STD) { this->test_intensity(BLUEBILD_FILTER_STD, "std"); }
 
-TEST_P(StandardSynthesisLofarSingle, Sensitivity_LSQ) { this->test_sensitivity(BLUEBILD_FILTER_LSQ, "lsq"); }
-TEST_P(StandardSynthesisLofarDouble, Sensitivity_LSQ) { this->test_sensitivity(BLUEBILD_FILTER_LSQ, "lsq"); }
+TEST_P(StandardSynthesisLofarSingle, Sensitivity_INV_SQ) { this->test_sensitivity(BLUEBILD_FILTER_INV_SQ, "inv_sq"); }
+TEST_P(StandardSynthesisLofarDouble, Sensitivity_INV_SQ) { this->test_sensitivity(BLUEBILD_FILTER_INV_SQ, "inv_sq"); }
 
 
 static auto param_type_names(

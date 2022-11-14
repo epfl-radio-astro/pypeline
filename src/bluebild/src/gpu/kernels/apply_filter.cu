@@ -36,7 +36,20 @@ __global__ void apply_filter_inv_kernel(std::size_t n, const T *__restrict__ in,
        i += gridDim.x * blockDim.x) {
     const auto value = in[i];
     if (value)
-      out[i] = static_cast<T>(1) / in[i];
+      out[i] = static_cast<T>(1) / value;
+    else
+      out[i] = 0;
+  }
+}
+
+template <typename T>
+__global__ void apply_filter_inv_sq_kernel(std::size_t n,
+                                           const T *__restrict__ in, T *out) {
+  for (std::size_t i = threadIdx.x + blockIdx.x * blockDim.x; i < n;
+       i += gridDim.x * blockDim.x) {
+    const auto value = in[i];
+    if (value)
+      out[i] = static_cast<T>(1) / (value * value);
     else
       out[i] = 0;
   }
@@ -65,6 +78,11 @@ auto apply_filter(gpu::StreamType stream, BluebildFilter filter, std::size_t n,
   }
   case BLUEBILD_FILTER_INV: {
     gpu::launch_kernel(apply_filter_inv_kernel<T>, grid, block, 0, stream, n,
+                       in, out);
+    break;
+  }
+  case BLUEBILD_FILTER_INV_SQ: {
+    gpu::launch_kernel(apply_filter_inv_sq_kernel<T>, grid, block, 0, stream, n,
                        in, out);
     break;
   }

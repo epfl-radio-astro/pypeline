@@ -89,6 +89,8 @@ auto string_to_filter(const std::string &f) -> BluebildFilter {
     return BLUEBILD_FILTER_SQRT;
   if (f == "INV" || f == "inv")
     return BLUEBILD_FILTER_INV;
+  if (f == "INV_SQ" || f == "inv_sq")
+    return BLUEBILD_FILTER_INV_SQ;
 
   throw InvalidParameterError();
 }
@@ -127,109 +129,6 @@ auto call_gram_matrix(Context &ctx,
               safe_cast<std::size_t>(g.strides(1) / g.itemsize()));
 
   return g;
-}
-
-template <typename T>
-auto call_sensitivity_field_data(
-    Context &ctx, T wl, std::size_t nEig,
-    const py::array_t<T, py::array::f_style> &xyz,
-    const py::array_t<std::complex<T>, py::array::f_style> &w) {
-  check_2d_array(w);
-  check_2d_array(xyz, {w.shape(0), 3});
-
-  auto v = py::array_t<std::complex<T>, py::array::f_style>(
-      {w.shape(1), static_cast<long>(nEig)});
-  auto d = py::array_t<T>(nEig);
-
-  sensitivity_field_data(
-      ctx, wl, safe_cast<std::size_t>(w.shape(0)),
-      safe_cast<std::size_t>(w.shape(1)), safe_cast<std::size_t>(nEig),
-      w.data(0), safe_cast<std::size_t>(w.strides(1) / w.itemsize()),
-      xyz.data(0), safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()),
-      d.mutable_data(0), v.mutable_data(0),
-      safe_cast<std::size_t>(v.strides(1) / v.itemsize()));
-
-  return std::make_tuple(std::move(d), std::move(v));
-}
-
-template <typename T>
-auto call_intensity_field_data(
-    Context &ctx, T wl, std::size_t nEig,
-    const py::array_t<T, py::array::f_style> &xyz,
-    const py::array_t<std::complex<T>, py::array::f_style> &w,
-    const py::array_t<std::complex<T>, py::array::f_style> &s) {
-  check_2d_array(w);
-  check_2d_array(xyz, {w.shape(0), 3});
-  check_2d_array(s, {w.shape(1), w.shape(1)});
-
-  auto v = py::array_t<std::complex<T>, py::array::f_style>(
-      {w.shape(1), static_cast<long>(nEig)});
-  auto d = py::array_t<T>(nEig);
-
-  intensity_field_data(
-      ctx, wl, safe_cast<std::size_t>(w.shape(0)),
-      safe_cast<std::size_t>(w.shape(1)), safe_cast<std::size_t>(nEig),
-      s.data(0), safe_cast<std::size_t>(s.strides(1) / s.itemsize()), w.data(0),
-      safe_cast<std::size_t>(w.strides(1) / w.itemsize()), xyz.data(0),
-      safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()),
-      d.mutable_data(0), v.mutable_data(0),
-      safe_cast<std::size_t>(v.strides(1) / v.itemsize()));
-
-  return std::make_tuple(std::move(d), std::move(v));
-}
-
-template <typename T>
-auto call_virtual_vis(
-    Context &ctx, const py::array_t<BluebildFilter, py::array::f_style> &filter,
-    const py::array_t<T, py::array::c_style> &intervals,
-    const py::array_t<T, py::array::f_style> &d,
-    const py::array_t<std::complex<T>, py::array::f_style> &v,
-    std::optional<py::array_t<std::complex<T>, py::array::f_style>> w) {
-  if (w)
-    check_2d_array(w.value());
-  check_1d_array(filter);
-  check_2d_array(intervals, {0, 2});
-  check_1d_array(d);
-  check_2d_array(v);
-
-  auto nAntenna = w ? w.value().shape(0) : v.shape(0);
-  auto nBeam = w ? w.value().shape(1) : v.shape(0);
-  auto nEig = v.shape(1);
-
-  // workaround to match current style in python implementation:
-  // use row major ordering and transpose inner matrices afterwards
-  auto virtualVis = py::array_t<std::complex<T>, py::array::c_style>(
-      {filter.size(), intervals.shape(0), static_cast<long>(nAntenna),
-       static_cast<long>(nAntenna)});
-
-  virtual_vis<T>(
-      ctx, safe_cast<std::size_t>(filter.size()), filter.data(0),
-      safe_cast<std::size_t>(intervals.size() / 2), intervals.data(0),
-      safe_cast<std::size_t>(intervals.strides(0) / intervals.itemsize()),
-      safe_cast<std::size_t>(nEig), d.data(0), safe_cast<std::size_t>(nAntenna),
-      v.data(0), safe_cast<std::size_t>(v.strides(1) / v.itemsize()),
-      safe_cast<std::size_t>(nBeam), w ? w.value().data(0) : nullptr,
-      w ? safe_cast<std::size_t>(w.value().strides(1) / w.value().itemsize())
-        : 0,
-      virtualVis.mutable_data(0), virtualVis.strides(0) / virtualVis.itemsize(),
-      virtualVis.strides(1) / virtualVis.itemsize(),
-      virtualVis.strides(2) / virtualVis.itemsize());
-
-  // transpose inner matrices
-  auto virtualVisMut = virtualVis.template mutable_unchecked<4>();
-  for (py::ssize_t i = 0; i < virtualVis.shape(0); ++i) {
-    for (py::ssize_t j = 0; j < virtualVis.shape(1); ++j) {
-      for (py::ssize_t k = 0; k < virtualVis.shape(2); ++k) {
-        for (py::ssize_t l = 0; l < k; ++l) {
-          auto tmp = virtualVisMut(i, j, k, l);
-          virtualVisMut(i, j, k, l) = virtualVisMut(i, j, l, k);
-          virtualVisMut(i, j, l, k) = tmp;
-        }
-      }
-    }
-  }
-
-  return virtualVis;
 }
 
 struct Nufft3d3Dispatcher {
@@ -634,15 +533,15 @@ PYBIND11_MODULE(pybluebild, m) {
       .def("processing_unit",
            [](const Context &ctx) {
              return processing_unit_to_string(ctx.processing_unit());
-           })
-      .def(
-          "gram_matrix",
-          [](Context &ctx,
-             const py::array_t<float, pybind11::array::f_style> &xyz,
-             const py::array_t<std::complex<float>, pybind11::array::f_style>
-                 &w,
-             float wl) { return call_gram_matrix(ctx, xyz, w, wl); },
-          pybind11::arg("XYZ"), pybind11::arg("W"), pybind11::arg("wl"))
+           });
+
+  m.def(
+       "gram_matrix",
+       [](Context &ctx, const py::array_t<float, pybind11::array::f_style> &xyz,
+          const py::array_t<std::complex<float>, pybind11::array::f_style> &w,
+          float wl) { return call_gram_matrix(ctx, xyz, w, wl); },
+       pybind11::arg("ctx"), pybind11::arg("XYZ"), pybind11::arg("W"),
+       pybind11::arg("wl"))
       .def(
           "gram_matrix",
           [](Context &ctx,
@@ -650,82 +549,8 @@ PYBIND11_MODULE(pybluebild, m) {
              const py::array_t<std::complex<double>, pybind11::array::f_style>
                  &w,
              double wl) { return call_gram_matrix(ctx, xyz, w, wl); },
-          pybind11::arg("XYZ"), pybind11::arg("W"), pybind11::arg("wl"))
-      .def(
-          "sensitivity_field_data",
-          [](Context &ctx, std::size_t nEig,
-             const py::array_t<float, pybind11::array::f_style> &xyz,
-             const py::array_t<std::complex<float>, pybind11::array::f_style>
-                 &w,
-             float wl) {
-            return call_sensitivity_field_data(ctx, wl, nEig, xyz, w);
-          },
-          pybind11::arg("n_eig"), pybind11::arg("XYZ"), pybind11::arg("W"),
-          pybind11::arg("wl"))
-      .def(
-          "sensitivity_field_data",
-          [](Context &ctx, std::size_t nEig,
-             const py::array_t<double, pybind11::array::f_style> &xyz,
-             const py::array_t<std::complex<double>, pybind11::array::f_style>
-                 &w,
-             double wl) {
-            return call_sensitivity_field_data(ctx, wl, nEig, xyz, w);
-          },
-          pybind11::arg("n_eig"), pybind11::arg("XYZ"), pybind11::arg("W"),
-          pybind11::arg("wl"))
-      .def(
-          "intensity_field_data",
-          [](Context &ctx, std::size_t nEig,
-             const py::array_t<float, pybind11::array::f_style> &xyz,
-             const py::array_t<std::complex<float>, pybind11::array::f_style>
-                 &w,
-             float wl,
-             const py::array_t<std::complex<float>, pybind11::array::f_style>
-                 &s) {
-            return call_intensity_field_data(ctx, wl, nEig, xyz, w, s);
-          },
-          pybind11::arg("n_eig"), pybind11::arg("XYZ"), pybind11::arg("W"),
-          pybind11::arg("wl"), pybind11::arg("S"))
-      .def(
-          "intensity_field_data",
-          [](Context &ctx, std::size_t nEig,
-             const py::array_t<double, pybind11::array::f_style> &xyz,
-             const py::array_t<std::complex<double>, pybind11::array::f_style>
-                 &w,
-             double wl,
-             const py::array_t<std::complex<double>, pybind11::array::f_style>
-                 &s) {
-            return call_intensity_field_data(ctx, wl, nEig, xyz, w, s);
-          },
-          pybind11::arg("n_eig"), pybind11::arg("XYZ"), pybind11::arg("W"),
-          pybind11::arg("wl"), pybind11::arg("S"))
-      .def(
-          "virtual_vis",
-          [](Context &ctx,
-             const py::array_t<BluebildFilter, py::array::f_style> &filter,
-             const py::array_t<float, py::array::c_style> &intervals,
-             const py::array_t<float, py::array::f_style> &d,
-             const py::array_t<std::complex<float>, py::array::f_style> &v,
-             std::optional<py::array_t<std::complex<float>, py::array::f_style>>
-                 w) {
-            return call_virtual_vis(ctx, filter, intervals, d, v, w);
-          },
-          pybind11::arg("filter"), pybind11::arg("intervals"),
-          pybind11::arg("d"), pybind11::arg("v"), pybind11::arg("w"))
-      .def(
-          "virtual_vis",
-          [](Context &ctx,
-             const py::array_t<BluebildFilter, py::array::f_style> &filter,
-             const py::array_t<double, py::array::c_style> &intervals,
-             const py::array_t<double, py::array::f_style> &d,
-             const py::array_t<std::complex<double>, py::array::f_style> &v,
-             std::optional<
-                 py::array_t<std::complex<double>, py::array::f_style>>
-                 w) {
-            return call_virtual_vis(ctx, filter, intervals, d, v, w);
-          },
-          pybind11::arg("filter"), pybind11::arg("intervals"),
-          pybind11::arg("d"), pybind11::arg("v"), pybind11::arg("w"));
+          pybind11::arg("ctx"), pybind11::arg("XYZ"), pybind11::arg("W"),
+          pybind11::arg("wl"));
 
   pybind11::class_<Nufft3d3Dispatcher>(m, "Nufft3d3")
       .def(pybind11::init<

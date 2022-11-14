@@ -53,14 +53,12 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
     """
 
     @chk.check(dict(N_eig=chk.is_integer))
-    def __init__(self, N_eig, ctx=None):
+    def __init__(self, N_eig):
         """
         Parameters
         ----------
         N_eig : int
             Number of eigenpairs to output after PCA decomposition.
-        ctx: :py:class:`~bluebild.Context`
-            Bluebuild context. If provided, will use bluebild module for computation.
 
         Notes
         -----
@@ -74,7 +72,6 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
 
         super().__init__()
         self._N_eig = N_eig
-        self._ctx = ctx
 
     @chk.check(
         dict(
@@ -169,17 +166,13 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
         else:
             S, W = S.data, W.data
 
-        if self._ctx is not None:
-            D, V = self._ctx.intensity_field_data(self._N_eig, np.array(XYZ.data, order='F'), np.array(W.data, order='F'),
-                    wl, S)
-        else:
-            G = gram.GramBlock().compute(XYZ.data, W, wl)
+        G = gram.GramBlock().compute(XYZ.data, W, wl)
 
-            # Functional PCA
-            if not np.allclose(S, 0):
-                D, V = pylinalg.eigh(S, G, tau=1, N=self._N_eig)
-            else:  # S is broken beyond use
-                D, V = np.zeros(self._N_eig), 0
+        # Functional PCA
+        if not np.allclose(S, 0):
+            D, V = pylinalg.eigh(S, G, tau=1, N=self._N_eig)
+        else:  # S is broken beyond use
+            D, V = np.zeros(self._N_eig), 0
 
         # Add broken BEAM_IDs
         if broken_row_id.size:
@@ -197,14 +190,12 @@ class SensitivityFieldDataProcessorBlock(DataProcessorBlock):
     """
 
     @chk.check("N_eig", chk.is_integer)
-    def __init__(self, N_eig, ctx=None):
+    def __init__(self, N_eig):
         """
         Parameters
         ----------
         N_eig : int
             Number of eigenpairs to output after PCA decomposition.
-        ctx: :py:class:`~bluebild.Context`
-            Bluebuild context. If provided, will use bluebild module for computation.
 
         Notes
         -----
@@ -218,7 +209,6 @@ class SensitivityFieldDataProcessorBlock(DataProcessorBlock):
 
         super().__init__()
         self._N_eig = N_eig
-        self._ctx = ctx
 
     @chk.check(
         dict(
@@ -287,14 +277,11 @@ class SensitivityFieldDataProcessorBlock(DataProcessorBlock):
            array([9.2e-05, 9.4e-05])
         """
 
-        if self._ctx is not None:
-            return self._ctx.sensitivity_field_data(self._N_eig, np.array(XYZ.data, order='F'), np.array(W.data, order='F'), wl)
-        else:
-            G = gram.GramBlock()(XYZ, W, wl)
-            N_beam = len(G.data)
-            D, V = pylinalg.eigh(G.data, np.eye(N_beam), tau=1, N=self._N_eig)
-            Dg = 1 / (D ** 2)
-            return Dg, V
+        G = gram.GramBlock()(XYZ, W, wl)
+        N_beam = len(G.data)
+        D, V = pylinalg.eigh(G.data, np.eye(N_beam), tau=1, N=self._N_eig)
+        Dg = 1 / (D ** 2)
+        return Dg, V
 
 
 class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
@@ -304,7 +291,7 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
     """
 
     @chk.check(dict(N_eig=chk.is_integer))
-    def __init__(self, N_eig: int, filters: typ.Tuple[str, ...] = ('lsq', 'std', 'sqrt'), ctx = None):
+    def __init__(self, N_eig: int, filters: typ.Tuple[str, ...] = ('lsq', 'std', 'sqrt')):
         r"""
 
         Parameters
@@ -313,8 +300,6 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
             Number of eigenpairs in the fPCA decomposition.
         filters: Tuple[str, ...]
             Filters to be applied to the spectrum ``D`` of the fPCA. Possible values are: ``dict(lsq=D, std=np.ones(D.size, np.float), sqrt=np.sqrt(D), inv=1 / D)``.
-        ctx: :py:class:`~bluebild.Context`
-            Bluebuild context. If provided, will use bluebild module for computation.
         """
         if N_eig <= 0:
             raise ValueError("Parameter [N_eig] must be positive.")
@@ -322,7 +307,6 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
         super().__init__()
         self.filters = filters
         self._N_eig = N_eig
-        self._ctx = ctx
 
     def __call__(self, D: np.ndarray, V: np.ndarray, W: typ.Optional[beamforming.MatchedBeamformerBlock] = None,
                  intervals: typ.Optional[np.ndarray] = None) -> np.ndarray:
@@ -348,15 +332,6 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
         """
         if intervals is None:
             intervals = np.array([[0, np.finfo('f').max]])
-
-        if self._ctx is not None:
-            filter_match = dict(lsq=0, std=1, sqrt=2, inv=3)
-            filter_enums = []
-            for f in self.filters:
-                filter_enums.append(filter_match[f])
-            filter_enums = np.array(filter_enums, dtype=np.uint32)
-            virtual_vis_stack = self._ctx.virtual_vis(filter_enums, intervals, D, V, W.data if W is not None else None)
-            return virtual_vis_stack
 
         Filtered_eigs = dict(lsq=D, std=np.ones(D.size, D.dtype), sqrt=np.sqrt(D), inv=1 / D)
         if W is not None:

@@ -10,8 +10,8 @@
 #include "bluebild/config.h"
 #include "context_internal.hpp"
 #include "host/blas_api.hpp"
-#include "host/intensity_field_data_host.hpp"
-#include "host/sensitivity_field_data_host.hpp"
+#include "host/eigensolver_host.hpp"
+#include "host/gram_matrix_host.hpp"
 #include "memory/allocator.hpp"
 #include "memory/buffer.hpp"
 #include "host/gemmexp.hpp"
@@ -77,14 +77,21 @@ auto StandardSynthesisHost<T>::collect(
   center_vector(nAntenna_, xyz + ldxyz, xyzCentered.get() + nAntenna_);
   center_vector(nAntenna_, xyz + 2 * ldxyz, xyzCentered.get() + 2 * nAntenna_);
 
-  if (s)
-    intensity_field_data_host(*ctx_, wl, nAntenna_, nBeam_, nEig, s, lds, w,
-                              ldw, xyzCentered.get(), nAntenna_, d.get(),
-                              v.get(), nBeam_);
-  else
-    sensitivity_field_data_host(*ctx_, wl, nAntenna_, nBeam_, nEig, w, ldw,
-                                xyzCentered.get(), nAntenna_, d.get(), v.get(),
-                                nBeam_);
+  {
+    auto g = create_buffer<std::complex<T>>(ctx_->allocators().host(), nBeam_ * nBeam_);
+
+    gram_matrix_host<T>(*ctx_, nAntenna_, nBeam_, w, ldw, xyzCentered.get(), nAntenna_, wl, g.get(), nBeam_);
+
+    std::size_t nEigOut = 0;
+    // Note different order of s and g input
+    if (s)
+      eigh_host<T>(*ctx_, nBeam_, nEig, s, lds, g.get(), nBeam_, &nEigOut,
+                   d.get(), v.get(), nBeam_);
+    else {
+      eigh_host<T>(*ctx_, nBeam_, nEig, g.get(), nBeam_, nullptr, 0, &nEigOut,
+                   d.get(), v.get(), nBeam_);
+    }
+  }
 
   blas::gemm(CblasColMajor, CblasNoTrans, CblasNoTrans, nAntenna_, nEig, nBeam_,
              {1, 0}, w, ldw, v.get(), nBeam_, {0, 0}, vUnbeam.get(), nAntenna_);

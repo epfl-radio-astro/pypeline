@@ -49,7 +49,17 @@ auto apply_filter(BluebildFilter f, std::size_t nEig, const T* D, T* DFiltered) 
     for (std::size_t i = 0; i < nEig; ++i) {
       const auto value = D[i];
       if (value)
-        DFiltered[i] = 1 / D[i];
+        DFiltered[i] = 1 / value;
+      else
+        DFiltered[i] = 0;
+    }
+    break;
+  }
+  case BLUEBILD_FILTER_INV_SQ: {
+    for (std::size_t i = 0; i < nEig; ++i) {
+      const auto value = D[i];
+      if (value)
+        DFiltered[i] = T(1) / (value * value);
       else
         DFiltered[i] = 0;
     }
