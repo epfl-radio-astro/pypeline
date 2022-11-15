@@ -234,8 +234,6 @@ except:
 
 wl = constants.speed_of_light / frequency.to_value(u.Hz)
 
-obs_start, obs_end = ms.time["TIME"][[0, -1]]
-
 print (f"The frequency of Observation is:"+str(frequency/1e9)+" GHz and the wavelength is:"+ str(wl) + " m")
 
 # Imaging
@@ -256,8 +254,6 @@ else:
         _, _, px_colat, px_lon = grid.equal_angle(N=ms.instrument.nyquist_rate(wl), direction=user_fieldcenter.cartesian.xyz.value, FoV=FoV)
     print("nyquist rate", ms.instrument.nyquist_rate(wl), "px_col {0}, px_lon {1}".format(px_colat.shape, px_lon.shape))
 
-    #N_FS, T_kernel = ms.instrument.bfsf_kernel_bandwidth(wl, obs_start, obs_end), np.deg2rad(10)
-    #px_grid = transform.pol2cart(1, px_colat, px_lon).reshape(3, -1)
     px_grid = transform.pol2cart(1, px_colat, px_lon)
 """
 
@@ -316,9 +312,6 @@ for t, f, S in ProgressBar(
 
     #fig_vis.tight_layout()
 
-    
-    
-    print(c_idx,"\n" ,D[0],V [:, 0],"\n", D[1], V[:, 1])
     #c_idx = [0,1,2,3] 
 
     #_ = I_mfs(D, V, XYZ.data, W.data, c_idx)
