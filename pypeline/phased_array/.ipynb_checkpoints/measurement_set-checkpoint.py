@@ -322,6 +322,7 @@ class MeasurementSet:
             )
 
             # Break S into columns and stream out
+            print(sub_table.calc("MJD(TIME)")[0])
             t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
             f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
@@ -423,6 +424,7 @@ class LofarMeasurementSet(MeasurementSet):
             station_mean = table.getcol("POSITION")
             antenna_offset = table.getcol("ELEMENT_OFFSET")
             antenna_flag = table.getcol("ELEMENT_FLAG")
+            print(station_id)
 
             # Form DataFrame that holds all antennas, then filter out flagged antennas.
             N_station, N_antenna, _ = antenna_offset.shape

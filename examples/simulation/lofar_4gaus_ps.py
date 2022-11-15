@@ -109,6 +109,7 @@ S_mfs = bb_fd.Fourier_IMFS_Block(wl, pix_colat, pix_lon, N_FS, T_kernel, R, 1, N
 for t, f, S in ProgressBar(
         ms.visibilities(channel_id=[channel_id], time_id=slice(None, None, time_slice), column="DATA")
 ):
+    print(t)
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
     W = ms.beamformer(XYZ, wl)

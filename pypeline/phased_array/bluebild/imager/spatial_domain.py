@@ -18,7 +18,7 @@ import pypeline.phased_array.bluebild.imager as bim
 import imot_tools.io.s2image as image
 import imot_tools.util.argcheck as chk
 import pypeline.util.array as array
-import bluebild
+#import bluebild
 
 class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
     """

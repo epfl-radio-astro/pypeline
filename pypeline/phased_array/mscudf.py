@@ -133,7 +133,7 @@ class Cudfparquet:
         #     raise NotADirectoryError(f"{file_name} is not a directory, so cannot be an parquet file.")
 
         self._cudf = str(path)
-        #self._dataframe = cudf.read_parquet(self._cudf)
+        self._dataframe = cudf.read_parquet(self._cudf)
         self._field_df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'FIELD'}{path.suffix}")
         self._spectral_window_df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'SPECTRAL_WINDOW'}{path.suffix}")
 
@@ -204,10 +204,8 @@ class Cudfparquet:
         """
 
         if self._time is None:
-            #df = cudf.read_parquet(self._cudf)
-            df = self._dataframe
             
-            time_array = df['TIME'].explode().to_numpy()
+            time_array = self._dataframe['TIME'].explode().to_numpy()
             t = time.Time(np.unique(time_array), format="mjd", scale="utc")
             t_id = range(len(t))
             self._time = tb.QTable(dict(TIME_ID=t_id, TIME=t))
@@ -288,12 +286,10 @@ class Cudfparquet:
         unique_time = np.unique(obstime)[time_start:time_stop:time_step]
         
         df2 = df.loc[df['TIME'].isin(unique_time)]
-        print(df2)
     
         for t in unique_time:
             df_sub = df2.loc[df2['TIME'] == t].reset_index()
             beam_id_0 = df_sub.ANTENNA1.to_numpy()
-            print(beam_id_0)
             beam_id_1 = df_sub.ANTENNA2.to_numpy()
             data_flag = df_sub.FLAG.list.leaves.to_numpy().reshape(len(df_sub.FLAG),len(df_sub.FLAG[0]),len(df_sub.FLAG[0][0]))
             data = df_sub.DATA.explode().explode().to_numpy(dtype=np.float32).reshape(len(df_sub.DATA),len(df_sub.DATA[0]),len(df_sub.DATA[0][0])).view(np.complex64)
@@ -350,7 +346,8 @@ class Cudfparquet:
             missing_b0, missing_b1 = zip(*missing)
             
             # Break S into columns and stream out
-            t = df_sub.TIME[0]
+            #t = df_sub.TIME[0]
+            t = time.Time(df_sub.TIME[0], format="mjd", scale="utc")
             f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
             for ch_id in channel_id:
@@ -451,11 +448,10 @@ class LofarMeasurementSet(Cudfparquet):
             #                 antenna can be discarded from that station.
             
             
-            #path = pathlib.Path(self._cudf).absolute()
-            #df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'LOFAR_ANTENNA_FIELD'}{path.suffix}")
+            path = pathlib.Path(self._cudf).absolute()
             df = self._lofar_antenna_field_df
             
-            station_id = df.ANTENNA_ID.to_numpy()
+            station_id = df.ANTENNA_ID.to_numpy(dtype=np.int32)
             station_mean = df.POSITION.list.leaves.to_numpy().reshape(len(df.POSITION),3)
             antenna_offset = df.ELEMENT_OFFSET.list.leaves.to_numpy().reshape(len(df.ELEMENT_OFFSET),len(df.ELEMENT_OFFSET[0]),len(df.ELEMENT_OFFSET[0][0]))
             antenna_flag = df.ELEMENT_FLAG.list.leaves.to_numpy().reshape(len(df.ELEMENT_FLAG),len(df.ELEMENT_FLAG[0]),len(df.ELEMENT_FLAG[0][0]))
@@ -472,7 +468,6 @@ class LofarMeasurementSet(Cudfparquet):
             cfg = pd.DataFrame(data=antenna_xyz, columns=("X", "Y", "Z"), index=cfg_idx).loc[
                 ~antenna_flag
             ]
-
 
             # If in `station_only` mode, return centroid of each station only.
             # Why do we not just use `station_mean` above? Because it arbitrarily

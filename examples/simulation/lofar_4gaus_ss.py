@@ -92,6 +92,7 @@ for t, f, S in ProgressBar(
             channel_id=[channel_id], time_id=slice(0, None, 200), column="DATA"
         )
 ):
+    print(t)
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
     W = ms.beamformer(XYZ, wl)
@@ -123,7 +124,7 @@ for t, f, S in ProgressBar(
     #_ = I_mfs(D, V, XYZ.data, W.data, c_idx)
 
     XYZ = xp.asarray(XYZ.data)
-    W   = xp.asarray(W.data.toarray())
+    W   = xp.asarray(W.data)
     V   = xp.asarray(V)
 
     _ = I_mfs(D, V, XYZ, W, c_idx)
