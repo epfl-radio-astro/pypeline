@@ -1,5 +1,5 @@
 # #############################################################################
-# cudf.py
+# mscudf.py
 # ==================
 # Author : Arpan Das [arpan.das@epfl.ch]
 # #############################################################################
@@ -20,6 +20,7 @@ import astropy.time as time
 import astropy.units as u
 import imot_tools.util.argcheck as chk
 import pandas as pd
+import dask.dataframe as dd
 
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.instrument as instrument
@@ -132,7 +133,7 @@ class Cudfparquet:
         #     raise NotADirectoryError(f"{file_name} is not a directory, so cannot be an parquet file.")
 
         self._cudf = str(path)
-        self._dataframe = cudf.read_parquet(self._cudf)
+        #self._dataframe = cudf.read_parquet(self._cudf)
         self._field_df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'FIELD'}{path.suffix}")
         self._spectral_window_df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'SPECTRAL_WINDOW'}{path.suffix}")
 
@@ -287,10 +288,12 @@ class Cudfparquet:
         unique_time = np.unique(obstime)[time_start:time_stop:time_step]
         
         df2 = df.loc[df['TIME'].isin(unique_time)]
+        print(df2)
     
         for t in unique_time:
             df_sub = df2.loc[df2['TIME'] == t].reset_index()
             beam_id_0 = df_sub.ANTENNA1.to_numpy()
+            print(beam_id_0)
             beam_id_1 = df_sub.ANTENNA2.to_numpy()
             data_flag = df_sub.FLAG.list.leaves.to_numpy().reshape(len(df_sub.FLAG),len(df_sub.FLAG[0]),len(df_sub.FLAG[0][0]))
             data = df_sub.DATA.explode().explode().to_numpy(dtype=np.float32).reshape(len(df_sub.DATA),len(df_sub.DATA[0]),len(df_sub.DATA[0][0])).view(np.complex64)
@@ -302,33 +305,25 @@ class Cudfparquet:
             # DataFrame description of visibility data.
             # Each column represents a different channel.
             S_full_idx = pd.MultiIndex.from_arrays((beam_id_0, beam_id_1), names=("B_0", "B_1"))
-            S_full_idx_cudf = cudf.MultiIndex.from_tuples(zip(beam_id_0, beam_id_1), names=("B_0", "B_1"))
             
             S_full = pd.DataFrame(data=data, columns=channel_id, index=S_full_idx)
             
-            cols = cudf.MultiIndex.from_product([np.array(channel_id),['real','imag']])
-            m, n = data.shape
-            S_full_cudf = cudf.DataFrame(data.flatten().view(np.float32).reshape(data.shape[0],data.shape[1]*2).tolist(), columns=cols, index=S_full_idx_cudf)
+            S_full_cudf = cudf.DataFrame({'B_0': beam_id_0, 'B_1': beam_id_1})
             
+            for i in np.array(channel_id):
+                S_full_cudf[i] = data.T[i].view(np.float32).reshape(data.T[i].shape + (2,)).tolist()      
             
             # Drop rows of `S_full` corresponding to unwanted beams.
             beam_id = np.unique(self.instrument._layout.index.get_level_values("STATION_ID"))
             N_beam = len(beam_id)
             i, j = np.triu_indices(N_beam, k=0)
+            
             wanted_index = pd.MultiIndex.from_arrays((beam_id[i], beam_id[j]), names=("B_0", "B_1"))
-
-            wanted_index_cudf = cudf.MultiIndex.from_tuples(zip(beam_id[i], beam_id[j]), names=("B_0", "B_1"))
-            
             index_to_drop = S_full_idx.difference(wanted_index)
-            
-            #index_to_drop_cudf = S_full_idx_cudf.difference(wanted_index_cudf)
-            
-            index_to_drop_cudf = cudf.MultiIndex.from_product([[0],[1,2]])
-            print(index_to_drop_cudf)
+
             S_trunc = S_full.drop(index=index_to_drop)
-            S_trunc_cudf = S_full_cudf.drop(index=index_to_drop_cudf)
-            
-            
+
+            S_trunc_cudf = S_full_cudf[S_full_cudf['B_0'].isin(beam_id[i]) & S_full_cudf['B_1'].isin(beam_id[j])]
 
             # Depending on the dataset, some (ANTENNA1, ANTENNA2) pairs that have correlation=0 are
             # omitted in the table.
@@ -336,6 +331,7 @@ class Cudfparquet:
             # missing entire antenna ranges.
             # To fix this issue, we augment the dataframe to always make sure `S_trunc` matches the
             # desired shape.
+            
             index_diff = wanted_index.difference(S_trunc.index)
             N_diff = len(index_diff)
 
@@ -347,7 +343,12 @@ class Cudfparquet:
             S = pd.concat([S_trunc, S_fill_in], axis=0, ignore_index=False).sort_index(
                 level=["B_0", "B_1"]
             )
-
+            
+            present_tuple = list(zip(S_trunc_cudf.B_0.to_numpy(),S_trunc_cudf.B_1.to_numpy()))
+            wanted_tuple = list(zip(beam_id[i], beam_id[j]))
+            missing = [x for x in wanted_tuple if x not in present_tuple]
+            missing_b0, missing_b1 = zip(*missing)
+            
             # Break S into columns and stream out
             t = df_sub.TIME[0]
             f = self.channels["FREQUENCY"]
@@ -361,6 +362,7 @@ class Cudfparquet:
 def _series2array(visibility: pd.Series) -> np.ndarray:
     b_idx_0 = visibility.index.get_level_values("B_0").to_series()
     b_idx_1 = visibility.index.get_level_values("B_1").to_series()
+    
 
     row_map = (
         pd.concat(objs=(b_idx_0, b_idx_1), ignore_index=True)
@@ -376,7 +378,7 @@ def _series2array(visibility: pd.Series) -> np.ndarray:
         .merge(col_map, left_on="B_1", right_on="BEAM_ID")
         .loc[:, ["ROW_ID", "COL_ID", "S"]]
     )
-
+    
     N_beam = len(row_map)
     S = np.zeros(shape=(N_beam, N_beam), dtype=complex)
     S[data.ROW_ID.values, data.COL_ID.values] = data.S.values
