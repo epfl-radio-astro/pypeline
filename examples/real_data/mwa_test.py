@@ -233,7 +233,7 @@ for t, f, S in ProgressBar(
 
     D, V = S_dp(G)
     S_sensitivity = SV_dp(D, V, W, cluster_idx=np.zeros(N_eig, dtype=int))
-    sensitivity_coeffs.append(S_sensitivity) #1, 1, 128, 128 ; N_filters, N_level, N_antennas, N_antennas
+    sensitivity_coeffs.append(S_sensitivity) #1, 1, [],128, 128 ; N_filters, N_level, N_antennas, N_antennas
 
 sensitivity_coeffs = np.stack(sensitivity_coeffs, axis=-3).reshape(*S_sensitivity.shape[:2],-1)
 
