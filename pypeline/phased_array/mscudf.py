@@ -133,7 +133,7 @@ class Cudfparquet:
         #     raise NotADirectoryError(f"{file_name} is not a directory, so cannot be an parquet file.")
 
         self._cudf = str(path)
-        self._dataframe = cudf.read_parquet(self._cudf)
+        self._dataframe = cudf.read_parquet(self._cudf, cols=['TIME', 'ANTENNA1', 'ANTENNA2', 'FLAG','DATA'])
         self._field_df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'FIELD'}{path.suffix}")
         self._spectral_window_df = cudf.read_parquet(f"{path.parent}/{path.stem}_{'SPECTRAL_WINDOW'}{path.suffix}")
 
@@ -205,11 +205,10 @@ class Cudfparquet:
 
         if self._time is None:
             
-            time_array = self._dataframe['TIME'].explode().to_numpy()
-            t = time.Time(np.unique(time_array), format="mjd", scale="utc")
-            t_id = range(len(t))
-            self._time = tb.QTable(dict(TIME_ID=t_id, TIME=t))
-
+            self._time = self._dataframe['TIME'].explode().to_cupy()
+            # t = time.Time(np.unique(time_array), format="mjd", scale="utc")
+            # t_id = range(len(t))
+            # self._time = tb.QTable(dict(TIME_ID=t_id, TIME=t))
         return self._time
     
     @property
@@ -268,7 +267,6 @@ class Cudfparquet:
             * freq (:py:class:`~astropy.units.Quantity`): center frequency of the visibility;
             * S (:py:class:`~pypeline.phased_array.data_gen.statistics.VisibilityMatrix`)
         """
-        #df = cudf.read_parquet(self._cudf)
         df = self._dataframe
         
         if column not in df.columns:
@@ -284,19 +282,26 @@ class Cudfparquet:
         
         obstime = df['TIME'].explode().to_numpy()
         unique_time = np.unique(obstime)[time_start:time_stop:time_step]
-        
         df2 = df.loc[df['TIME'].isin(unique_time)]
-    
+
         for t in unique_time:
             df_sub = df2.loc[df2['TIME'] == t].reset_index()
+            beam_id_0_cp = df_sub.ANTENNA1.to_cupy()
+            beam_id_1_cp = df_sub.ANTENNA2.to_cupy()
+            data_flag_cp = df_sub.FLAG.list.leaves.to_cupy().reshape(len(df_sub.FLAG),len(df_sub.FLAG[0]),len(df_sub.FLAG[0][0]))
+            data_cp = df_sub[column].list.leaves.to_cupy(dtype=cp.float32).reshape(len(df_sub.DATA),len(df_sub.DATA[0]),len(df_sub.DATA[0][0])).view(cp.complex64)
+            
             beam_id_0 = df_sub.ANTENNA1.to_numpy()
             beam_id_1 = df_sub.ANTENNA2.to_numpy()
             data_flag = df_sub.FLAG.list.leaves.to_numpy().reshape(len(df_sub.FLAG),len(df_sub.FLAG[0]),len(df_sub.FLAG[0][0]))
-            data = df_sub.DATA.explode().explode().to_numpy(dtype=np.float32).reshape(len(df_sub.DATA),len(df_sub.DATA[0]),len(df_sub.DATA[0][0])).view(np.complex64)
+            data = df_sub[column].list.leaves.to_numpy(dtype=np.float32).reshape(len(df_sub.DATA),len(df_sub.DATA[0]),len(df_sub.DATA[0][0])).view(np.complex64)
             
             # We only want XX and YY correlations
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
             data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
+            data_cp = cp.average(data_cp[:, :, [0, 3]], axis=2)[:, channel_id]
+            data_flag_cp = cp.any(data_flag_cp[:, :, [0, 3]], axis=2)[:, channel_id]
+            
             
             # DataFrame description of visibility data.
             # Each column represents a different channel.
@@ -307,7 +312,8 @@ class Cudfparquet:
             S_full_cudf = cudf.DataFrame({'B_0': beam_id_0, 'B_1': beam_id_1})
             
             for i in np.array(channel_id):
-                S_full_cudf[i] = data.T[i].view(np.float32).reshape(data.T[i].shape + (2,)).tolist()      
+                S_full_cudf[i] = data.T[i].view(cp.float32).reshape(data.T[i].shape + (2,)).tolist()
+                
             
             # Drop rows of `S_full` corresponding to unwanted beams.
             beam_id = np.unique(self.instrument._layout.index.get_level_values("STATION_ID"))
@@ -318,8 +324,11 @@ class Cudfparquet:
             index_to_drop = S_full_idx.difference(wanted_index)
 
             S_trunc = S_full.drop(index=index_to_drop)
-
-            S_trunc_cudf = S_full_cudf[S_full_cudf['B_0'].isin(beam_id[i]) & S_full_cudf['B_1'].isin(beam_id[j])]
+            
+            beam_id_cp = cp.unique(self.instrument._layout.index.get_level_values("STATION_ID"))
+            N_beam_cp = len(beam_id_cp)
+            i_cp, j_cp = np.triu_indices(N_beam_cp, k=0)
+            S_trunc_cudf = S_full_cudf[S_full_cudf['B_0'].isin(beam_id_cp[i]) & S_full_cudf['B_1'].isin(beam_id_cp[j])]
 
             # Depending on the dataset, some (ANTENNA1, ANTENNA2) pairs that have correlation=0 are
             # omitted in the table.
@@ -340,11 +349,21 @@ class Cudfparquet:
                 level=["B_0", "B_1"]
             )
             
-            present_tuple = list(zip(S_trunc_cudf.B_0.to_numpy(),S_trunc_cudf.B_1.to_numpy()))
+            present_tuple = list(zip(S_trunc_cudf.B_0.to_cupy(),S_trunc_cudf.B_1.to_cupy()))
             wanted_tuple = list(zip(beam_id[i], beam_id[j]))
             missing = [x for x in wanted_tuple if x not in present_tuple]
-            missing_b0, missing_b1 = zip(*missing)
-            
+            missing_b0, missing_b1 = list(map(list, zip(*missing)))
+            df_fill_in = cudf.DataFrame()
+            df_fill_in['B_0'] = missing_b0
+            df_fill_in['B_1'] = missing_b1
+            dummy_complexarray = cp.zeros(len(missing_b0),dtype=cp.complex64)
+            for i in np.array(channel_id):
+                df_fill_in[i] = dummy_complexarray.view(cp.float32).reshape(dummy_complexarray.T.shape + (2,)).tolist()
+                
+            S_cudf = cudf.concat([S_trunc_cudf, df_fill_in])
+            S_cudf = S_cudf.sort_values(['B_0', 'B_1'], ascending=[True, True])
+            S_cudf = S_cudf.reset_index().set_index(['B_0','B_1'])
+                            
             # Break S into columns and stream out
             #t = df_sub.TIME[0]
             t = time.Time(df_sub.TIME[0], format="mjd", scale="utc")
@@ -352,13 +371,15 @@ class Cudfparquet:
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
             for ch_id in channel_id:
                 v = _series2array(S[ch_id].rename("S", inplace=True))
-                visibility = vis.VisibilityMatrix(v, beam_idx)
-                yield t, f[ch_id], visibility
+                v_cudf = _series2array_cudf(S_cudf[ch_id].rename("S"))
+            #     visibility = vis.VisibilityMatrix(v, beam_idx)
+            #     yield t, f[ch_id], visibility
                 
 
 def _series2array(visibility: pd.Series) -> np.ndarray:
     b_idx_0 = visibility.index.get_level_values("B_0").to_series()
     b_idx_1 = visibility.index.get_level_values("B_1").to_series()
+   
     
 
     row_map = (
@@ -368,14 +389,14 @@ def _series2array(visibility: pd.Series) -> np.ndarray:
         .assign(ROW_ID=lambda df: np.arange(len(df)))
     )
     col_map = row_map.rename(columns={"ROW_ID": "COL_ID"})
-
+    
+          
     data = (
         visibility.reset_index()
         .merge(row_map, left_on="B_0", right_on="BEAM_ID")
         .merge(col_map, left_on="B_1", right_on="BEAM_ID")
         .loc[:, ["ROW_ID", "COL_ID", "S"]]
     )
-    
     N_beam = len(row_map)
     S = np.zeros(shape=(N_beam, N_beam), dtype=complex)
     S[data.ROW_ID.values, data.COL_ID.values] = data.S.values
@@ -383,6 +404,33 @@ def _series2array(visibility: pd.Series) -> np.ndarray:
     S = S + S.conj().T
     S[np.diag_indices_from(S)] = S_diag
     return S
+
+def _series2array_cudf(visibility: cudf.Series) -> cp.ndarray:
+    b_idx_0 = visibility.index.get_level_values("B_0").to_series()
+    b_idx_1 = visibility.index.get_level_values("B_1").to_series()
+    # b_idx_0 = cudf.Series(visibility.index.get_level_values("B_0"))
+    # b_idx_1 = cudf.Series(visibility.index.get_level_values("B_1"))
+    
+    row_map = (
+        cudf.concat(objs=(b_idx_0, b_idx_1), ignore_index=True)
+        .drop_duplicates()
+        .to_frame(name="BEAM_ID")
+    )
+    row_map["ROW_ID"] = cp.arange(len(row_map.BEAM_ID))
+    
+    col_map = row_map.rename(columns={"ROW_ID": "COL_ID"})
+    
+    data = (
+        visibility.reset_index()
+        .merge(row_map, left_on="B_0", right_on="BEAM_ID")
+        .merge(col_map, left_on="B_1", right_on="BEAM_ID")
+        .loc[:, ["ROW_ID", "COL_ID", "S"]]
+    )
+    N_beam = len(row_map)
+    S = cp.zeros(shape=(N_beam, N_beam), dtype=complex)
+    #S[data.ROW_ID.values, data.COL_ID.values] = data.S.values
+    print(data.S.list.leaves.to_cupy(cp.float32).reshape(10,2).view(cp.complex64))
+    
 
 
 class LofarMeasurementSet(Cudfparquet):
