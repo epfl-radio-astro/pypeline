@@ -101,7 +101,7 @@ for t in ProgressBar(time[::time_slice]):
     UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    uvw = frame.uvw_to_nufft_base(wl, UVW_baselines_t)
+    uvw = frame.reshape_and_scale_uvw(wl, UVW_baselines_t)
     imager.collect(N_eig, wl, intensity_intervals, W.data, XYZ.data, uvw, S.data)
 
 lsq_image = imager.get("LSQ").reshape((-1, N_pix, N_pix))
@@ -138,7 +138,7 @@ for t in ProgressBar(time[::time_slice]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
     UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
-    uvw = frame.uvw_to_nufft_base(wl, UVW_baselines_t)
+    uvw = frame.reshape_and_scale_uvw(wl, UVW_baselines_t)
     imager.collect(N_eig, wl, sensitivity_intervals, W.data, XYZ.data, uvw, None)
 
 sensitivity_image = imager.get("INV_SQ").reshape((-1, N_pix, N_pix))

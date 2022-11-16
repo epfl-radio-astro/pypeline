@@ -51,7 +51,22 @@ def make_grids(grid_size, FoV, field_center):
     lmn_grid = lmn_grid.reshape(3, -1)
     return lmn_grid, xyz_grid
 
-def uvw_to_nufft_base(wl, UVW):
+def reshape_and_scale_uvw(wl, UVW):
+    r"""
+    Imaging grid.
+
+    Parameters
+    ----------
+    wl: astropy.coordinates.SkyCoord
+        Center of the FoV to which the local frame is attached.
+    UVW: np.ndarray
+        (N_antenna, N_antenna, 3) UVW coordinates expressed in the local UVW frame.
+
+    Returns
+    -------
+    UVW: np.ndarray
+        (N_antenna**2, 3) Rescaled and reshaped UVW as required by NUFFT Synthesis
+    """
     # transpose because of coloumn major input format for bluebild c++
     UVW = np.array(UVW.transpose((1,0,2)).reshape(-1,3), order='F')
     UVW *= 2 * np.pi  / wl
