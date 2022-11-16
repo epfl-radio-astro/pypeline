@@ -53,7 +53,7 @@ def make_grids(grid_size, FoV, field_center):
 
 def reshape_and_scale_uvw(wl, UVW):
     r"""
-    Imaging grid.
+    Rescale by 2 * pi / wl and reshape to match NUFFT Synthesis expected input shape.
 
     Parameters
     ----------
