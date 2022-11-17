@@ -24,6 +24,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as constants
 import time
+from time import perf_counter
 import finufft
 
 import pypeline.phased_array.mscudf as mscudf
@@ -61,7 +62,7 @@ channel_id = 0
 frequency = cudfms.channels["FREQUENCY"][channel_id]
 wl = constants.speed_of_light / frequency.to_value(u.Hz)
 sky_model = source.from_tgss_catalog(cudfms.field_center, FoV, N_src=4)
-obs_start, obs_end = cudfms.time["TIME"][[0, -1]]
+obs_start, obs_end = cudfms.time[[0, -1]]
 
 # Imaging
 N_level = 4
@@ -88,19 +89,22 @@ print("Grid size is:", px_colat.shape, px_lon.shape)
 ### Intensity Field ===========================================================
 # Parameter Estimation
 I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=0.95)
+
 for t, f, S in ProgressBar(
         cudfms.visibilities(
             channel_id=[channel_id], time_id=slice(0, None, 200), column="DATA"
         )
 ):
-    print(t)
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = cudfms.instrument(t)
     W = cudfms.beamformer(XYZ, wl)
     G = gram(XYZ, W, wl)
-    S, _ = measurement_set.filter_data(S, W)
+    S, _ = mscudf.filter_data(S, W)
 
     I_est.collect(S, G)
+    
+
+
 N_eig, c_centroid = I_est.infer_parameters()
 
 print("N_eig:", N_eig)
@@ -110,13 +114,16 @@ print ("centroids = ", c_centroid)
 I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
 #I_mfs = bb_fd.Fourier_IMFS_Block(wl, pix_colat, pix_lon, N_FS, T_kernel, R, N_level, N_bits)
 I_mfs = bb_sd.Spatial_IMFS_Block(wl, px_grid, N_level, N_bits)
+
+time_start = perf_counter()
 for t, f, S in ProgressBar(
         cudfms.visibilities(channel_id=[channel_id], time_id=slice(0, 10, 1), column="DATA")
 ):
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = cudfms.instrument(t)
     W = cudfms.beamformer(XYZ, wl)
-    S, W = measurement_set.filter_data(S, W)
+
+    S, W = mscudf.filter_data(S, W)
 
     D, V, c_idx = I_dp(S, XYZ, W, wl)
     print(c_idx)
@@ -129,6 +136,10 @@ for t, f, S in ProgressBar(
     V   = xp.asarray(V)
 
     _ = I_mfs(D, V, XYZ, W, c_idx)
+    
+# time_end = perf_counter()
+
+# print(time_end-time_start)
     
 I_std, I_lsq = I_mfs.as_image()
 
