@@ -135,132 +135,132 @@ for t, f, S in ProgressBar(
     W   = xp.asarray(W.data)
     V   = xp.asarray(V)
 
-    _ = I_mfs(D, V, XYZ, W, c_idx)
+    #_ = I_mfs(D, V, XYZ, W, c_idx)
     
-# time_end = perf_counter()
+time_end = perf_counter()
 
-# print(time_end-time_start)
+print(time_end-time_start)
     
-I_std, I_lsq = I_mfs.as_image()
+# I_std, I_lsq = I_mfs.as_image()
 
-end_time = time.process_time()
-print("Time elapsed: {0}s".format(end_time - start_time))
-
-
-### Sensitivity Field =========================================================
-# Parameter Estimation
-'''S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=0.95)
-for t in ProgressBar(ms.time["TIME"][::200]):
-    XYZ = ms.instrument(t)
-    W = ms.beamformer(XYZ, wl)
-    G = gram(XYZ, W, wl)
-
-    S_est.collect(G)
-N_eig = S_est.infer_parameters()
-
-print("Running sensitivity imaging")
-# Imaging
-S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
-#S_mfs = bb_fd.Fourier_IMFS_Block(wl, pix_colat, pix_lon, N_FS, T_kernel, R, 1, N_bits)
-S_mfs = bb_sd.Spatial_IMFS_Block(wl, px_grid, 1, N_bits)
-for t, f, S in ProgressBar(
-        ms.visibilities(channel_id=[channel_id], time_id=slice(None, None, time_slice), column="DATA")
-):
-    wl = constants.speed_of_light / f.to_value(u.Hz)
-    XYZ = ms.instrument(t)
-    W = ms.beamformer(XYZ, wl)
-    G = gram(XYZ, W, wl)
-    S, W = measurement_set.filter_data(S, W)
-
-    D, V = S_dp(G)
-    _ = S_mfs(D, V, XYZ.data, W.data, cluster_idx=np.zeros(N_eig, dtype=int))
-_, S = S_mfs.as_image()'''
-
-# Plot Results ================================================================
-fig, ax = plt.subplots(ncols=N_level, nrows=2)
-I_std_eq = s2image.Image(I_std.data, I_std.grid) #  / S.data
-I_lsq_eq = s2image.Image(I_lsq.data, I_lsq.grid) # / S.data
-
-for i in range(N_level):
-    I_std_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax[0,i])
-    ax[0,i].set_title("Standardized Image Level = {0}".format(i))
-    I_lsq_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax[1,i])
-    ax[1,i].set_title("Least-Squares Image Level = {0}".format(i))
-#fig.show()
-#plt.show()
-#sys.exit()
-plt.savefig("4gauss_standard_new")
+# end_time = time.process_time()
+# print("Time elapsed: {0}s".format(end_time - start_time))
 
 
-### Interpolate critical-rate image to any grid resolution ====================
-# Example: to compare outputs of WSCLEAN and Bluebild with AstroPy/DS9, we
-# interpolate the Bluebild estimate at CLEAN (cl_) sky coordinates.
+# ### Sensitivity Field =========================================================
+# # Parameter Estimation
+# '''S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=0.95)
+# for t in ProgressBar(ms.time["TIME"][::200]):
+#     XYZ = ms.instrument(t)
+#     W = ms.beamformer(XYZ, wl)
+#     G = gram(XYZ, W, wl)
 
-# 1. Load pixel grid the CLEAN image is defined on.
+#     S_est.collect(G)
+# N_eig = S_est.infer_parameters()
 
-start_interp_time = time.process_time()
+# print("Running sensitivity imaging")
+# # Imaging
+# S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
+# #S_mfs = bb_fd.Fourier_IMFS_Block(wl, pix_colat, pix_lon, N_FS, T_kernel, R, 1, N_bits)
+# S_mfs = bb_sd.Spatial_IMFS_Block(wl, px_grid, 1, N_bits)
+# for t, f, S in ProgressBar(
+#         ms.visibilities(channel_id=[channel_id], time_id=slice(None, None, time_slice), column="DATA")
+# ):
+#     wl = constants.speed_of_light / f.to_value(u.Hz)
+#     XYZ = ms.instrument(t)
+#     W = ms.beamformer(XYZ, wl)
+#     G = gram(XYZ, W, wl)
+#     S, W = measurement_set.filter_data(S, W)
 
-cl_WCS = ifits.wcs("/work/backup/ska/gauss4/gauss4-image-pb.fits")
-cl_WCS = cl_WCS.sub(['celestial'])
-cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10)))  # downsample, too high res!
-cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame
-N_cl_lon, N_cl_lat = cl_pix_icrs.shape[-2:]
+#     D, V = S_dp(G)
+#     _ = S_mfs(D, V, XYZ.data, W.data, cluster_idx=np.zeros(N_eig, dtype=int))
+# _, S = S_mfs.as_image()'''
 
-# 2. ICRS <> BFSF transform.
-# Why are we doing this? The Bluebild image produced by PeriodicSynthesis lies
-# in the BFSF frame. We therefore need to do the interpolation in BFSF
-# coordinates.
-#cl_pix_bfsf = np.tensordot(R, cl_pix_icrs, axes=1)
-# TODO/NB: to modify for SS remove above line
+# # Plot Results ================================================================
+# fig, ax = plt.subplots(ncols=N_level, nrows=2)
+# I_std_eq = s2image.Image(I_std.data, I_std.grid) #  / S.data
+# I_lsq_eq = s2image.Image(I_lsq.data, I_lsq.grid) # / S.data
 
-# 3. Interpolation: Part I.
-# Due to the high Nyquist rate in astronomy and large pixel count in the images,
-# it is advantageous to do sparse interpolation. Doing so requires first
-# computing the interpolation kernel's spatial support per output pixel.
-#bb_pix_bfsf = transform.pol2cart(1, pix_colat, pix_lon)  # Bluebild critical support points
-# TODO/NB: to modify for SS remove above line
+# for i in range(N_level):
+#     I_std_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax[0,i])
+#     ax[0,i].set_title("Standardized Image Level = {0}".format(i))
+#     I_lsq_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax[1,i])
+#     ax[1,i].set_title("Least-Squares Image Level = {0}".format(i))
+# #fig.show()
+# #plt.show()
+# #sys.exit()
+# plt.savefig("4gauss_standard_new")
 
-dirichlet_kernel = SphericalDirichlet(N=cudfms.instrument.nyquist_rate(wl), approx=True)
-nside = (cudfms.instrument.nyquist_rate(wl) + 1) / 3
-nodal_width = 2.8345 / np.sqrt(12 * nside ** 2)
-interpolator = pyclop.MappedDistanceMatrix(samples1=cl_pix_icrs.reshape(3, -1).transpose(), # output res, replace with icrs for SS
-                                           samples2=px_grid.reshape(3, -1).transpose(), # input res, replace with icrs for SS
-                                           function=dirichlet_kernel,
-                                           mode='zonal', operator_type='sparse', max_distance=10 * nodal_width,
-                                           #eps=1e-1,
-                                           )
 
-with job.Parallel(backend='loky', n_jobs=-1, verbose=True) as parallel:
-    interpolated_maps = parallel(job.delayed(interpolator)
-                                 (I_lsq_eq.data.reshape(N_level, -1)[n])
-                                 for n in range(N_level))
+# ### Interpolate critical-rate image to any grid resolution ====================
+# # Example: to compare outputs of WSCLEAN and Bluebild with AstroPy/DS9, we
+# # interpolate the Bluebild estimate at CLEAN (cl_) sky coordinates.
 
-f_interp = np.stack(interpolated_maps, axis=0).reshape((N_level,) + cl_pix_icrs.shape[1:])
-f_interp = f_interp / (cudfms.instrument.nyquist_rate(wl) + 1)
-f_interp = np.clip(f_interp, 0, None)
-fig, ax = plt.subplots(ncols=N_level, nrows=2)
+# # 1. Load pixel grid the CLEAN image is defined on.
 
-'''
-for i in range(N_level):
-    I_lsq_eq_orig = s2image.Image(I_lsq_eq.data[i,], I_lsq_eq.grid)
-    I_lsq_eq_orig.draw(catalog=sky_model.xyz.T, ax=ax[0,i])
-    ax[0,i].set_title("Critically sampled Bluebild Standard Image Level = {0}".format(i))
+# start_interp_time = time.process_time()
 
-    I_lsq_eq_interp = s2image.Image(f_interp[i,], cl_pix_icrs)
-    I_lsq_eq_interp.draw(ax=ax[1,i])
-    ax[1,i].set_title("Interpolated Bluebild Standard Image Level = {0}".format(i))
-plt.show()
-plt.savefig("4gauss_interp")'''
+# cl_WCS = ifits.wcs("/work/backup/ska/gauss4/gauss4-image-pb.fits")
+# cl_WCS = cl_WCS.sub(['celestial'])
+# cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10)))  # downsample, too high res!
+# cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame
+# N_cl_lon, N_cl_lat = cl_pix_icrs.shape[-2:]
 
-# 5. Store the interpolated Bluebild image in standard-compliant FITS for view
-# in AstroPy/DS9.
-f_interp = (f_interp  # We need to transpose axes due to the FORTRAN
-            .reshape(N_level, N_cl_lon, N_cl_lat)  # indexing conventions of the FITS standard.
-            .transpose(0, 2, 1))
-I_lsq_eq_interp = s2image.WCSImage(f_interp, cl_WCS)
-I_lsq_eq_interp.to_fits('bluebild_ss_4gauss_{0}Stations.fits'.format(N_station))
+# # 2. ICRS <> BFSF transform.
+# # Why are we doing this? The Bluebild image produced by PeriodicSynthesis lies
+# # in the BFSF frame. We therefore need to do the interpolation in BFSF
+# # coordinates.
+# #cl_pix_bfsf = np.tensordot(R, cl_pix_icrs, axes=1)
+# # TODO/NB: to modify for SS remove above line
 
-end_interp_time = time.process_time()
+# # 3. Interpolation: Part I.
+# # Due to the high Nyquist rate in astronomy and large pixel count in the images,
+# # it is advantageous to do sparse interpolation. Doing so requires first
+# # computing the interpolation kernel's spatial support per output pixel.
+# #bb_pix_bfsf = transform.pol2cart(1, pix_colat, pix_lon)  # Bluebild critical support points
+# # TODO/NB: to modify for SS remove above line
 
-print("Time to make BB image: {0}s".format(end_time - start_time))
-print("Time to reinterpolate image: {0}s".format(end_interp_time - start_interp_time))
+# dirichlet_kernel = SphericalDirichlet(N=cudfms.instrument.nyquist_rate(wl), approx=True)
+# nside = (cudfms.instrument.nyquist_rate(wl) + 1) / 3
+# nodal_width = 2.8345 / np.sqrt(12 * nside ** 2)
+# interpolator = pyclop.MappedDistanceMatrix(samples1=cl_pix_icrs.reshape(3, -1).transpose(), # output res, replace with icrs for SS
+#                                            samples2=px_grid.reshape(3, -1).transpose(), # input res, replace with icrs for SS
+#                                            function=dirichlet_kernel,
+#                                            mode='zonal', operator_type='sparse', max_distance=10 * nodal_width,
+#                                            #eps=1e-1,
+#                                            )
+
+# with job.Parallel(backend='loky', n_jobs=-1, verbose=True) as parallel:
+#     interpolated_maps = parallel(job.delayed(interpolator)
+#                                  (I_lsq_eq.data.reshape(N_level, -1)[n])
+#                                  for n in range(N_level))
+
+# f_interp = np.stack(interpolated_maps, axis=0).reshape((N_level,) + cl_pix_icrs.shape[1:])
+# f_interp = f_interp / (cudfms.instrument.nyquist_rate(wl) + 1)
+# f_interp = np.clip(f_interp, 0, None)
+# fig, ax = plt.subplots(ncols=N_level, nrows=2)
+
+# '''
+# for i in range(N_level):
+#     I_lsq_eq_orig = s2image.Image(I_lsq_eq.data[i,], I_lsq_eq.grid)
+#     I_lsq_eq_orig.draw(catalog=sky_model.xyz.T, ax=ax[0,i])
+#     ax[0,i].set_title("Critically sampled Bluebild Standard Image Level = {0}".format(i))
+
+#     I_lsq_eq_interp = s2image.Image(f_interp[i,], cl_pix_icrs)
+#     I_lsq_eq_interp.draw(ax=ax[1,i])
+#     ax[1,i].set_title("Interpolated Bluebild Standard Image Level = {0}".format(i))
+# plt.show()
+# plt.savefig("4gauss_interp")'''
+
+# # 5. Store the interpolated Bluebild image in standard-compliant FITS for view
+# # in AstroPy/DS9.
+# f_interp = (f_interp  # We need to transpose axes due to the FORTRAN
+#             .reshape(N_level, N_cl_lon, N_cl_lat)  # indexing conventions of the FITS standard.
+#             .transpose(0, 2, 1))
+# I_lsq_eq_interp = s2image.WCSImage(f_interp, cl_WCS)
+# I_lsq_eq_interp.to_fits('bluebild_ss_4gauss_{0}Stations.fits'.format(N_station))
+
+# end_interp_time = time.process_time()
+
+# print("Time to make BB image: {0}s".format(end_time - start_time))
+# print("Time to reinterpolate image: {0}s".format(end_interp_time - start_interp_time))
