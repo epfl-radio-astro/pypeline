@@ -428,8 +428,13 @@ def _series2array_cudf(visibility: cudf.Series) -> cp.ndarray:
     )
     N_beam = len(row_map)
     S = cp.zeros(shape=(N_beam, N_beam), dtype=complex)
-    #S[data.ROW_ID.values, data.COL_ID.values] = data.S.values
-    print(data.S.list.leaves.to_cupy(cp.float32).reshape(10,2).view(cp.complex64))
+    S[data.ROW_ID.values, data.COL_ID.values] = data.S.list.leaves.to_cupy(cp.float32).reshape(2*len(data.S)).view(cp.complex64)
+    S_diag = cp.diag(S)
+    S = S + S.conj().T
+    S[cp.diag_indices_from(S)] = S_diag
+    return S
+
+    
     
 
 
