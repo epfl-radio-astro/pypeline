@@ -1,0 +1,37 @@
+#!/bin/bash
+#SBATCH --partition build
+#SBATCH --time 00-01:00:00
+#SBATCH --qos gpu
+#SBATCH --gres gpu:1
+#SBATCH --mem 40G
+#SBATCH --cpus-per-task 1
+
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+
+set -e
+
+# $1: absolute path to bluebild Bash library
+# ------------------------------------------
+source "$1"
+
+# $2: Python script to run
+# ------------------------
+bb_check_input_file "$2"
+
+STACK=gcc
+
+bb_load_stack $STACK
+bb_activate_venv
+PYTHON=$(which python)
+bb_print_env
+bb_print_jenkins_env
+
+$(bb_check_output_dir "${TEST_DIR}")
+
+export BB_EARLY_EXIT=0
+
+time "$PYTHON" "${@:2}"

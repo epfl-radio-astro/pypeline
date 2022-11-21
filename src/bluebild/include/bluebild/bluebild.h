@@ -13,6 +13,8 @@ typedef enum BluebildProcessingUnit BluebildProcessingUnit;
 #endif  // cpp
 
 typedef void* BluebildContext;
+typedef void* BluebildNufft3d3;
+typedef void* BluebildNufft3d3f;
 
 #ifdef __cplusplus
 extern "C" {
@@ -223,6 +225,94 @@ BLUEBILD_EXPORT BluebildError bluebild_gram_matrix_s(BluebildContext ctx, int m,
 BLUEBILD_EXPORT BluebildError bluebild_gram_matrix_d(BluebildContext ctx, int m, int n,
                                                      const void* w, int ldw, const double* xyz,
                                                      int ldxyz, double wl, void* g, int ldg);
+
+/**
+ * Create plan for a type 3 nufft transform in 3D in single precision.
+ *
+ * @param[in] ctx Context handle.
+ * @param[in] iflag Sign in exponential. Either +1 or -1.
+ * @param[in] tol Target preceision tolorance.
+ * @param[in] numTrans Number of transforms to compute together.
+ * @param[in] M Number of input points.
+ * @param[in] x Input coordinates in x.
+ * @param[in] y Input coordinates in y.
+ * @param[in] z Input coordinates in z.
+ * @param[in] N Number of output points.
+ * @param[in] s Input coordinates in s.
+ * @param[in] t Input coordinates in t.
+ * @param[in] u Input coordinates in u.
+ * @param[out] plan plan handle.
+ * @return Error code or BLUEBILD_SUCCESS.
+ */
+BLUEBILD_EXPORT BluebildError bluebild_nufft3d3_create_s(
+    BluebildContext ctx, int iflag, float tol, int numTrans, int M,
+    const float *x, const float *y, const float *z, int N, const float *s,
+    const float *t, const float *u, BluebildNufft3d3f *plan);
+
+/**
+ * Create plan for a type 3 nufft transform in 3D in double precision.
+ *
+ * @param[in] ctx Context handle.
+ * @param[in] iflag Sign in exponential. Either +1 or -1.
+ * @param[in] tol Target preceision tolorance.
+ * @param[in] numTrans Number of transforms to compute together.
+ * @param[in] M Number of input points.
+ * @param[in] x Input coordinates in x.
+ * @param[in] y Input coordinates in y.
+ * @param[in] z Input coordinates in z.
+ * @param[in] N Number of output points.
+ * @param[in] s Input coordinates in s.
+ * @param[in] t Input coordinates in t.
+ * @param[in] u Input coordinates in u.
+ * @param[out] plan plan handle.
+ * @return Error code or BLUEBILD_SUCCESS.
+ */
+BLUEBILD_EXPORT BluebildError bluebild_nufft3d3_create_d(
+    BluebildContext ctx, int iflag, double tol, int numTrans, int M,
+    const double *x, const double *y, const double *z, int N, const double *s,
+    const double *t, const double *u, BluebildNufft3d3* plan);
+
+/**
+ * Destroy a nufft plan handle.
+ *
+ * @param[in] plan Plan handle.
+ * @return Error code or BLUEBILD_SUCCESS.
+ */
+BLUEBILD_EXPORT BluebildError
+bluebild_nufft3d3_destroy_s(BluebildNufft3d3f *plan);
+
+/**
+ * Destroy a nufft plan handle.
+ *
+ * @param[in] plan Plan handle.
+ * @return Error code or BLUEBILD_SUCCESS.
+ */
+BLUEBILD_EXPORT BluebildError
+bluebild_nufft3d3_destroy_d(BluebildNufft3d3 *plan);
+
+/**
+ * Execute a nufft3d3 plan in single precision.
+ *
+ * @param[in] plan Plan handle.
+ * @param[in] cj Input data.
+ * @param[out] fk Output data.
+ * @return Error code or BLUEBILD_SUCCESS.
+ */
+BLUEBILD_EXPORT BluebildError
+bluebild_nufft3d3_execute_s(BluebildNufft3d3f plan, const void *cj, void *fk);
+
+/**
+ * Execute a nufft3d3 plan in double precision.
+ *
+ * @param[in] plan Plan handle.
+ * @param[in] cj Input data.
+ * @param[out] fk Output data.
+ * @return Error code or BLUEBILD_SUCCESS.
+ */
+BLUEBILD_EXPORT BluebildError bluebild_nufft3d3_execute_d(BluebildNufft3d3 plan,
+                                                          const void *cj,
+                                                          void *fk);
+
 #ifdef __cplusplus
 }
 #endif

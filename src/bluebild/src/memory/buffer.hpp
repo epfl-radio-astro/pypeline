@@ -9,7 +9,7 @@
 namespace bluebild {
 
 template <typename T>
-using BufferType = std::unique_ptr<T, std::function<void(T*)>>;
+using BufferType = std::unique_ptr<T[], std::function<void(T*)>>;
 
 // Create buffer by allocing memory through an allocator
 template <typename T>

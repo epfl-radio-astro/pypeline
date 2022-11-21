@@ -3,44 +3,42 @@ import os
 import re
 import numpy as np
 import collections
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as font_manager
 import getopt
 import math
+from pathlib import Path
 
-def scan(dir, ignore_upto):
-    builds = {}
-    with os.scandir(dir) as it:
-        for entry in it:
-            if not entry.name.startswith('.') and entry.is_dir() and re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z_\d+", entry.name):
-                #print(entry.name)
-                info = re.split('T|Z_', entry.name)
-                build = int(info[2])
-                #print(f"found build {build}")
-                if build > ignore_upto:
-                    builds[build] = [info[0], info[1], entry.name, tts.copy()]
-    return builds
+import monitoring
 
 
-def collect_runtimes(dir, builds):
+def collect_runtimes(sols, dir, ignore_up_to):
+    
+    builds = monitoring.scan(dir, ignore_up_to)
+
     for build in sorted(builds.keys()):
         for sol in sorted(sols.keys()):
-            soldir = os.path.join(dir, builds.get(build)[2], sols.get(sol).directory)
+            soldir = os.path.join(dir, builds.get(build)[3], sols.get(sol).directory)
             pattern = sols.get(sol).pattern
             #print(f">Scanning solution {sol} in build {build:4d}: {soldir}")
             if os.path.isdir(soldir):
-                with os.scandir(soldir) as it:
-                    for entry in it:
-                        if re.match(r"^slurm-\d+.out", entry.name):
-                            slurm = os.path.join(soldir, entry.name)
+                with os.scandir(soldir) as scan:
+                    scan = [el.name for el in scan if el.is_file()]
+                    for entry in sorted(scan):
+                        if re.match(r"^slurm-\d+.out", entry):
+                            slurm = os.path.join(soldir, entry)
                             print(f"slurm {slurm}")
                             with open(slurm, "r") as file:
                                 for line in file:
                                     if re.search(pattern, line):
                                         info = re.split('\s+', line)
-                                        builds.get(build)[3][sol] = info[1]
+                                        #print(f"{build} >>>> {info}")
+                                        builds.get(build)[4][sol] = info[1]
                                         break
-                            break # there should only be a single slurm out
+                            break # WARNING: Only consider first SLURM output!
+    print(builds)
     return builds
 
 
@@ -51,7 +49,10 @@ def check_presence_lastb(builds, lastb):
         return False
 
 
-def stats_n_plots(dir, builds, lastb, fstat):
+def stats_n_plots(plot, dir, builds, lastb, fstat):
+
+    sols = plot['sols']
+    filename = plot['filename']
 
     isin = check_presence_lastb(builds, lastb)
     print(f"lastb is in builds?", isin)
@@ -60,25 +61,35 @@ def stats_n_plots(dir, builds, lastb, fstat):
     #names = [font_manager.FontProperties(fname=fname).get_name() for fname in flist]
     #print(names)
 
-    fstats = open(fstat, 'w')
-    print(f"Writing statistics to file {fstat}")
+    if plot['w']:
+        fstats = open(fstat, 'w')
+        print(f"Writing statistics to file {fstat}")
 
-    plt.subplots(figsize=(11.7, 8.3))
+    fig, ax = plt.subplots(figsize=(11.7, 8.3))
+
+    # Build list of builds for considered solutions
+    all_x = []
+    for sol in sorted(sols.keys()):
+        for build in sorted(builds):
+            if builds.get(build)[4].get(sol) != None:
+                all_x.append(build)
+    all_x = sorted(list(set(all_x)))
+
+    x_labels   = [None] * len(all_x)
 
     for sol in sorted(sols.keys()):
         print(f"sol = {sol}")
         x = []
         y = []
         for build in sorted(builds):
-            print(f"{build} -> {builds.get(build)} {builds.get(build)[3].get(sol)} {type({builds.get(build)[3].get(sol)})}")
-            if builds.get(build)[3].get(sol) != None:
-                x.append(build)
-                y.append(builds.get(build)[3].get(sol))   
+            print(f"{build} -> {builds.get(build)} {builds.get(build)[4].get(sol)} {type({builds.get(build)[4].get(sol)})}")
+            if builds.get(build)[4].get(sol) != None:
+                x.append(all_x.index(build))
+                y.append(builds.get(build)[4].get(sol))
+                print(all_x.index(build), builds.get(build)[3])
+                x_labels[all_x.index(build)] = builds.get(build)[3]
         x = np.array(x, dtype=int)
         y = np.array(y, dtype=float)
-        print(x)
-        #print(y)
-        #sys.exit(0)
 
         if len(x) < 2:
             msg = f"glob {sol} - - {len(x)} {0:7.3f} {0:7.3f} {sols.get(sol).directory:20s} \"{sols.get(sol).label}\""
@@ -90,8 +101,7 @@ def stats_n_plots(dir, builds, lastb, fstat):
             color = sols.get(sol).color
             plt.axhline(y=mean, color=color, linestyle="dotted", linewidth=0.5)
             plt.scatter(x, y, marker=sols.get(sol).marker, color=color,
-                        label=sols.get(sol).label + f" {mean:6.2f}+/-{std:5.2f} sec")
-
+                        label=sols.get(sol).label + f"({sols.get(sol).suff})" + f" {mean:6.2f}+/-{std:5.2f} sec")
             msg = f"all {sol} {x[0]} {x[-1]} {len(x)} {mean:7.3f} {std:7.3f} {sols.get(sol).directory:20s} \"{sols.get(sol).label}\""
 
             # For monitoring, consider last N points (sliding window)
@@ -100,115 +110,82 @@ def stats_n_plots(dir, builds, lastb, fstat):
             mean_sw = np.nanmean(y[-N:-1])
             std_sw  = np.nanstd(y[-N:-1])
             msg += f"\ns_w {sol} {x[-N]} {x[-1]} {N} {mean_sw:7.3f} {std_sw:7.3f} {sols.get(sol).directory:20s} \"{sols.get(sol).label}\""
-
-
+            print("lastb =", lastb)
             if lastb > 0:
-                lastb_sol = builds.get(lastb)[3].get(sol)
+                lastb_sol = builds.get(lastb)[4].get(sol)
                 if lastb_sol == None:
                     msg += f"  _WARNING_  last build ({lastb}) missing!"
                 else:
-                    lastb_rt = float(builds.get(lastb)[3].get(sol))
+                    lastb_rt = float(builds.get(lastb)[4].get(sol))
                     threshold = mean_sw + 3.0 * std_sw
                     if lastb_rt > threshold:
                         msg += f"  _WARNING_  last build ({lastb}) significantly slower: {lastb_rt:.2f} > {threshold:.2f} ({mean_sw:.3f} + 3 x {std_sw:.3f})"
 
-        fstats.write(msg + "\n")
+        if plot['w']:
+            fstats.write(msg + "\n")
         print(msg)
         
-                
-    fstats.close()
+    if plot['w']:
+        fstats.close()
 
-    plt.xlabel("Jenkins build number")
-    plt.ylabel("Main loop time [sec]")
+    plt.xticks(np.arange(0, len(x_labels)), x_labels)
+    plt.xlabel("Jenkins build date and number", fontsize=16)
+    plt.ylabel("time [sec]", fontsize=16)
     font = font_manager.FontProperties(family='DejaVu Sans Mono')
     plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
            ncol=2, mode="expand", borderaxespad=0.)
     plt.tight_layout()
-    png = os.path.join(dir, 'runtimes_all.png')
+    fig.autofmt_xdate()
+    png = os.path.join(dir, filename)
     plt.savefig(png)
     print(f"Saved plot {png}")
-    plt.show()
 
 
-def main(argv):
-
-    indir  = ''
-    outdir = ''
-    lastb  = -1
-    fstat  = ''
-    fromb  = 0  # Ignore builds up to build fromb
-
-    try:
-        opts, args = getopt.getopt(argv[1:], "hi:o:b:f:s:")
-    except getopt.GetoptError as e:
-        print('Error:', e)
-        print(f'{argv[0]} -i </path/to/input/directory> -o </path/to/output/directory> [-b <last build id>]')
-        sys.exit(1)
-
-    for opt, arg in opts:
-        if opt == '-h':
-            print(f'{argv[0]} -i </path/to/input/directory> -o </path/to/output/directory> -b <last build id> -f </path/to/filestat')
-            sys.exit(1)
-        elif opt == '-i':
-            indir = arg
-        elif opt in '-o':
-            outdir = arg
-        elif opt in '-b':
-            lastb = int(arg)
-        elif opt in '-f':
-            fstat = arg
-        elif opt in '-s':
-            fromb = int(arg)
-        
-    if indir == '':
-        print(f'Fatal: argument -i </path/to/input/directory> not found.')
-        sys.exit(1)
-    if outdir == '':
-        print(f'Fatal: argument -o </path/to/output/directory> not found.')
-        sys.exit(1)
-    if fstat == '':
-        print(f'Fatal: argument -f </path/to/filestat> not found.')
-        sys.exit(1)
-
-    print(f"indir  is {indir}")
-    print(f"outdir is {outdir}")
-    print(f"fstat  is {fstat}")
-    print(f"fromb  is {fromb}")
-
-    builds = scan(indir, fromb)
-    builds = collect_runtimes(indir, builds)
-    stats_n_plots(outdir, builds, lastb, fstat)
+def plot(plot, args):
+    builds = collect_runtimes(plot['sols'], args.input_directory, args.ignore_up_to)
+    stats_n_plots(plot, args.output_directory, builds, args.last_build, args.stat_file)
 
 
 if __name__ == "__main__":
 
-    tts = {}
+    args = monitoring.check_cl_arguments()
 
-    # Define an entry for each labelled timing to be monitored
-    # Important thing is to set the pattern as defined in the python script
-    Solution = collections.namedtuple('Solution', ['directory', 'label', 'marker', 'color', 'pattern'])
-    SC  = Solution(directory='test_standard_cpu', label='Std CPU', marker='o', color='blue', pattern='Serial')
-    SG  = Solution(directory='test_standard_gpu', label='Std GPU', marker='o', color='red', pattern='Serial')
-    LBNi = Solution(directory='lofar_bootes_nufft_small_fov', label='Lofar Bootes nufft - intensity field imaging', marker='o', color='lightgreen', pattern='#@#IFIM')
-    LBNt = Solution(directory='lofar_bootes_nufft_small_fov', label='Lofar Bootes nufft - total', marker='o', color='green', pattern='#@#TOT')
-    LBSSi = Solution(directory='lofar_bootes_ss', label='Lofar Bootes SS - intensity field imaging', marker='o', color='gray', pattern='#@#IFIM')
-    LBSSt = Solution(directory='lofar_bootes_ss', label='Lofar Bootes SS - total', marker='o', color='black', pattern='#@#TOT')
-    LBN3i = Solution(directory='lofar_bootes_nufft3', label='Lofar Bootes nufft3 - intensity field imaging', marker='o', color='violet', pattern='#@#IFIM')
-    LBN3t = Solution(directory='lofar_bootes_nufft3', label='Lofar Bootes nufft3 - total', marker='o', color='blueviolet', pattern='#@#TOT')
-
-    # Solutions to plot
-    sols = {
-        'SC': SC,
-        'SG': SG,
-        'LBSSi': LBSSi,
-        'LBSSt': LBSSt,
-        'LBNi': LBNi,
-        'LBNt': LBNt,
-        'LBN3i': LBN3i,
-        'LBN3t': LBN3t
+    Solutions = monitoring.define_solutions()
+    """
+    nufft3i = {
+        #'A' : Solutions['LBSSi'],
+        'B' : Solutions['LBNi'],
+        'C' : Solutions['LBN3i'],
+        'D' : Solutions['LBN3cci'],
+        'E' : Solutions['LBN3cgi']
     }
-    for sol in sorted(sols.keys()):
-        print(sols.get(sol))
+    nufft3t = {
+        #'A' : Solutions['LBSSi'],
+        'B' : Solutions['LBNt'],
+        'C' : Solutions['LBN3t'],
+        'D' : Solutions['LBN3cct'],
+        'E' : Solutions['LBN3cgt']
+    }
+    """
+    all_i = {
+        'A' : Solutions['lb_n3_c64_i'],
+        'B' : Solutions['lb_n3_cc64_i'],
+        'C' : Solutions['lb_n3_cg64_i'],
+        'D' : Solutions['lb_ss_c64_i'],
+        'E' : Solutions['lb_ss_cc64_i'],
+        'F' : Solutions['lb_ss_cg64_i']
+    }
 
-
-    main(sys.argv)
+    # Set 'w' to True for the whole solution (so that all solutions are written)
+    plots = (
+        {'filename': 'tts_all_i.png',    'sols': all_i, 'w': True},
+        #{'filename': 'tts_nufft3i.png', 'sols': nufft3i,   'w': False},
+        #{'filename': 'tts_nufft3_t.png', 'sols': nufft3_t,   'w': True},
+    )
+    
+    for plot_ in plots:
+        print("plot_ =", plot_)
+        print("Processing plot ", plot_['filename'])
+        plot(plot_, args)
+        for sol in sorted(plot_.keys()):
+            print(plot_.get(sol))

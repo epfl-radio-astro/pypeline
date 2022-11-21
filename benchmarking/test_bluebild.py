@@ -8,7 +8,11 @@
 Simulated LOFAR imaging with Bluebild (Standard, Periodic, and nufft).
 """
 
-'''export OMP_NUM_THREADS=1''' 
+import os
+if os.getenv('OMP_NUM_THREADS') == None : os.environ['OMP_NUM_THREADS'] = "1"
+
+import bluebild_tools.cupy_util as bbt_cupy
+use_cupy = bbt_cupy.is_cupy_usable()
 
 from tqdm import tqdm as ProgressBar
 import astropy.coordinates as coord
@@ -18,7 +22,6 @@ import imot_tools.io.s2image as s2image
 import imot_tools.math.sphere.grid as grid
 import matplotlib.pyplot as plt
 import numpy as np
-import cupy as cp
 import scipy.constants as constants
 import finufft
 
@@ -38,11 +41,17 @@ from imot_tools.math.func import SphericalDirichlet
 import joblib as job
 from timing import Timer
 
+
+# For CuPy agnostic code
+# ----------------------
+xp = bbt_cupy.cupy if use_cupy else np
+
+
 t = Timer()
 
 do_spherical_interpolation = True # BEWARE, if set to true the runtime becomes very slow!!
 do_periodic_synthesis = True
-timeslice = slice(None,None,5)
+timeslice = slice(None, None, 100)
 
 t.start_time("Set up data")
 
@@ -148,19 +157,22 @@ for ti in ProgressBar(time[timeslice]):
     XYZ = dev(ti)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    G = gram(XYZ, W, wl)
 
-    D, V, c_idx = I_dp(S, G)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
     t.end_time("Synthesis: prep input matrices & fPCA")
+
     t.start_time("Periodic Synthesis")
     _ = I_mfs_ps(D, V, XYZ.data, W.data, c_idx)
     t.end_time("Periodic Synthesis")
-    XYZ_gpu = cp.asarray(XYZ.data)
-    W_gpu  = cp.asarray(W.data.toarray())
-    V_gpu  = cp.asarray(V)
+
     t.start_time("Standard Synthesis")
-    _ = I_mfs_ss(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
-    #_ = I_mfs_ss(D, V, XYZ.data, W.data, c_idx)
+    if use_cupy:
+        XYZ_gpu = xp.asarray(XYZ.data)
+        W_gpu  = xp.asarray(W.data.toarray())
+        V_gpu  = xp.asarray(V)
+        _ = I_mfs_ss(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
+    else:
+        _ = I_mfs_ss(D, V, XYZ.data, W.data, c_idx)
     t.end_time("Standard Synthesis")
 
     t.start_time("NUFFT Synthesis 1")
@@ -171,7 +183,7 @@ for ti in ProgressBar(time[timeslice]):
     ICRS_baselines.append(baseline_rescaling * ICRS_baselines_t)
     W = W.data
     S_corrected  = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
-    S_corrected2 = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
+    #S_corrected2 = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
     gram_corrected_visibilities.append(S_corrected)
     t.end_time("NUFFT Synthesis 1")
 
@@ -224,19 +236,21 @@ for ti in ProgressBar(time[timeslice]):
 
     XYZ = dev(ti)
     W = mb(XYZ, wl)
-    G = gram(XYZ, W, wl)
 
-    D, V = S_dp(G)
+    D, V = S_dp(XYZ, W, wl)
     W = W.data
 
     _ = S_mfs_ps(D, V, XYZ.data, W, cluster_idx=np.zeros(N_eig, dtype=int))
 
-    XYZ_gpu = cp.asarray(XYZ.data)
-    W_gpu  = cp.asarray(W.toarray())
-    V_gpu  = cp.asarray(V)
-    #_ = I_mfs_ss(D, V, XYZ.data, W.data, c_idx)
-    #_ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
-    _ = S_mfs_ss(D, V_gpu, XYZ_gpu, W_gpu, cluster_idx=np.zeros(N_eig, dtype=int))
+    if use_cupy:
+        XYZ_gpu = xp.asarray(XYZ.data)
+        W_gpu  = xp.asarray(W.toarray())
+        V_gpu  = xp.asarray(V)
+        #_ = I_mfs_ss(D, V, XYZ.data, W.data, c_idx)
+        #_ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
+        _ = S_mfs_ss(D, V_gpu, XYZ_gpu, W_gpu, cluster_idx=np.zeros(N_eig, dtype=int))
+    else:
+        _ = S_mfs_ss(D, V, XYZ.data, W, cluster_idx=np.zeros(N_eig, dtype=int))
 
     S_sensitivity = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
     sensitivity_coeffs.append(S_sensitivity)

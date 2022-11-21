@@ -66,6 +66,15 @@ public:
   }
 };
 
+class BLUEBILD_EXPORT FiNUFFTError : public GenericError {
+public:
+  const char* what() const noexcept override { return "BLUEBILD: fiNUFFT error"; }
+
+  BluebildError error_code() const noexcept override {
+    return BluebildError::BLUEBILD_FINUFFT_ERROR;
+  }
+};
+
 class BLUEBILD_EXPORT NotImplementedError : public GenericError {
 public:
   const char* what() const noexcept override { return "BLUEBILD: Not implemented"; }

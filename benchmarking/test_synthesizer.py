@@ -72,8 +72,7 @@ class SimulatedDataGen():
         XYZ = self.dev(t)
         W = self.mb(XYZ, self.wl)
         S = self.vis(XYZ, W, self.wl)
-        G = self.gram(XYZ, W, self.wl)
-        __, V, __ = self.I_dp(S, G)
+        __, V, __ = self.I_dp(S, XYZ, W, self.wl)
         return (V,XYZ.data, W.data)
 
 

@@ -8,6 +8,9 @@
 Simulation LOFAR imaging with Bluebild (NUFFT).
 """
 
+import bluebild_tools.cupy_util as bbt_cupy
+use_cupy = bbt_cupy.is_cupy_usable()
+
 import os, sys, argparse
 #from tqdm import tqdm as ProgressBar
 import astropy.units as u
@@ -24,7 +27,7 @@ from imot_tools.io.plot import cmap
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.bluebild.gram as bb_gr
-#import pypeline.phased_array.bluebild.imager.fourier_domain as bb_fd
+from   pypeline.phased_array.bluebild.imager import fourier_domain as bb_im
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.data_gen.source as source
 import pypeline.phased_array.instrument as instrument
@@ -35,6 +38,7 @@ from imot_tools.math.func import SphericalDirichlet
 from mpl_toolkits.mplot3d import Axes3D
 import imot_tools.io.s2image as im
 import time as tt
+
 
 
 np.random.seed(0)
@@ -114,6 +118,7 @@ uvw_frame = np.stack((u_dir, v_dir, w_dir), axis=-1)
 N_pix = 512
 N_level = 3
 N_bits = 32
+precision = 'single'
 time_slice = 200 #36
 eps = 1e-3
 print("\nImaging Parameters")
@@ -165,62 +170,28 @@ print(f"#@#IFPE {ifpe_e-ifpe_s:.3f} sec")
 
 # Imaging
 ifim_s = tt.time()
-I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
-UVW_baselines = []
-ICRS_baselines = []
-gram_corrected_visibilities = []
-baseline_rescaling = 2 * np.pi / wl
+I_dp   = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
+IV_dp  = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq','sqrt'))
+nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
+                                      field_center=field_center, eps=eps,
+                                      n_trans=1, precision=precision)
+###UVW_baselines = []
+###gram_corrected_visibilities = []
+###baseline_rescaling = 2 * np.pi / wl
 
 #for t in ProgressBar(time[0:25]):
 for t in time[::time_slice]:
     XYZ = dev(t)
     UVW = (uvw_frame.transpose() @ XYZ.data.transpose()).transpose()
     UVW_baselines_t = (UVW[:, None, :] - UVW[None, ...])
-    ICRS_baselines_t = (XYZ.data[:, None, :] - XYZ.data[None, ...])
-    UVW_baselines.append(baseline_rescaling * UVW_baselines_t)
-    ICRS_baselines.append(baseline_rescaling * ICRS_baselines_t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    G = gram(XYZ, W, wl)
-    W = W.data
-    D, V, _ = I_dp(S, G)
-    S_corrected = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
-    gram_corrected_visibilities.append(S_corrected)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
+    S_corrected = IV_dp(D, V, W, c_idx)
+    nufft_imager.collect(UVW_baselines_t, S_corrected)
 
-UVW_baselines = np.stack(UVW_baselines, axis=0)
-ICRS_baselines = np.stack(ICRS_baselines, axis=0).reshape(-1, 3)
-gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=0).reshape(-1)
-
-# UVW_baselines = UVW_baselines.reshape((UVW_baselines.shape[0], -1, 3))
-#
-# plt.figure()
-# colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-# for i in range(0, UVW_baselines.shape[1], 10):
-#     plt.plot(UVW_baselines[:,i, 0] * 2 * lim / N_pix, UVW_baselines[:,i, 1] * 2 * lim / N_pix, color=colors[0], linewidth=0.01)
-# plt.xlim(-np.pi, np.pi)
-# plt.ylim(-np.pi, np.pi)
-# fig = plt.figure()
-# # ax = Axes3D(fig)
-# # ax.scatter3D(UVW_baselines[::N_station, 0], UVW_baselines[::N_station, 1], UVW_baselines[::N_station, -1], s=.01)
-# # plt.xlabel('u')
-# # plt.ylabel('v')
-# # ax.set_zlabel('w')
-# plt.figure()
-# plt.scatter(UVW_baselines[:, 0], UVW_baselines[:, 1], s=0.01)
-# plt.xlabel('u')
-# plt.ylabel('v')
-
-UVW_baselines=UVW_baselines.reshape(-1,3)
-w_correction = np.exp(1j * UVW_baselines[:, -1])
-gram_corrected_visibilities *= w_correction
-scalingx = 2 * lim / N_pix
-scalingy = 2 * lim / N_pix
-bb_image = finufft.nufft2d1(x=scalingx * UVW_baselines[:, 1],
-                            y=scalingy * UVW_baselines[:, 0],
-                            c=gram_corrected_visibilities,
-                            n_modes=N_pix, eps=eps)
-
-bb_image = np.real(bb_image)
+# NUFFT Synthesis
+lsq_image, sqrt_image = nufft_imager.get_statistic()
 
 ifim_e = tt.time()
 print(f"#@#IFIM {ifim_e-ifim_s:.3f} sec")
@@ -245,27 +216,26 @@ print(f"#@#SFPE {sfpe_e-sfpe_s:.3f} sec")
 # Imaging
 sfim_s = tt.time()
 S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
+SV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq',))
+nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
+                                      field_center=field_center, eps=eps,
+                                      n_trans=1, precision=precision)
 sensitivity_coeffs = []
 #for t in ProgressBar(time[0:25]):
 for t in time[::time_slice]:
     XYZ = dev(t)
+    UVW = (uvw_frame.transpose() @ XYZ.data.transpose()).transpose()
+    UVW_baselines_t = (UVW[:, None, :] - UVW[None, ...])
     W = mb(XYZ, wl)
-    G = gram(XYZ, W, wl)
-    W = W.data
-    D, V = S_dp(G)
-    S_sensitivity = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
+    D, V = S_dp(XYZ, W, wl)
+    S_sensitivity = SV_dp(D, V, W, cluster_idx=np.zeros(N_eig, dtype=int))
     sensitivity_coeffs.append(S_sensitivity)
+    
+    nufft_imager.collect(UVW_baselines_t, S_sensitivity)
 
-sensitivity_coeffs = np.stack(sensitivity_coeffs, axis=0).reshape(-1)
-sensitivity_coeffs *= w_correction
-sensitivity_image = finufft.nufft2d1(x=scalingx * UVW_baselines[:, 1],
-                                     y=scalingy * UVW_baselines[:, 0],
-                                     c=sensitivity_coeffs,
-                                     n_modes=N_pix, eps=1e-4)
+sensitivity_image = nufft_imager.get_statistic()[0]
 
-sensitivity_image = np.real(sensitivity_image)
-
-I_lsq_eq = s2image.Image(bb_image / sensitivity_image, pix_xyz)
+I_lsq_eq = s2image.Image(lsq_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
 dump_data(I_lsq_eq.data, 'I_lsq_eq_data')
 dump_data(I_lsq_eq.grid, 'I_lsq_eq_grid')
 
@@ -291,10 +261,3 @@ fp = "test_nufft"
 if args.outdir:
     fp = os.path.join(args.outdir, fp)
 plt.savefig(fp)
-
-gaussian=np.exp(-(Lpix ** 2 + Mpix ** 2)/(4*lim))
-gridded_visibilities=np.sqrt(np.abs(np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(gaussian*bb_image)))))
-gridded_visibilities[int(gridded_visibilities.shape[0]/2)-2:int(gridded_visibilities.shape[0]/2)+2, int(gridded_visibilities.shape[1]/2)-2:int(gridded_visibilities.shape[1]/2)+2]=0
-plt.figure()
-plt.imshow(np.flipud(gridded_visibilities), cmap='cubehelix')
-

@@ -11,6 +11,7 @@ set -e
 
 module load gcc
 module load fftw
+module load cuda/11.0
 module list
 
 CONDA_ENV=pype-111
@@ -113,4 +114,4 @@ fi
 ls -rtl $TEST_DIR
 
 # To test from command line
-#export TMPOUT=/scratch/izar/orliac/test_pype-111c/; mkdir -pv $TMPOUT; PROFILE_NSIGHT=0 PROFILE_VTUNE=1 PROFILE_CPROFILE=1 TEST_SEFF=0 TEST_DIR=$TMPOUT srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1  ./jenkins/slurm_lofar_bootes_ss.sh
+#export PYTHONPATH=./tests/ss_cpp/build_GCC/python/; export TMPOUT=/scratch/izar/orliac/test_pype-111c/; mkdir -pv $TMPOUT; PROFILE_NSIGHT=0 PROFILE_VTUNE=1 PROFILE_CPROFILE=0  TEST_SEFF=0 TEST_DIR=$TMPOUT srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1  ./jenkins/slurm_lofar_bootes_ss.sh

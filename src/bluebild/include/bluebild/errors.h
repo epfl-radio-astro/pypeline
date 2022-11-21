@@ -32,6 +32,10 @@ enum BluebildError {
    */
   BLUEBILD_EIGENSOLVER_ERROR,
   /**
+   * fiNUFFT error.
+   */
+  BLUEBILD_FINUFFT_ERROR,
+  /**
    * Not Implemented error.
    */
   BLUEBILD_NOT_IMPLEMENTED_ERROR,

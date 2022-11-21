@@ -1,8 +1,0 @@
-[build-system]
-requires = [
-    "wheel",
-    "scikit-build>=0.12",
-    "cmake>=3.10",
-    "make",
-    "pbr"
-]

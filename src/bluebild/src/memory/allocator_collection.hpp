@@ -16,31 +16,43 @@
 #include "gpu/util/gpu_runtime_api.hpp"
 #endif
 
+#ifdef BLUEBILD_UMPIRE
+#include "memory/umpire_allocator.hpp"
+#endif
+
 namespace bluebild {
 class AllocatorCollection {
 public:
   AllocatorCollection()
-      : allocHost_(new PoolAllocator(std::malloc, std::free))
+      :
+#ifdef BLUEBILD_UMPIRE
+        allocHost_(new UmpireAllocator("HOST"))
+#if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
+        ,
+        allocPinned_(new UmpireAllocator("PINNED")),
+        allocGPU_(new UmpireAllocator("DEVICE"))
+#endif // CUDA / ROCM
+#else // UMPIRE
+        allocHost_(new PoolAllocator(std::malloc, std::free))
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
         ,
         allocPinned_(new PoolAllocator(
-            [](std::size_t size) -> void* {
+            [](std::size_t size) -> void * {
               void* ptr = nullptr;
               gpu::check_status(gpu::malloc_host(&ptr, size));
               return ptr;
             },
-            [](void* ptr) -> void { gpu::free_host(ptr); })),
+            [](void *ptr) -> void { gpu::free_host(ptr); })),
         allocGPU_(new PoolAllocator(
-            [](std::size_t size) -> void* {
+            [](std::size_t size) -> void * {
               void* ptr = nullptr;
               gpu::check_status(gpu::malloc(&ptr, size));
               return ptr;
             },
-            [](void* ptr) -> void { gpu::free(ptr); }))
-#endif
+            [](void *ptr) -> void { gpu::free(ptr); }))
+#endif // CUDA / ROCM
+#endif // UMPIRE
   {
-
-    allocHost_.reset(new PoolAllocator(std::malloc, std::free));
   }
 
   auto host() const -> const std::shared_ptr<Allocator>& { return allocHost_; }

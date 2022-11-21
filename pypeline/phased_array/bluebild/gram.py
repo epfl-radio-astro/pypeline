@@ -75,11 +75,16 @@ class GramBlock(core.Block):
     Compute Gram matrices.
     """
 
-    def __init__(self):
+    def __init__(self, ctx=None):
         """
+        Parameters
+        ----------
+        ctx: :py:class:`~bluebild.Context`
+            Bluebuild context. If provided, will use bluebild module for computation.
 
         """
         super().__init__()
+        self._ctx=ctx
 
     @chk.check(
         dict(
@@ -144,12 +149,36 @@ class GramBlock(core.Block):
         if not XYZ.is_consistent_with(W, axes=[0, 0]):
             raise ValueError("Parameters[XYZ, W] are inconsistent.")
 
-        N_antenna = XYZ.shape[0]
-        baseline = linalg.norm(
-            XYZ.data.reshape(N_antenna, 1, 3) - XYZ.data.reshape(1, N_antenna, 3), axis=-1
-        )
+        return GramMatrix(data=self.compute(XYZ.data, W.data, wl), beam_idx=W.index[1])
 
-        G_1 = (4 * np.pi) * np.sinc((2 / wl) * baseline)
-        G_2 = W.data.conj().T @ G_1 @ W.data
 
-        return GramMatrix(data=G_2, beam_idx=W.index[1])
+    def compute(self, XYZ, W, wl):
+        """
+        Compute Gram matrix as numpy array.
+
+        Parameters
+        ----------
+        XYZ : :py:class:`~pypeline.phased_array.instrument.InstrumentGeometry`
+            (N_antenna, 3) Cartesian antenna coordinates in any reference frame.
+        W : :py:class:`~pypeline.phased_array.beamforming.BeamWeights`
+            (N_antenna, N_beam) synthesis beamweights.
+        wl : float
+            Wavelength [m] at which to compute the Gram.
+
+        Returns
+        -------
+        :py:class:`~numpy.ndarray`
+            (N_beam, N_beam) Gram matrix.
+        """
+        if self._ctx is not None:
+            return self._ctx.gram_matrix(np.array(XYZ.data, order='F'), np.array(W.data, order='F'), wl)
+        else:
+            N_antenna = XYZ.shape[0]
+            baseline = linalg.norm(
+                XYZ.reshape(N_antenna, 1, 3) - XYZ.reshape(1, N_antenna, 3), axis=-1
+            )
+
+            G_1 = (4 * np.pi) * np.sinc((2 / wl) * baseline)
+            G_2 = W.conj().T @ G_1 @ W
+            return G_2
+
