@@ -24,7 +24,9 @@ import pypeline.phased_array.data_gen.statistics as vis
 
 import rmm
 pool = rmm.mr.PoolMemoryResource(
-    rmm.mr.CudaMemoryResource()
+    rmm.mr.CudaMemoryResource(),
+    initial_pool_size=2**30,
+    maximum_pool_size=2**32
 )
 rmm.mr.set_current_device_resource(pool)
 
