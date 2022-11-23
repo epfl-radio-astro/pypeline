@@ -26,23 +26,31 @@ import scipy.constants as constants
 import time
 import finufft
 
+#import cupy as cp
 import pypeline.phased_array.mscudf as mscudf
 import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.bluebild.gram as bb_gr
 import pypeline.phased_array.bluebild.imager.spatial_domain as bb_sd
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.data_gen.source as source
-import pypeline.phased_array.measurement_set as measurement_set
+#import pypeline.phased_array.measurement_set as measurement_set
 import imot_tools.math.sphere.interpolate as interpolate
 import imot_tools.math.sphere.transform as transform
 import pycsou.linop as pyclop
 from imot_tools.math.func import SphericalDirichlet
 import joblib as job
 
+import rmm
+pool = rmm.mr.PoolMemoryResource(
+    rmm.mr.CudaMemoryResource()
+)
+rmm.mr.set_current_device_resource(pool)
+
 
 # For CuPy agnostic code
 # ----------------------
 xp = bbt_cupy.cupy if use_cupy else np
+#xp = cp
 
 
 start_time = time.process_time()
@@ -115,7 +123,7 @@ for t, f, S in ProgressBar(
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = cudfms.instrument(t)
     W = cudfms.beamformer(XYZ, wl)
-    S, W = measurement_set.filter_data(S, W)
+    S, W = mscudf.filter_data(S, W)
 
     D, V, c_idx = I_dp(S, XYZ, W, wl)
     print(c_idx)
@@ -126,7 +134,7 @@ for t, f, S in ProgressBar(
     XYZ = xp.asarray(XYZ.data)
     W   = xp.asarray(W.data)
     V   = xp.asarray(V)
-
+    
     _ = I_mfs(D, V, XYZ, W, c_idx)
     
 I_std, I_lsq = I_mfs.as_image()
