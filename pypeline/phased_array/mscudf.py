@@ -8,9 +8,6 @@
 Cudf file readers and tools.
 """
 import pathlib
-import dask
-import dask.array as da
-import dask_cudf
 import cudf
 import numpy as np
 import cupy as cp
@@ -20,11 +17,16 @@ import astropy.time as time
 import astropy.units as u
 import imot_tools.util.argcheck as chk
 import pandas as pd
-import dask.dataframe as dd
 
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.instrument as instrument
 import pypeline.phased_array.data_gen.statistics as vis
+
+import rmm
+pool = rmm.mr.PoolMemoryResource(
+    rmm.mr.CudaMemoryResource()
+)
+rmm.mr.set_current_device_resource(pool)
 
 @chk.check(
     dict(S=chk.is_instance(vis.VisibilityMatrix), W=chk.is_instance(beamforming.BeamWeights))
@@ -290,7 +292,7 @@ class Cudfparquet:
             beam_id_0_cp = df_sub.ANTENNA1.to_cupy()
             beam_id_1_cp = df_sub.ANTENNA2.to_cupy()
             data_flag_cp = df_sub.FLAG.list.leaves.to_cupy().reshape(len(df_sub.FLAG),len(df_sub.FLAG[0]),len(df_sub.FLAG[0][0]))
-            data_cp = df_sub[column].list.leaves.to_cupy(dtype=cp.float32).reshape(len(df_sub.DATA),len(df_sub.DATA[0]),len(df_sub.DATA[0][0])).view(cp.complex64)
+            data_cp = df_sub[column].list.leaves.to_cupy(dtype=cp.float64).reshape(len(df_sub[column]),len(df_sub[column][0]),len(df_sub[column][0][0])).view(cp.complex128)
             
             # beam_id_0 = df_sub.ANTENNA1.to_numpy()
             # beam_id_1 = df_sub.ANTENNA2.to_numpy()
@@ -314,7 +316,7 @@ class Cudfparquet:
             S_full_cudf = cudf.DataFrame({'B_0': beam_id_0_cp, 'B_1': beam_id_1_cp})
             
             for i in np.array(channel_id):
-                S_full_cudf[i] = data_cp.T[i].view(cp.float32).reshape(data_cp.T[i].shape + (2,)).tolist()
+                S_full_cudf[i] = data_cp.T[i].view(cp.float64).reshape(data_cp.T[i].shape + (2,)).tolist()
                 
             
             # Drop rows of `S_full` corresponding to unwanted beams.
@@ -330,7 +332,7 @@ class Cudfparquet:
             
             beam_id_cp = cp.unique(self.instrument._layout.index.get_level_values("STATION_ID"))
             N_beam_cp = len(beam_id_cp)
-            i_cp, j_cp = np.triu_indices(N_beam_cp, k=0)
+            i_cp, j_cp = cp.triu_indices(N_beam_cp, k=0)
             S_trunc_cudf = S_full_cudf[S_full_cudf['B_0'].isin(beam_id_cp[i_cp]) & S_full_cudf['B_1'].isin(beam_id_cp[j_cp])]
             
 
@@ -357,9 +359,9 @@ class Cudfparquet:
             wanted_df = cudf.DataFrame()
             wanted_df['B_0'] = beam_id_cp[i_cp]
             wanted_df['B_1'] = beam_id_cp[j_cp]
-            dummy_complexarray = cp.zeros(len(beam_id_cp[i_cp]),dtype=cp.complex64)
+            dummy_complexarray = cp.zeros(len(beam_id_cp[i_cp]),dtype=cp.complex128)
             for i in np.array(channel_id):
-                wanted_df[i] = dummy_complexarray.view(cp.float32).reshape(dummy_complexarray.T.shape + (2,)).tolist()
+                wanted_df[i] = dummy_complexarray.view(cp.float64).reshape(dummy_complexarray.T.shape + (2,)).tolist()
                 
             S_cudf = cudf.concat([S_trunc_cudf, wanted_df]).drop_duplicates(subset=['B_0','B_1'])
             S_cudf = S_cudf.sort_values(['B_0', 'B_1'], ascending=[True, True])
@@ -370,7 +372,6 @@ class Cudfparquet:
             t = time.Time(df_sub.TIME[0], format="mjd", scale="utc")
             f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(cp.asnumpy(beam_id_cp), name="BEAM_ID")
-           
             for ch_id in channel_id:
                 #v = _series2array(S[ch_id].rename("S", inplace=True))
                 v_cudf = _series2array_cudf(S_cudf[ch_id].rename("S"))
@@ -430,7 +431,7 @@ def _series2array_cudf(visibility: cudf.Series) -> cp.ndarray:
     )
     N_beam = len(row_map)
     S = cp.zeros(shape=(N_beam, N_beam), dtype=complex)
-    S[data.ROW_ID.values, data.COL_ID.values] = data.S.list.leaves.to_cupy(cp.float32).reshape(2*len(data.S)).view(cp.complex64)
+    S[data.ROW_ID.values, data.COL_ID.values] = data.S.list.leaves.to_cupy(cp.float64).reshape(2*len(data.S)).view(cp.complex128)
     S_diag = cp.diag(S)
     S = S + S.conj().T
     S[cp.diag_indices_from(S)] = S_diag
