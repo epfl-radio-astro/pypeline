@@ -140,9 +140,6 @@ template <typename T> auto NufftSynthesisGPU<T>::computeNufft() -> void {
     for (std::size_t i = 0; i < nFilter_; ++i) {
       for (std::size_t j = 0; j < nIntervals_; ++j) {
         auto imgPtr = img_.get() + (j + i * nIntervals_) * nPixel_;
-        assert(i * ldVirtVis1 + j * ldVirtVis2 +
-                   nAntenna_ * nAntenna_ * inputCount_ <=
-               virtualVisBufferSize);
         transform.execute(virtualVis_.get() + i * ldVirtVis1 + j * ldVirtVis2,
                           outputPtr);
 
