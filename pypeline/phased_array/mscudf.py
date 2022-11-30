@@ -7,6 +7,7 @@
 """
 Cudf file readers and tools.
 """
+import nvtx
 import pathlib
 import cudf
 import numpy as np
@@ -24,13 +25,6 @@ import pypeline.phased_array.instrumentgpu as instrumentgpu
 import pypeline.phased_array.data_gen.statistics as vis
 import pypeline.phased_array.data_gen.statisticsgpu as visgpu
 
-# import rmm
-# pool = rmm.mr.PoolMemoryResource(
-#     rmm.mr.CudaMemoryResource(),
-#     initial_pool_size=2**30,
-#     maximum_pool_size=2**32
-# )
-# rmm.mr.set_current_device_resource(pool)
 
 # # @chk.check(
 # #     dict(S=chk.is_instance(vis.VisibilityMatrix), W=chk.is_instance(beamforming.BeamWeights))
@@ -230,12 +224,10 @@ class Cudfparquet:
     def channels(self):
         """
         Frequency channels available.
-
         Returns
         -------
         :py:class:`~astropy.table.QTable`
             (N_channel, 2) table with columns
-
             * CHANNEL_ID : int
             * FREQUENCY : :py:class:`~astropy.units.Quantity`
         """
@@ -308,7 +300,6 @@ class Cudfparquet:
         
         """
         Extract visibility matrices.
-
         Parameters
         ----------
         channel_id : array-like(int) or slice
@@ -317,15 +308,11 @@ class Cudfparquet:
             Several TIME_IDs from :py:attr:`~pypeline.phased_array.util.measurement_set.MeasurementSet.time`.
         column : str
             Column name from MAIN table where visibility data resides.
-
             (This is required since several visibility-holding columns can co-exist.)
-
         Returns
         -------
         iterable
-
             Generator object returning (time, freq, S) triplets with:
-
             * time (:py:class:`~astropy.time.Time`): moment the visibility was formed;
             * freq (:py:class:`~astropy.units.Quantity`): center frequency of the visibility;
             * S (:py:class:`~pypeline.phased_array.data_gen.statistics.VisibilityMatrix`)
@@ -342,81 +329,80 @@ class Cudfparquet:
         N_time = len(self.time)
         time_start, time_stop, time_step = time_id.indices(N_time)
         
-        unique_time = df.TIME.unique().to_cupy()[time_start:time_stop:time_step]
+        unique_time = cp.asarray(df.TIME.unique())[time_start:time_stop:time_step]
         
-        for t in unique_time.get():   
-#             beam_id_0_cp = df.loc[df['TIME'] == t, 'ANTENNA1'].to_cupy()
-#             beam_id_1_cp = df.loc[df['TIME'] == t, 'ANTENNA2'].to_cupy()
-#             dfflag = df.loc[df['TIME'] == t, 'FLAG']
-#             data_flag_cp = df.loc[df['TIME'] == t, 'FLAG'].list.leaves.to_cupy().reshape(len(dfflag),len(dfflag.iloc[0]),len(dfflag.iloc[0][0]))
-#             dfdata = df.loc[df['TIME'] == t, column]
-#             data_cp = dfdata.list.leaves.to_cupy(dtype=cp.float64).reshape(len(dfdata),len(dfdata.iloc[0]),len(dfdata.iloc[0][0])).view(cp.complex128)
-            df2 = df.loc[df['TIME'] == t, columns = 'ANTENNA1', 'ANTENNA2', 'DATA']
-            print(df2)
-            yield, t, None, None
+        with nvtx.annotate("datatransfercheck", color="red"):
+            for t in unique_time.get():   
+                beam_id_0_cp = cp.asarray(df.loc[df['TIME'] == t, 'ANTENNA1'])
+                beam_id_1_cp = cp.asarray(df.loc[df['TIME'] == t, 'ANTENNA2'])
+                dfflag = df.loc[df['TIME'] == t, 'FLAG']
+                data_flag_cp = cp.asarray(df.loc[df['TIME'] == t, 'FLAG'].list.leaves).reshape(len(dfflag),len(dfflag.iloc[0]),len(dfflag.iloc[0][0]))
+                dfdata = df.loc[df['TIME'] == t, column]
+                data_cp = cp.asarray(dfdata.list.leaves, dtype=cp.float64).reshape(len(dfdata),len(dfdata.iloc[0]),len(dfdata.iloc[0][0])).view(cp.complex128)
 
 
-            
-#             # We only want XX and YY correlations
-            
-#             data_cp = cp.average(data_cp[:, :, [0, 3]], axis=2)[:, channel_id]
-#             data_flag_cp = cp.any(data_flag_cp[:, :, [0, 3]], axis=2)[:, channel_id]
-            
-            
-#             # DataFrame description of visibility data.
-#             # Each column represents a different channel.
-            
-#             S_full_cudf = cudf.DataFrame({'B_0': beam_id_0_cp, 'B_1': beam_id_1_cp})
-            
-#             for i in np.array(channel_id):
-#                 S_full_cudf[i] = data_cp.T[i].view(cp.float64).reshape(data_cp.T[i].shape + (2,)).tolist()
+                # We only want XX and YY correlations
 
-                
-            
-#             # Drop rows of `S_full` corresponding to unwanted beams.
-# #             beam_id_cp = cp.unique(self._lofar_antenna_field_df.ANTENNA_ID.to_cupy())
-            
-# #             N_beam_cp = len(beam_id_cp)
-# #             i_cp, j_cp = cp.triu_indices(N_beam_cp, k=0)
+                data_cp = cp.average(data_cp[:, :, [0, 3]], axis=2)[:, channel_id]
+                data_flag_cp = cp.any(data_flag_cp[:, :, [0, 3]], axis=2)[:, channel_id]
 
 
-#             beam_id_cp = self._beam_id
-    
-#             N_beam_cp = len(beam_id_cp)
-#             i_cp, j_cp = cp.triu_indices(N_beam_cp, k=0)
-#             S_trunc_cudf = S_full_cudf[S_full_cudf['B_0'].isin(beam_id_cp[i_cp]) & S_full_cudf['B_1'].isin(beam_id_cp[j_cp])]
-            
+                # DataFrame description of visibility data.
+                # Each column represents a different channel.
 
-#             # Depending on the dataset, some (ANTENNA1, ANTENNA2) pairs that have correlation=0 are
-#             # omitted in the table.
-#             # This is problematic as the previous DataFrame construction could be potentially
-#             # missing entire antenna ranges.
-#             # To fix this issue, we augment the dataframe to always make sure `S_trunc` matches the
-#             # desired shape.
+                S_full_cudf = cudf.DataFrame({'B_0': beam_id_0_cp, 'B_1': beam_id_1_cp})
 
-#             wanted_df = cudf.DataFrame()
-#             wanted_df['B_0'] = beam_id_cp[i_cp]
-#             wanted_df['B_1'] = beam_id_cp[j_cp]
-#             dummy_complexarray = cp.zeros(len(beam_id_cp[i_cp]),dtype=cp.complex128)
-#             for i in np.array(channel_id):
-#                 wanted_df[i] = dummy_complexarray.view(cp.float64).reshape(dummy_complexarray.T.shape + (2,)).tolist()
-                
-#             S_cudf = cudf.concat([S_trunc_cudf, wanted_df]).drop_duplicates(subset=['B_0','B_1'])
-#             S_cudf = S_cudf.sort_values(['B_0', 'B_1'], ascending=[True, True])
-#             S_cudf = S_cudf.reset_index().set_index(['B_0','B_1'])
+                for i in np.array(channel_id):
+                    S_full_cudf[i] = data_cp.T[i].view(cp.float64).reshape(data_cp.T[i].shape + (2,)).tolist()
 
-            
-            # # Break S into columns and stream out
-            # #t = df_sub.TIME[0]
-            # t = time.Time(t, format="mjd", scale="utc")
-            # f = self.channels["FREQUENCY"]
-            # beam_idx = pd.Index(beam_id_cp.get(), name="BEAM_ID")
-            # #beam_idx = cudf.Index(beam_id_cp, name="BEAM_ID")
-            # for ch_id in channel_id:
-            #     v_cudf = _series2array_cudf(S_cudf[ch_id].rename("S"))
-            #     visibility = vis.VisibilityMatrix(v_cudf.get(), beam_idx)
-            #     #visibility = visgpu.VisibilityMatrix(v_cudf, beam_idx)
-            #     yield t, f[ch_id], visibility
+
+
+                # Drop rows of `S_full` corresponding to unwanted beams.
+    #             beam_id_cp = cp.unique(self._lofar_antenna_field_df.ANTENNA_ID.to_cupy())
+
+    #             N_beam_cp = len(beam_id_cp)
+    #             i_cp, j_cp = cp.triu_indices(N_beam_cp, k=0)
+
+
+                beam_id_cp = self._beam_id
+
+                N_beam_cp = len(beam_id_cp)
+                i_cp, j_cp = cp.triu_indices(N_beam_cp, k=0)
+                S_trunc_cudf = S_full_cudf[S_full_cudf['B_0'].isin(beam_id_cp[i_cp]) & S_full_cudf['B_1'].isin(beam_id_cp[j_cp])]
+
+
+                # Depending on the dataset, some (ANTENNA1, ANTENNA2) pairs that have correlation=0 are
+                # omitted in the table.
+                # This is problematic as the previous DataFrame construction could be potentially
+                # missing entire antenna ranges.
+                # To fix this issue, we augment the dataframe to always make sure `S_trunc` matches the
+                # desired shape.
+
+                wanted_df = cudf.DataFrame()
+                wanted_df['B_0'] = beam_id_cp[i_cp]
+                wanted_df['B_1'] = beam_id_cp[j_cp]
+                dummy_complexarray = cp.zeros(len(beam_id_cp[i_cp]),dtype=cp.complex128)
+                for i in np.array(channel_id):
+                    wanted_df[i] = dummy_complexarray.view(cp.float64).reshape(dummy_complexarray.T.shape + (2,)).tolist()
+
+                S_cudf = cudf.concat([S_trunc_cudf, wanted_df]).drop_duplicates(subset=['B_0','B_1'])
+                S_cudf = S_cudf.sort_values(['B_0', 'B_1'], ascending=[True, True])
+                S_cudf = S_cudf.reset_index().set_index(['B_0','B_1'])
+
+
+                # Break S into columns and stream out
+                #t = df_sub.TIME[0]
+                t = time.Time(t, format="mjd", scale="utc")
+                f = self.channels["FREQUENCY"]
+                beam_idx = pd.Index(beam_id_cp.get(), name="BEAM_ID")
+                #beam_idx = cudf.Index(beam_id_cp, name="BEAM_ID")
+                for ch_id in channel_id:
+                    v_cudf = _series2array_cudf(S_cudf[ch_id].rename("S"))
+                    #visibility = vis.VisibilityMatrix(v_cudf.get(), beam_idx)
+                    visibility = visgpu.VisibilityMatrix(v_cudf, beam_idx)
+                    yield t, f[ch_id], visibility
+
+
 
                 
 
