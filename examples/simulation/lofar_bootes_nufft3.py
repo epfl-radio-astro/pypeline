@@ -171,4 +171,7 @@ for i in range(lsq_image.shape[0]):
     I_lsq_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'),
                   catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5), show_gridlines=False)
 
+
 plt.suptitle(f'Bluebild Eigenmaps')
+
+plt.savefig("lofar_bootes_nufft3.png")

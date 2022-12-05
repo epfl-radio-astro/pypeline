@@ -195,7 +195,6 @@ class MeasurementSet:
 
             t = time.Time(np.unique(table.calc("MJD(TIME)")), format="mjd", scale="utc")
             t_id = range(len(t))
-            print("Time loaded")
             self._time = tb.QTable(dict(TIME_ID=t_id, TIME=t))
 
         return self._time
@@ -342,7 +341,6 @@ class MeasurementSet:
                 v = _series2array(S[ch_id].rename("S", inplace=True))
                 visibility = vis.VisibilityMatrix(v, beam_idx)
                 if return_UVW:
-                    print("debug, nbeam = ",N_beam)
                     UVW_baselines = np.zeros((N_beam, N_beam, 3))
                     '''print(UVW_baselines.shape)
                     UVW_baselines[np.triu_indices(N_beam, 0)] = uvw

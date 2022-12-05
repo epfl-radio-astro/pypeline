@@ -55,7 +55,7 @@ custom_output_name = 0
 direction_correction =  0 # 0 for mwa obs - 1 for mwa sim - WHY???
 clustering = 1
 normalization = "none"
-WSClean_grid= True
+WSClean_grid= False
 ms_fieldcenter = True
 # Set WSClean_levels to True to plot the WSClean image alongside the eigenlevels image
 WSClean_levels = False
@@ -64,7 +64,7 @@ fidelity_calculation = 0
 structural_similarity_calculation = 0
 
 # only used if both fields above are false: 
-FoV = np.deg2rad(2) # degrees - Solar sim ~ 14.4 - Solar Obs
+FoV = np.deg2rad(7) # degrees - Solar sim ~ 14.4 - Solar Obs
 # Solar RA Dec
 user_fieldcenter = coord.SkyCoord(ra = 248.7713797* u.deg, dec = -22.0545530* u.deg, frame = 'icrs')# true coordinate but BB images flipped
 user_fieldcenter = coord.SkyCoord(ra = 251.6385842 * u.deg, dec = -17.3889944 * u.deg, frame = 'icrs') # false coordinate, but until fix is enacted this will image sun not true coordinate
@@ -76,7 +76,7 @@ if (len(sys.argv)> 1):
     object_name = sys.argv[2]
 
     if ((mode != 'meerkat') & (mode != 'lofar') & (mode != 'mwa')):
-        raise Exception("The mode has to be meerkat, or lofar or mwa !!")
+        raise Exception("The mode has to be                 meerkat, or lofar or mwa !!")
         
     
 
@@ -130,7 +130,7 @@ if (len(sys.argv)> 1):
         
         column_name = "DATA"
         sampling = 1
-        N_level = 4
+        N_level = 1
         output_dir = "/scratch/izar/krishna/LOFAR/"
         time_slice = 100
         time_start_index = 0
@@ -158,7 +158,7 @@ if (len(sys.argv)> 1):
 
         column_name = "DATA"
         sampling = 1
-        N_level = 3
+        N_level = 1
         output_dir = "/scratch/izar/krishna/MWA/"
         time_slice = 100
         time_start_index = 0
@@ -300,8 +300,6 @@ for t, f, S in ProgressBar(
 
     D, V, c_idx = I_dp(S, G)
 
-    print (S.shape, D.shape, V.shape, G.shape) #(128, 128) (110,) (128, 110)
-
     #fig_vis, ax_vis = plt.subplots(1, V.shape[0] + 1)
 
     #ax_vis[0].imshow(S)
@@ -325,6 +323,9 @@ for t, f, S in ProgressBar(
     _ = I_mfs(D, cp.asarray(V), cp.asarray(XYZ.data), cp.asarray(W.data.toarray()), c_idx)
 
 I_std, I_lsq = I_mfs.as_image()
+
+I_std_ws_eq = s2image.Image(I_std.data, I_std.grid)
+I_lsq_ws_eq = s2image.Image(I_lsq.data, I_lsq.grid) 
 
 
 #"""
@@ -404,7 +405,7 @@ elif ((normalization == "mean") or (normalization == "standard")):
     levels_deviation_std = np.tile(np.std(I_std_eq.data, axis = (1,2)), (I_std_eq.data.shape[1], I_std_eq.data.shape[2], 1)).T
     levels_deviation_lsq = np.tile(np.std(I_lsq_eq.data, axis = (1,2)), (I_lsq_eq.data.shape[1], I_lsq_eq.data.shape[2], 1)).T
 
-    I_std_levels_eq = s2image.Image((I_std_eq.data - levels_mean_std)/levels_deviation_std, I_std_eq.grid)
+    I_std_levels_eq = s2image.Image((I_sI_std_nstd_eq.data - levels_mean_std)/levels_deviation_std, I_std_eq.grid)
     I_lsq_levels_eq = s2image.Image((I_lsq_eq.data - levels_mean_lsq)/levels_deviation_lsq, I_lsq_eq.grid)
 
     I_std_eq = s2image.Image((np.sum(I_std_eq.data, axis = 0) - global_mean_std)/global_deviation_std, I_std_eq.grid)
@@ -457,6 +458,7 @@ WSC_range = np.max(WSClean_image) - np.min(WSClean_image)
 if ((ms_file.split("/")[-3] =="simulation") and (mode=="mwa")):
 
     fig, ax = plt.subplots(nrows=4, ncols=N_level+1, figsize=(40,30))
+    fig_ws, ax_ws = plt.subplots(nrows=4, ncols=N_level+1, figsize=(40,30))
 
     simulation = scipy.io.readsav("/scratch/izar/krishna/MWA/20151203_240MHz_psimas.sav")
 
@@ -498,9 +500,12 @@ if ((ms_file.split("/")[-3] =="simulation") and (mode=="mwa")):
 
 elif (WSClean_levels):
     fig, ax = plt.subplots(figsize=(40,30), ncols=N_level + 1, nrows=3)
+    fig_ws, ax_ws = plt.subplots(figsize=(40,30), ncols=N_level + 1, nrows=3)
+    
 
 else:
     fig, ax = plt.subplots(figsize=(40,30), ncols=N_level + 1, nrows=2)
+    fig_ws, ax_ws = plt.subplots(figsize=(40,30), ncols=N_level + 1, nrows=2)
 
 
 for i in np.arange(N_level + 1):
@@ -509,17 +514,28 @@ for i in np.arange(N_level + 1):
         ax[0,i].set_title("Standardized") 
         I_lsq_eq.draw(ax=ax[1,i], data_kwargs=dict(cmap='cubehelix', vmin=minVal, vmax=maxVal), show_gridlines=True, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5))
         ax[1,i].set_title("Least-Square")
+
+        I_std_ws_eq.draw(ax=ax_ws[0,i], data_kwargs=dict(cmap='cubehelix', vmin=minVal, vmax=maxVal), show_gridlines=True, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5))
+        ax_ws[0,i].set_title("Standardized") 
+        I_lsq_ws_eq.draw(ax=ax_ws[1,i], data_kwargs=dict(cmap='cubehelix', vmin=minVal, vmax=maxVal), show_gridlines=True, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5))
+        ax_ws[1,i].set_title("Least-Square")
     else:
         if ((normalization=="max") or (normalization =="none")):
             I_std_eq.draw(index=i-1, ax=ax[0,i], data_kwargs=dict(cmap='cubehelix', vmin=minVal, vmax=maxVal), show_gridlines=True, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5)) # catalog=sky_model.xyz.T,
             ax[0,i].set_title("Level = {0}".format(i))
             I_lsq_eq.draw(index=i-1, ax=ax[1,i], data_kwargs=dict(cmap='cubehelix', vmin=minVal, vmax=maxVal), show_gridlines=True, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5)) # catalog=sky_model.xyz.T,
             ax[1,i].set_title("Level = {0}".format(i))
+
+            I_std_ws_eq.draw(index=i-1, ax=ax_ws[0,i], data_kwargs=dict(cmap='cubehelix', vmin=minVal, vmax=maxVal), show_gridlines=True, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5)) # catalog=sky_model.xyz.T,
+            ax_ws[0,i].set_title("Level = {0}".format(i))
+            I_lsq_ws_eq.draw(index=i-1, ax=ax_ws[1,i], data_kwargs=dict(cmap='cubehelix', vmin=minVal, vmax=maxVal), show_gridlines=True, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5)) # catalog=sky_model.xyz.T,
+            ax_ws[1,i].set_title("Level = {0}".format(i))
         elif ((normalization == "mean") or (normalization == "standard")):
             I_std_levels_eq.draw(index=i-1, ax=ax[0,i], data_kwargs=dict(cmap='cubehelix', vmin=minVal, vmax=maxVal), show_gridlines=True, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5)) # catalog=sky_model.xyz.T,
             ax[0,i].set_title("Level = {0}".format(i))
             I_lsq_levels_eq.draw(index=i-1, ax=ax[1,i], data_kwargs=dict(cmap='cubehelix', vmin=minVal, vmax=maxVal), show_gridlines=True, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5)) # catalog=sky_model.xyz.T,
             ax[1,i].set_title("Level = {0}".format(i))
+            
 
     if (WSClean_levels):
         WSClean_scale= ax[2, i].imshow((WSClean_image), cmap='cubehelix', vmin=minVal, vmax=maxVal)
@@ -530,6 +546,16 @@ for i in np.arange(N_level + 1):
         cbar = plt.colorbar(WSClean_scale, cax)
 
         ax[2, i].set_title("WSC Image")
+
+
+        WSClean_scale= ax_ws[2, i].imshow((WSClean_image), cmap='cubehelix', vmin=minVal, vmax=maxVal)
+        ax_ws[2, i].set_title("WSClean Image")
+        divider = make_axes_locatable(ax_ws[2, i])
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+
+        cbar = plt.colorbar(WSClean_scale, cax)
+
+        ax_ws[2, i].set_title("WSC Image")
         
     if ((ms_file.split("/")[-3] =="simulation") and (mode=="mwa")):
     
@@ -542,19 +568,34 @@ for i in np.arange(N_level + 1):
         #ax[3, 0].text(5, 20, "Fidelity values\nStd:{:7.2f}\nLsq:{:7.2f}\nWsc:{:7.2f}".format(stdImg_fidelity, lsqImg_fidelity, wscImg_fidelity), bbox={'facecolor': 'white', 'pad': 10})
         #ax[3, 0].text(60, 20, "SSIM values\nStd:{:7.2f}\nLsq:{:7.2f}\nWsc:{:7.2f}".format(stdImg_ss, lsqImg_ss, wscImg_ss), bbox={'facecolor': 'white', 'pad': 10})
 
+        simulation_scale = ax_ws[3, i].imshow(sim, cmap='cubehelix', vmin=minVal, vmax=maxVal)
+        divider = make_axes_locatable(ax_ws[3, i])
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        cbar = plt.colorbar(simulation_scale, cax)
+        
+        ax_ws[3, i].set_title("Simulation")
+
 fig.suptitle(f'Frequency:{frequency/1e6} MHz')
 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 if (custom_output_name):
     plt.savefig(output_dir + "simulation_thresholded_MWA_Obsparams_bluebildImaged.png")
 else: 
     plt.savefig(output_dir + instrument_name + "_bluebild_" + object_name+".png")
+    fig_ws.savefig(output_dir + instrument_name + "_bluebild_WOS_" + object_name + ".png")
 
 
 if ((ms_file.split("/")[-3] =="simulation") and (mode=="mwa")):
     fig, ax = plt.subplots(2, 2, figsize=(40,30))
     
+    fig_ws, ax_ws = plt.subplots(2, 2, figsize=(40,30))
+
     simulation_scale = ax.ravel()[3].imshow(sim, cmap='cubehelix', vmin=minVal, vmax=maxVal)
     divider = make_axes_locatable(ax.ravel()[3])
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = plt.colorbar(simulation_scale, cax)
+
+    simulation_scale = ax_ws.ravel()[3].imshow(sim, cmap='cubehelix', vmin=minVal, vmax=maxVal)
+    divider = make_axes_locatable(ax_ws.ravel()[3])
     cax = divider.append_axes("right", size="5%", pad=0.05)
     cbar = plt.colorbar(simulation_scale, cax)
     if (fidelity_calculation): 
@@ -565,6 +606,8 @@ if ((ms_file.split("/")[-3] =="simulation") and (mode=="mwa")):
     ax.ravel()[3].set_title("Simulation")
 else :
     fig, ax = plt.subplots(figsize=(40,30), ncols=3, nrows=1)
+
+    fig_ws, ax_ws = plt.subplots(figsize=(40,30), ncols=3, nrows=1)
 
 I_std_eq.draw(ax=ax.ravel()[0], data_kwargs=dict(cmap='cubehelix', vmin=minVal, vmax=maxVal), show_gridlines=True, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5))
 ax.ravel()[0].set_title("BB Standardized Image")
@@ -581,6 +624,21 @@ cbar = plt.colorbar(WSClean_scale, cax)
 
 ax.ravel()[2].set_title("WSC Image")
 
+I_std_ws_eq.draw(ax=ax_ws.ravel()[0], data_kwargs=dict(cmap='cubehelix', vmin=minVal, vmax=maxVal), show_gridlines=True, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5))
+ax_ws.ravel()[0].set_title("BB Standardized Image")
+ 
+I_lsq_ws_eq.draw(ax=ax_ws.ravel()[1], data_kwargs=dict(cmap='cubehelix', vmin=minVal, vmax=maxVal), show_gridlines=True, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5))
+ax_ws.ravel()[1].set_title("BB Least-Squares Image")
+
+WSClean_scale= ax_ws.ravel()[2].imshow(WSClean_image, cmap='cubehelix', vmin=minVal, vmax=maxVal)
+ax_ws.ravel()[2].set_title("WSClean Image")
+divider = make_axes_locatable(ax.ravel()[2])
+cax = divider.append_axes("right", size="5%", pad=0.05)
+
+cbar = plt.colorbar(WSClean_scale, cax)
+
+ax_ws.ravel()[2].set_title("WSC Image")
+
 
 
 fig.suptitle(f'Frequency:{frequency/1e6} MHz')
@@ -590,6 +648,7 @@ if (custom_output_name):
     plt.savefig(output_dir + "simulation_thresholded_MWA_Obsparams_BB_WSC_Comparison.png")
 else: 
     plt.savefig(output_dir + instrument_name + "_bluebild_WSClean_Comparison_" + object_name + ".png")
+    fig_ws.savefig((output_dir + instrument_name + "_bluebild_WOS_WSClean_Comparison_" + object_name + ".png"))
 
 if (fidelity_calculation == 1): 
     fig, ax = plt.subplots(1, 3, figsize = (20,20))
@@ -696,6 +755,8 @@ f_interp = (f_interp  # We need to transpose axes due to the FORTRAN
 """
 f_interp = I_lsq_eq.data.transpose(0, 2, 1)
 #"""
+
+print((np.sum(f_interp, axis = 0).reshape(1, f_interp.shape[1], f_interp.shape[2]).shape, f_interp.shape, cl_WCS.shape, np.vstack((np.sum(f_interp, axis = 0).reshape(1, f_interp.shape[1], f_interp.shape[2]), f_interp)).shape) )
 I_lsq_eq_interp = s2image.WCSImage(np.vstack((np.sum(f_interp, axis = 0).reshape(1, f_interp.shape[1], f_interp.shape[2]), f_interp)), cl_WCS)
 
 if (custom_output_name):

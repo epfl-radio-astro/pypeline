@@ -6,11 +6,12 @@
 
 """
 TODO:
-Compare I/p to IV_dp and SV_dp 
-Possible issue is to do with the w term??
-width_px, height_px= 2*cl_WCS.wcs.crpix 
-cdelt_x, cdelt_y = cl_WCS.wcs.cdelt 
-FoV = np.deg2rad(abs(cdelt_x*width_px) )
+Check scaling with sensitivity imaging
+1) Does doing a scaling wrt real component of S and S_corrected correct the 2 order of magnitude difference?
+2) Same as above but for abs ratio of S and S_corrected
+3) Change the steps in processing of visibilities, V and D - remove negative spectrum removal - see if difference observed (w/o scaling)
+4) same as above with scaling
+5)
 
 """
 
@@ -21,8 +22,6 @@ import astropy.time as atime
 import imot_tools.io.s2image as s2image
 import matplotlib.pyplot as plt
 import numpy as np
-import sys
-np.set_printoptions(threshold=sys.maxsize)
 import scipy.constants as constants
 import finufft
 from imot_tools.io.plot import cmap
@@ -42,15 +41,17 @@ import imot_tools.io.s2image as im
 import imot_tools.io.plot as implt
 import time as tt
 
+
 #spk edits
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import skimage.metrics
 import imot_tools.math.sphere.grid as grid
 import imot_tools.io.fits as ifits
-import astropy.io.fits as ap_fits
+import scipy.linalg as linalg
+
 
 # for final figure text sizes
-#plt.rcParams.update({'font.size': 22})
+plt.rcParams.update({'font.size': 22})
 
 start_time = tt.process_time()
 
@@ -63,11 +64,11 @@ WSClean_image_name ="1133149192-187-188_Sun_10s_cal1024_Pixels_4_5_channels-imag
 
 WSClean_image_path += WSClean_image_name
 
-output_dir = "/scratch/izar/krishna/Calibration/"
+output_dir = "/scratch/izar/krishna/MWA/"
 ###############################################################
 ## Control Variables
 
-# Field of View in degrees - only used when WSClean_grid is false
+# Field of View in degrees
 FOV = np.deg2rad(5)
 
 #Number of levels in output image
@@ -85,21 +86,21 @@ sampling = 1
 column_name = "DATA"
 
 # WSClean Grid: Use Coordinate grid from WSClean image if True
-WSClean_grid = False
+WSClean_grid = True
 
 #ms_fieldcenter: Use field center from MS file if True; only invoked if WSClean_grid is False
-ms_fieldcenter = True
+ms_fieldcenter = False
 
 #user_fieldcenter: Invoked if WSClean_grid and ms_fieldcenter are False - gives allows custom field center for imaging of specific region
 user_fieldcenter = coord.SkyCoord(ra=218 * u.deg, dec=34.5 * u.deg, frame="icrs")
 
 #Time
 time_start = 0
-time_end = 1
-time_slice = 1
+time_end = None
+time_slice = 100
 
 # channel
-channel_id = int(4)
+channel_id = 4
 
 
 ###############################################################
@@ -133,10 +134,6 @@ if (WSClean_grid):
     cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame
 
     px_grid = cl_pix_icrs
-
-    width_px, height_px= 2*cl_WCS.wcs.crpix 
-    cdelt_x, cdelt_y = cl_WCS.wcs.cdelt 
-    FOV = np.deg2rad(abs(cdelt_x*width_px) )
 else: 
     if (ms_fieldcenter):
         _, _, px_colat, px_lon = grid.equal_angle(N=ms.instrument.nyquist_rate(wl), direction=ms.field_center.cartesian.xyz.value, FoV=FOV)
@@ -147,12 +144,11 @@ else:
 
     px_grid = transform.pol2cart(1, px_colat, px_lon)
 
-print(f"Grid size is:{px_grid.shape[1]}, {px_grid.shape[2]}, FOV: {np.rad2deg(FOV)}")
+print("Grid size is:", px_grid.shape[1], px_grid.shape[2])
 
 # Imaging
-#N_pix = px_grid.shape[1]
-N_pix = 500
-eps = 1e-4
+N_pix = px_grid.shape[1]
+eps = 1e-3
 w_term = True
 precision = 'single'
 
@@ -177,35 +173,93 @@ if (clustering):
 else:
     N_eig, c_centroid = N_level ,np.arange(N_level) # Each level gets one eigenvalue?
 
-print(f"N_eig:{N_eig} centroids = {c_centroid}")
+print("N_eig:", N_eig)
+print ("centroids = ", c_centroid)
 
-# Imagingw_term
+# Imaging
 I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
-IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq',))
+IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq', 'std'))
 UVW_baselines = []
 gram_corrected_visibilities = []
 
+timestep = 0
 for t, f, S, UVW_baselines_t in ProgressBar(
         ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_slice), column=column_name, return_UVW=True)
 ):
-    print (f"UVW from MS: {UVW_baselines_t}")
     wl = constants.speed_of_light / f.to_value(u.Hz)
-    UVW_baselines.append(UVW_baselines_t * 2 * np.pi / wl) # 128, 128, 3; N_antennas, N_antennas , 3
-    print (f"UVW added to list: {-UVW_baselines_t * 2 * np.pi/wl}")
+    UVW_baselines.append(UVW_baselines_t) # 128, 128, 3; N_antennas, N_antennas , 3
     XYZ = ms.instrument(t)
     
     W = ms.beamformer(XYZ, wl)
     G = gram(XYZ, W, wl)
     
-    S, W = measurement_set.filter_data(S, W) # S is 128, 128
+    S, W = measurement_set.filter_data(S, W)
 
     D, V, c_idx = I_dp(S, G)
     S_corrected = IV_dp(D, V, W, c_idx) #2, 1, 128, 128 ; N_filters, N_level, N_antennas, N_antennas
-    #gram_corrected_visibilities.append(S.data.reshape(1, 1, *S.shape[:2]))
     gram_corrected_visibilities.append(S_corrected)
 
+    fig_imaging, ax_imaging = plt.subplots(2, 4)
+
+    ax0 = ax_imaging[0, 0].imshow(np.real(G.data))
+    ax_imaging[0, 0].set_title("Gram (real)")
+    divider = make_axes_locatable(ax_imaging[0, 0])
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = plt.colorbar(ax0, cax)
+
+    ax1 = ax_imaging[1, 0].imshow(np.real(linalg.inv(G.data)))
+    ax_imaging[1, 0].set_title(r'G (real)$^{-1}$')
+    divider = make_axes_locatable(ax_imaging[1, 0])
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = plt.colorbar(ax1, cax)
+
+    ax2 = ax_imaging[0, 1].imshow(np.real(S.data))
+    ax_imaging[0, 1].set_title("Vis (Real)")
+    divider = make_axes_locatable(ax_imaging[0, 1])
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = plt.colorbar(ax2, cax)
+
+    ax3 = ax_imaging[1, 1].imshow(np.imag(S.data))
+    ax_imaging[1, 1].set_title("Vis (Imag)")
+    divider = make_axes_locatable(ax_imaging[1, 1])
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = plt.colorbar(ax3, cax)
+
+    ax4 = ax_imaging[0, 2].imshow(np.real(S_corrected))
+    ax_imaging[0, 2].set_title("BB Vis (real)")
+    divider = make_axes_locatable(ax_imaging[0, 2])
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = plt.colorbar(ax4, cax)
+
+    ax5 = ax_imaging[1, 2].imshow(np.imag(S_corrected)
+    ax_imaging[1, 2].set_title("BB Vis (imag)")
+    divider = make_axes_locatable(ax_imaging[1, 2])
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = plt.colorbar(ax5, cax)
+
+    scaler = np.max(np.real(S.data))/np.max(np.real(S_corrected))
+    
+    S_corrected = S_corrected * scaler
+
+    ax6 = ax_imaging[0, 3].imshow((np.where(np.real(S.data) != 0, np.real(S_corrected)/np.real(S.data), 0)))
+    ax_imaging[0, 3].set_title("BB Vis New(real)/Vis(real)")
+    divider = make_axes_locatable(ax_imaging[0, 3])
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = plt.colorbar(ax6, cax)
+
+    ax7= ax_imaging[1, 3].imshow(np.where(np.imag(S.data) != 0, np.imag(S_corrected)/np.imag(S.data), 0)))
+    ax_imaging[1, 3].set_title("BB Vis new (imag)/Vis(imag)")
+    divider = make_axes_locatable(ax_imaging[1, 3])
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = plt.colorbar(ax7, cax)
+
+    fig_imaging.tight_layout()
+    fig_imaging.save_fig(f"Visiilities_{timestep}")
+    timestep += 1
+    plt.close(fig_imaging)
+
 UVW_baselines = np.stack(UVW_baselines, axis=0).reshape(-1, 3)
-print(f"UVW baselines shape after: {UVW_baselines.shape[0]},{UVW_baselines.shape[1]}") #    3, N_uvw\
+print(f"UVW baselines shape after: {UVW_baselines.shape[0]},{UVW_baselines.shape[1]}") #    3, N_uvw
 gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=-3).reshape(*S_corrected.shape[:2], -1)
 print (f"Gram corrected visibilities shape after: {gram_corrected_visibilities.shape[0]},{gram_corrected_visibilities.shape[1]},{gram_corrected_visibilities.shape[2]}") # (M, N_uvw)
 
@@ -213,8 +267,7 @@ print (f"Gram corrected visibilities shape after: {gram_corrected_visibilities.s
 nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FOV,
                                       field_center=field_center, eps=eps, w_term=w_term,
                                       n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
-#lsq_image, std_image = nufft_imager(gram_corrected_visibilities)
-lsq_image = nufft_imager(gram_corrected_visibilities)
+lsq_image, std_image = nufft_imager(gram_corrected_visibilities)
 
 ### Sensitivity Field =========================================================
 # Parameter Estimation
@@ -248,74 +301,20 @@ for t, f, S in ProgressBar(
 
     D, V = S_dp(G)
     S_sensitivity = SV_dp(D, V, W, cluster_idx=np.zeros(N_eig, dtype=int))
-    #sensitivity_coeffs.append(S.data.reshape(1, 1, *S.shape[:2])) #1, 1, [],128, 128 ; N_filters, N_level, N_antennas, N_antennas
     sensitivity_coeffs.append(S_sensitivity) #1, 1, [],128, 128 ; N_filters, N_level, N_antennas, N_antennas
 
-#sensitivity_coeffs = np.stack(sensitivity_coeffs, axis=-3).reshape(*S_sensitivity.shape[:2],-1)  # 1, 1, 65536 instead of just 65536 (stacked along axis 0 and then -1)
-sensitivity_coeffs = np.stack(sensitivity_coeffs, axis=0).reshape(-1)  # 1, 1, 65536 instead of just 65536 (stacked along axis 0 and then -1)
-
-print (f"Sensitivity coeffs shape after{sensitivity_coeffs.shape}")
+sensitivity_coeffs = np.stack(sensitivity_coeffs, axis=-3).reshape(*S_sensitivity.shape[:2],-1)
 
 nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FOV,
                                       field_center=field_center, eps=eps, w_term=w_term,
                                       n_trans=1, precision=precision)
+print(nufft_imager._synthesizer._inner_fft_sizes)
 sensitivity_image = nufft_imager(sensitivity_coeffs)
 
-print (lsq_image.shape, sensitivity_image.shape,nufft_imager._synthesizer.xyz_grid.shape)
-
-I_lsq_eq = s2image.Image(lsq_image.reshape(lsq_image.shape[-2:]), nufft_imager._synthesizer.xyz_grid)
-#I_std_eq = s2image.Image(std_image.reshape(std_image.shape[-2:]), nufft_imager._synthesizer.xyz_grid)
-t2 = tt.time()
-
-fig, ax = plt.subplots(2, N_level + 2, figsize = (40, 20))
-
-#I_std_eq.draw(ax = ax[0,0], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-ax[0,0].set_title("Std")
-I_lsq_eq.draw( ax=ax[1, 0], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-ax[1, 0].set_title("Lsq")
-
-for i in np.arange(N_level):
-    #I_std_eq.draw(index=i, ax = ax[0,i+1], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-    ax[0, i+1].set_title(f"Std lvl{i}")
-    I_lsq_eq.draw(index=i, ax = ax[1,i+1], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-    ax[1, i+1].set_title(f"Lsq lvl{i}")
-
-WSClean_image = ap_fits.getdata(WSClean_image_path)
-WSClean_image = WSClean_image.reshape(WSClean_image.shape[-2:])
-WSClean_scale= ax[0, -1].imshow((WSClean_image), cmap='cubehelix')
-ax[0, -1].set_title("WSClean Image")
-divider = make_axes_locatable(ax[0, -1])
-cax = divider.append_axes("right", size="5%", pad=0.05)
-cbar = plt.colorbar(WSClean_scale, cax)
-
-
-plt.savefig("Mwa_test_wos_op.png")
+print (lsq_image.shape, sensitivity_image.shape,nufft_imager._synthesizer.xyz_grid)
+print ((lsq_image/sensitivity_image).shape)
 
 I_lsq_eq = s2image.Image(lsq_image.reshape(lsq_image.shape[-2:])/ sensitivity_image.reshape(sensitivity_image.shape[-2:]), nufft_imager._synthesizer.xyz_grid)
-#I_std_eq = s2image.Image(std_image.reshape(std_image.shape[-2:])/ sensitivity_image.reshape(sensitivity_image.shape[-2:]), nufft_imager._synthesizer.xyz_grid)
+I_std_eq = s2image.Image(std_image.reshape(std_image.shape[-2:])/ sensitivity_image.reshape(sensitivity_image.shape[-2:]), nufft_imager._synthesizer.xyz_grid)
 t2 = tt.time()
-
-fig, ax = plt.subplots(2, N_level + 2, figsize = (40, 20))
-
-#I_std_eq.draw(ax = ax[0,0], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-ax[0,0].set_title("Std")
-I_lsq_eq.draw( ax=ax[1, 0], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-ax[1, 0].set_title("Lsq")
-
-for i in np.arange(N_level):
-    #I_std_eq.draw(index=i, ax = ax[0,i+1], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-    ax[0, i+1].set_title(f"Std lvl{i}")
-    I_lsq_eq.draw(index=i, ax = ax[1,i+1], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-    ax[1, i+1].set_title(f"Lsq lvl{i}")
-
-WSClean_image = ap_fits.getdata(WSClean_image_path)
-WSClean_image = WSClean_image.reshape(WSClean_image.shape[-2:])
-WSClean_scale= ax[0, -1].imshow((WSClean_image), cmap='cubehelix')
-ax[0, -1].set_title("WSClean Image")
-divider = make_axes_locatable(ax[0, -1])
-cax = divider.append_axes("right", size="5%", pad=0.05)
-cbar = plt.colorbar(WSClean_scale, cax)
-
-
-plt.savefig("Mwa_test_op.png")
 print(f'Elapsed time: {t2 - t1} seconds.')
