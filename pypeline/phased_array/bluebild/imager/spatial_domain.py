@@ -199,14 +199,10 @@ class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
         stat : :py:class:`~numpy.ndarray`
             (2, N_level, N_px) field statistics.
         """
-        self.mark("Imager call")
-
         XYZ = XYZ.astype(self._fp, copy=False)
         D   = D.astype(self._fp, copy=False)
         V   = V.astype(self._cp, copy=False)
         W   = W.astype(self._cp, copy=False)
-
-        self.mark("Image synthesis")
 
         Na, Nc = XYZ.shape
         assert Nc == 3, f'Nc expected to be 3'
@@ -226,12 +222,10 @@ class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
                 sys.exit(1)
             stat_std = stat_std.get()
 
-        self.unmark("Image synthesis")
         stat_lsq = stat_std * D.reshape(-1, 1, 1)
 
         stat = np.stack([stat_std, stat_lsq], axis=0)
 
-        self.mark("Image cluster layers")
         self.filters=['lsq', 'std']
         clustered_stat = np.zeros((len(self.filters), len(intervals), stat.shape[2], stat.shape[3]), dtype=stat.dtype)
         D_flipped = np.flip(D)
@@ -241,13 +235,8 @@ class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
                 for idx_eig in range(indices[0], indices[1]):
                     clustered_stat[idx_filter, idx_interv] += stat[idx_filter, idx_eig]
 
-        self.unmark("Image cluster layers")
 
-        self.mark("Image update iteration")
         self._update(clustered_stat)
-        self.unmark("Image update iteration")
-
-        self.unmark("Imager call")
 
         self._cum_proc_time += (perf_counter() - tic)
 

@@ -211,8 +211,6 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         V = V.astype(self._cp, copy=False)
         W = W.astype(self._cp, copy=False)
 
-        self.mark(self.timer_tag + "Synthesizer call")
-
         N_antenna, N_beam = W.shape
         N_height, N_width = self._grid.shape[1:]
         N_eig = V.shape[1]
@@ -232,8 +230,6 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         assert E.dtype   == self._cp, f'E {E.dtype} not of expected type {self._cp}'
         assert self._grid.dtype == self._fp, f'_grid {self._grid.dtype} not of expected type {self._fp}'
 
-        self.mark(self.timer_tag + "Synthesizer matmuls")
-
         for i in range(N_width):
             pix = xp.asarray(self._grid[:,:,i])
             assert pix.dtype == self._fp
@@ -249,12 +245,8 @@ class SpatialFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             E[:,:,i]  = xp.matmul(V.T, PW)
             assert E.dtype == self._cp
 
-        self.unmark(self.timer_tag + "Synthesizer matmuls")
-
         I = E.real ** 2 + E.imag ** 2
         assert I.dtype == self._fp
-
-        self.unmark(self.timer_tag + "Synthesizer call")
 
         if xp != np:
             return I.get()
