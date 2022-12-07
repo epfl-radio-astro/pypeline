@@ -323,7 +323,7 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
         W: Optional[pypeline.phased_array.beamforming.MatchedBeamformerBlock]
             (N_antenna, N_beam) optional beamforming matrix.
         intervals: Optional[np.ndarray]
-            (N_intervals, 2) cluster indices defining each eigenlevel.
+            (N_intervals, 2) cluster indices defining each eigenlevel, defined by [:, 0] as lower and [:, 1] as upper bound.
 
         Returns
         -------
@@ -346,11 +346,11 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
 
 
         D_flipped = np.flip(D)
-        for k, f in enumerate(self.filters):
-            for i, interv in enumerate(intervals):
-                indices = D.size - np.flip(np.searchsorted(D_flipped, interv, side='left')) # D is in descending order
-                V_selection = V_unbeamformed[:, indices[0]:indices[1]]
-                if indices[0] < indices[1]:
+        for i, interv in enumerate(intervals):
+            indices = D.size - np.flip(np.searchsorted(D_flipped, interv, side='left')) # D is in descending order
+            V_selection = V_unbeamformed[:, indices[0]:indices[1]]
+            if indices[0] < indices[1]:
+                for k, f in enumerate(self.filters):
                     filtered_eig = Filtered_eigs[f][indices[0]:indices[1]]
                     VMul = V_selection * filtered_eig[None, :]
                     virtual_vis_stack[k, i] = VMul \

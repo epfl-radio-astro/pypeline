@@ -137,8 +137,6 @@ class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
             Numerical accuracy of floating-point operations.
 
             Must be 32 or 64.
-        ctx: :py:class:`~bluebild.Context`
-            Bluebuild context. If provided, will use bluebild module for computation.
         """
         super().__init__()
 
