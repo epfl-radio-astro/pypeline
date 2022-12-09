@@ -1,7 +1,8 @@
-cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
-project(bluebild LANGUAGES CXX VERSION 0.1.0)
+cmake_minimum_required(VERSION 3.11 FATAL_ERROR)
+file(READ "VERSION" BLUEBILD_VERSION)
+string(STRIP ${BLUEBILD_VERSION} BLUEBILD_VERSION)
+project(bluebild LANGUAGES CXX VERSION "${BLUEBILD_VERSION}")
 set(BLUEBILD_SO_VERSION 1)
-set(BLUEBILD_VERSION ${PROJECT_VERSION})
 
 # allow {module}_ROOT variables to be set
 if(POLICY CMP0074)
@@ -15,11 +16,19 @@ endif()
 
 # set default build type to RELEASE
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-	set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type" FORCE)
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type" FORCE)
 	set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
 		"Debug" "Release" "MinSizeRel" "RelWithDebInfo"
-		)
+	)
 endif()
+
+set(BLUEBILD_BUILD_TYPE "OFF" CACHE STRING "If set, overrides the CMAKE_BUILD_TYPE variable.")
+set_property(CACHE BLUEBILD_BUILD_TYPE PROPERTY STRINGS
+	"Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+if(BLUEBILD_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE ${BLUEBILD_BUILD_TYPE} CACHE STRING "Build type" FORCE)
+endif()
+
 
 # set language and standard
 set(CMAKE_CXX_STANDARD 17)
@@ -32,13 +41,19 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
 
 # Options
 option(BLUEBILD_BUILD_TESTS "Build tests" OFF)
-option(BLUEBILD_INSTALL "Enable CMake install commands" ON)
+option(BLUEBILD_PYTHON "Build python module" ON)
+option(BLUEBILD_PYBIND11_DOWNLOAD "Download pybind11 instead of looking for installation" OFF)
+option(BLUEBILD_UMPIRE "Use Umpire memory pool library" OFF)
 
 set(BLUEBILD_GPU "OFF" CACHE STRING "GPU backend")
 set_property(CACHE BLUEBILD_GPU PROPERTY STRINGS
 	"OFF" "CUDA" "ROCM"
 	)
 set(BUILD_SHARED_LIBS "ON" CACHE STRING "Build as shared library") # default to shared
+set(BLUEBILD_INSTALL "LIB" CACHE STRING "Install the librariy (LIB), the python module (PYTHON) or nothing (OFF)")
+set_property(CACHE BLUEBILD_INSTALL PROPERTY STRINGS
+	"LIB" "PYTHON" "OFF"
+	)
 
 # Options combination check
 set(BLUEBILD_CUDA OFF)
@@ -51,6 +66,10 @@ if(BLUEBILD_GPU)
 	else()
 		message(FATAL_ERROR "Invalid GPU backend")
 	endif()
+endif()
+
+if(BLUEBILD_INSTALL STREQUAL "PYTHON")
+	set(BLUEBILD_PYTHON ON)
 endif()
 
 # CUDA
@@ -92,7 +111,14 @@ if(BLUEBILD_ROCM)
   list(APPEND BLUEBILD_EXTERNAL_LIBS hip::host roc::rocblas)
 endif()
 
+# Umpire
+if(BLUEBILD_UMPIRE)
+	find_package(umpire CONFIG REQUIRED)
+	list(APPEND BLUEBILD_EXTERNAL_LIBS umpire)
+endif()
+
 set(BLA_SIZEOF_INTEGER 4) # 32 bit interface to blas / lapack
+
 # BLAS
 find_package(BLAS REQUIRED)
 if(NOT TARGET BLAS::BLAS)
@@ -110,6 +136,22 @@ if(NOT TARGET LAPACK::LAPACK)
 	set_property(TARGET LAPACK::LAPACK PROPERTY INTERFACE_LINK_LIBRARIES ${LAPACK_LINKER_FLAGS} ${LAPACK_LIBRARIES})
 endif()
 list(APPEND BLUEBILD_EXTERNAL_LIBS LAPACK::LAPACK)
+
+find_package(FINUFFT REQUIRED)
+list(APPEND BLUEBILD_EXTERNAL_LIBS FINUFFT::finufft)
+# finufft has fftw in interface headers
+find_package(FFTW REQUIRED)
+find_package(FFTWF REQUIRED)
+list(APPEND BLUEBILD_EXTERNAL_LIBS FFTW::FFTW FFTWF::FFTWF)
+
+if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
+	find_package(CUFINUFFT REQUIRED)
+	list(APPEND BLUEBILD_EXTERNAL_LIBS CUFINUFFT::cufinufft)
+endif()
+
+# OpenMP
+find_package(OpenMP REQUIRED)
+list(APPEND BLUEBILD_EXTERNAL_LIBS OpenMP::OpenMP_CXX)
 
 # check if C api is available for blas and lapack
 # include(CheckCXXSymbolExists)
@@ -129,10 +171,18 @@ list(APPEND BLUEBILD_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/src)
 list(APPEND BLUEBILD_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/include)
 list(APPEND BLUEBILD_INCLUDE_DIRS ${PROJECT_BINARY_DIR})
 
+find_package(Marla REQUIRED)
+list(APPEND BLUEBILD_EXTERNAL_LIBS Marla::Marla)
+
 #############################################################################
 # All include dirs and definitions must be set before sub-directory is added!
 #############################################################################
 add_subdirectory(src)
+
+if(BLUEBILD_PYTHON)
+    message(STATUS "BLUEBILD_PYTHON")
+	add_subdirectory(python)
+endif()
 
 # add tests for developement
 if(BLUEBILD_BUILD_TESTS)

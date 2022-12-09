@@ -90,6 +90,19 @@ public:
     return memorySize_;
   }
 
+  auto print() -> void override {
+      printf("//content of freeMem_:\n");
+      for (auto it = freeMem_.begin(); it != freeMem_.end(); ++it) {
+          printf("freeMem_      %ld Bytes\n", it->first);
+      }
+      printf("//content of allocatedMem_:\n");
+      for (auto it = allocatedMem_.begin(); it != allocatedMem_.end(); ++it) {
+          printf("allocatedMem_ %ld Bytes\n", it->second);
+      }
+      fflush(stdout);
+  }
+    
+
 private:
   std::function<void*(std::size_t)> allocateFunc_;
   std::function<void(void*)> deallocateFunc_;

@@ -13,15 +13,14 @@ import astropy.units as u
 import astropy.coordinates as coord
 import astropy.time as atime
 import imot_tools.io.s2image as s2image
-import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as constants
 import bluebild
 from imot_tools.io.plot import cmap
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.bluebild.data_processor as bb_dp
-from pypeline.phased_array.bluebild.gram import GramMatrix
 import pypeline.phased_array.bluebild.field_synthesizer.fourier_domain as bb_synth
+import pypeline.phased_array.bluebild.gram as bb_gr
 import pypeline.phased_array.bluebild.imager.fourier_domain as bb_im
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.data_gen.source as source
@@ -32,6 +31,11 @@ from mpl_toolkits.mplot3d import Axes3D
 import imot_tools.io.s2image as im
 import imot_tools.io.plot as implt
 import time as tt
+
+import matplotlib
+import matplotlib.pyplot as plt
+
+ctx = bluebild.Context(bluebild.ProcessingUnit.AUTO)
 
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
@@ -44,6 +48,7 @@ N_station = 24
 dev = instrument.LofarBlock(N_station)
 mb_cfg = [(_, _, field_center) for _ in range(N_station)]
 mb = beamforming.MatchedBeamformerBlock(mb_cfg)
+gram = bb_gr.GramBlock(ctx)
 
 # Data generation
 T_integration = 8
@@ -55,14 +60,12 @@ obs_end = time[-1]
 # Imaging
 N_pix = 512
 eps = 1e-3
-w_term = True
 precision = 'single'
 
 t1 = tt.time()
 N_level = 3
 time_slice = 25
 
-ctx = bluebild.Context(bluebild.ProcessingUnit.AUTO)
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
@@ -70,50 +73,32 @@ I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=0.95)
 for t in ProgressBar(time[::200]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
-    G = GramMatrix(data=ctx.gram_matrix(XYZ.data, W.data, wl), beam_idx=W.index[1])
+    G = gram(XYZ, W, wl)
     S = vis(XYZ, W, wl)
     I_est.collect(S, G)
 
 N_eig, c_centroid = I_est.infer_parameters()
 
 # Imaging
-I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
+I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid, ctx)
 IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq', 'sqrt'))
-UVW_baselines = []
-gram_corrected_visibilities = []
+
+nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
+                                      field_center=field_center, eps=eps,
+                                      n_trans=1, precision=precision, ctx=ctx)
 
 for t in ProgressBar(time[::time_slice]):
     XYZ = dev(t)
     UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
-    UVW_baselines.append(UVW_baselines_t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
 
-    D, V, c_idx = ctx.intensity_field_data(N_eig, XYZ.data, W.data, wl, S.data, c_centroid)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
 
     S_corrected = IV_dp(D, V, W, c_idx)
-    gram_corrected_visibilities.append(S_corrected)
+    nufft_imager.collect(UVW_baselines_t, S_corrected)
 
-UVW_baselines = np.stack(UVW_baselines, axis=0).reshape(-1, 3)
-gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=-3).reshape(*S_corrected.shape[:2], -1)
-
-# fig = plt.figure()
-# # ax = Axes3D(fig)
-# # ax.scatter3D(UVW_baselines[::N_station, 0], UVW_baselines[::N_station, 1], UVW_baselines[::N_station, -1], s=.01)
-# # plt.xlabel('u')
-# # plt.ylabel('v')
-# # ax.set_zlabel('w')
-# plt.figure()
-# plt.scatter(UVW_baselines[:, 0], UVW_baselines[:, 1], s=0.01)
-# plt.xlabel('u')
-# plt.ylabel('v')
-
-# NUFFT Synthesis
-nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
-                                      field_center=field_center, eps=eps, w_term=w_term,
-                                      n_trans=np.prod(gram_corrected_visibilities.shape[:-1]), precision=precision)
-print(nufft_imager._synthesizer._inner_fft_sizes)
-lsq_image, sqrt_image = nufft_imager(gram_corrected_visibilities)
+lsq_image, sqrt_image = nufft_imager.get_statistic()
 
 ### Sensitivity Field =========================================================
 # Parameter Estimation
@@ -121,30 +106,28 @@ S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=0.95)
 for t in ProgressBar(time[::200]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
-    G = GramMatrix(data=ctx.gram_matrix(XYZ.data, W.data, wl), beam_idx=W.index[1])
+    G = gram(XYZ, W, wl)
 
     S_est.collect(G)
 N_eig = S_est.infer_parameters()
 
 # Imaging
-S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
+nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
+                                      field_center=field_center, eps=eps,
+                                      n_trans=1, precision=precision, ctx=ctx)
+S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig, ctx)
 SV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq',))
-sensitivity_coeffs = []
 for t in ProgressBar(time[::time_slice]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
+    UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
 
-    D, V = ctx.sensitivity_field_data(N_eig, XYZ.data, W.data, wl)
+    D, V = S_dp(XYZ, W, wl)
 
     S_sensitivity = SV_dp(D, V, W, cluster_idx=np.zeros(N_eig, dtype=int))
-    sensitivity_coeffs.append(S_sensitivity)
+    nufft_imager.collect(UVW_baselines_t, S_sensitivity)
 
-sensitivity_coeffs = np.stack(sensitivity_coeffs, axis=0).reshape(-1)
-nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
-                                      field_center=field_center, eps=eps, w_term=w_term,
-                                      n_trans=1, precision=precision)
-print(nufft_imager._synthesizer._inner_fft_sizes)
-sensitivity_image = nufft_imager(sensitivity_coeffs)
+sensitivity_image = nufft_imager.get_statistic()[0]
 
 I_lsq_eq = s2image.Image(lsq_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
 I_sqrt_eq = s2image.Image(sqrt_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
@@ -175,4 +158,5 @@ for i in range(lsq_image.shape[0]):
                   catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5), show_gridlines=False)
 
 plt.suptitle(f'Bluebild Eigenmaps')
-#  plt.show()
+plt.show()
+#  plt.savefig('final_bb.png')

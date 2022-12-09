@@ -115,11 +115,10 @@ for t in ProgressBar(imaging_timesteps):
     XYZ = dev(t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    G = gram(XYZ, W, wl)
     t_ifi_iteration_data += stime.process_time() - t_ifi_start
 
     t = stime.process_time()
-    D, V, c_idx = I_dp(S, G)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
     t_ifi_iteration_dp += stime.process_time() - t
 
     t = stime.process_time()
@@ -158,11 +157,10 @@ for t in ProgressBar(imaging_timesteps):
     t_sfi_start = stime.process_time()
     XYZ = dev(t)
     W = mb(XYZ, wl)
-    G = gram(XYZ, W, wl)
     t_sfi_iteration_data += stime.process_time() - t_sfi_start
 
     t = stime.process_time()
-    D, V = S_dp(G)
+    D, V = S_dp(XYZ, W, wl)
     t_sfi_iteration_dp += stime.process_time() - t
 
     t = stime.process_time()

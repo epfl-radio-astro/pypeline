@@ -1,7 +1,12 @@
 #numactl --physcpubind=0 python test_parallel_synthesis.py
 
+import os
+if os.getenv('OMP_NUM_THREADS') == None : os.environ['OMP_NUM_THREADS'] = "1"
+
+import bluebild_tools.cupy_util as bbt_cupy
+use_cupy = bbt_cupy.is_cupy_usable()
+
 import numpy as np
-import cupy as cp
 import numexpr as ne
 from numpy import matmul
 from scipy.linalg import expm
@@ -16,8 +21,15 @@ from data_gen_utils import RandomDataGen
 #local imports
 import timing
 
+
+# For CuPy agnostic code
+# ----------------------
+xp = bbt_cupy.cupy if use_cupy else np
+
+
 def make_complexdouble_array(c):
     return np.array([c]).astype(np.complex128)
+
 
 #################################################################################
 # Custom MM
@@ -185,21 +197,21 @@ def synthesize_loop_gpu(pixGrid, V, XYZ, W, wl):
 
     pixGrid = pixGrid / linalg.norm(pixGrid, axis=0)
     XYZ = XYZ - XYZ.mean(axis=0)
-    XYZ_gpu = cp.asarray(XYZ)
-    WT_gpu = cp.asarray(W.T)
-    VT_gpu = cp.asarray(V.T)
+    XYZ_gpu = xp.asarray(XYZ)
+    WT_gpu = xp.asarray(W.T)
+    VT_gpu = xp.asarray(V.T)
 
     a = 1j * 2 * np.pi / wl
     E  = np.zeros((N_eig, N_height, N_width),   dtype=np.complex64)
 
     for i in range(N_width): #iterate over N_width
         #print("On iteration {0} of {1}".format(i, N_width))
-        pix_gpu = cp.asarray(pixGrid[:,:,i])
+        pix_gpu = xp.asarray(pixGrid[:,:,i])
 
-        B  = cp.matmul(XYZ_gpu, pix_gpu)
-        P  = cp.exp(B*a)        
-        PW = cp.matmul(WT_gpu,P)
-        E_part = cp.matmul(VT_gpu, PW)
+        B  = xp.matmul(XYZ_gpu, pix_gpu)
+        P  = xp.exp(B*a)        
+        PW = xp.matmul(WT_gpu,P)
+        E_part = xp.matmul(VT_gpu, PW)
 
         E[:,:,i] = E_part.get()
     I = E.real ** 2 + E.imag ** 2
@@ -410,35 +422,37 @@ if __name__ == "__main__":
         timer.end_time("Test dummy synthesis")
 
          # call an alternate dummy synthesis kernel which reshapes the matrices
-        timer.start_time("GPU dummy synthesis")
-        stat_gpu = synthesize_loop_gpu(pix,V,XYZ,W, wl)
-        timer.end_time("GPU dummy synthesis")
-
-        break
+        if use_cupy:
+            timer.start_time("GPU dummy synthesis")
+            stat_gpu = synthesize_loop_gpu(pix,V,XYZ,W, wl)
+            timer.end_time("GPU dummy synthesis")
 
         # call the dummy synthesis kernal
         timer.start_time("Dummy synthesis")
         stat_dum  = synthesize(pix,V,XYZ,W, wl)
         timer.end_time("Dummy synthesis")
 
-         # call an alternate dummy synthesis kernel which uses a special DGEMM
+        #
+        ##TODO: remove paths to Emma's private space
+        #
+        """
+        # call an alternate dummy synthesis kernel which uses a special DGEMM
         timer.start_time("DGEMM dummy synthesis")
         stat_gdum = dgemm_synthesize_reshape(pix,V,XYZ,W, wl)
         timer.end_time("DGEMM dummy synthesis")
-
-        #break
-
-
 
         # call an alternate dummy synthesis kernel which uses an extra special ZGEMM
         timer.start_time("DGEMMexp dummy synthesis")
         stat_gexpdum =  dgemmexp_synthesize_reshape(pix,V,XYZ,W, wl)
         timer.end_time("DGEMMexp dummy synthesis")
+        """
+
         print("Avg diff between dummy & test-dummy synthesizers:", np.average( stat_dum - stat_sdum))
-        print("Avg diff between dummy & gpu-based synthesizers:", np.average( stat_dum - stat_gpu))
-        print("Avg diff between dummy & DGEMM synthesizers:", np.max( np.abs(stat_dum - stat_gdum)))
-        print("Avg diff between dummy & DGEMMexp synthesizers:", np.max( np.abs(stat_dum - stat_gexpdum)))
-        print("Avg diff between DGEMM & DGEMMexp synthesizers:", np.max( np.abs(stat_gdum - stat_gexpdum)))
+        if use_cupy:
+            print("Avg diff between dummy & gpu-based synthesizers:", np.average( stat_dum - stat_gpu))
+        #print("Avg diff between dummy & DGEMM synthesizers:", np.max( np.abs(stat_dum - stat_gdum)))
+        #print("Avg diff between dummy & DGEMMexp synthesizers:", np.max( np.abs(stat_dum - stat_gexpdum)))
+        #print("Avg diff between DGEMM & DGEMMexp synthesizers:", np.max( np.abs(stat_gdum - stat_gexpdum)))
 
     print(timer.summary())
 

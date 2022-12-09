@@ -9,6 +9,12 @@ Real-data LOFAR imaging with Bluebild (PeriodicSynthesis).
 Compare Bluebild image with WSCLEAN image.
 """
 
+import os
+if os.getenv('OMP_NUM_THREADS') == None : os.environ['OMP_NUM_THREADS'] = "1"
+
+import bluebild_tools.cupy_util as bbt_cupy
+use_cupy = bbt_cupy.is_cupy_usable()
+
 from tqdm import tqdm as ProgressBar
 import astropy.units as u
 import imot_tools.io.fits as ifits
@@ -16,14 +22,12 @@ import imot_tools.io.s2image as s2image
 import imot_tools.math.sphere.grid as grid
 import matplotlib.pyplot as plt
 import numpy as np
-import cupy as cp
 import scipy.constants as constants
-import sys, time
+import time
 import finufft
 
 import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.bluebild.gram as bb_gr
-#import pypeline.phased_array.bluebild.imager.fourier_domain as bb_fd
 import pypeline.phased_array.bluebild.imager.spatial_domain as bb_sd
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.data_gen.source as source
@@ -35,11 +39,17 @@ from imot_tools.math.func import SphericalDirichlet
 import joblib as job
 plt.rcParams.update({'font.size': 22})
 
+
+# For CuPy agnostic code
+# ----------------------
+xp = bbt_cupy.cupy if use_cupy else np
+
+
 start_time = time.process_time()
 
 # Instrument
-N_station = 24
-ms_file = "/home/krishna/bluebild/testData/gauss4_t201806301100_SBL180.MS"
+N_station = 37
+ms_file = "/work/backup/ska/gauss4/gauss4_t201806301100_SBL180.MS"
 ms = measurement_set.LofarMeasurementSet(ms_file, N_station) # stations 1 - N_station 
 gram = bb_gr.GramBlock()
 
@@ -106,25 +116,25 @@ for t, f, S in ProgressBar(
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
     W = ms.beamformer(XYZ, wl)
-    G = gram(XYZ, W, wl)
     S, W = measurement_set.filter_data(S, W)
 
-    D, V, c_idx = I_dp(S, G)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
     print(c_idx)
     c_idx = [0,1,2,3]
 
     #_ = I_mfs(D, V, XYZ.data, W.data, c_idx)
 
-    XYZ_gpu = cp.asarray(XYZ.data)
-    W_gpu  = cp.asarray(W.data.toarray())
-    V_gpu  = cp.asarray(V)
+    XYZ = xp.asarray(XYZ.data)
+    W   = xp.asarray(W.data.toarray())
+    V   = xp.asarray(V)
 
-    _ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
+    _ = I_mfs(D, V, XYZ, W, c_idx)
     
 I_std, I_lsq = I_mfs.as_image()
 
 end_time = time.process_time()
 print("Time elapsed: {0}s".format(end_time - start_time))
+
 
 ### Sensitivity Field =========================================================
 # Parameter Estimation
@@ -186,7 +196,11 @@ plt.savefig("/scratch/izar/krishna/4gauss_standard_new")
 
 start_interp_time = time.process_time()
 
+<<<<<<< HEAD
 cl_WCS = ifits.wcs("/home/krishna/bluebild/testData/gauss4-image-pb.fits")
+=======
+cl_WCS = ifits.wcs("/work/backup/ska/gauss4/gauss4-image-pb.fits")
+>>>>>>> 919c0a878b32360407bdf4493f0811a4b1daa7a2
 cl_WCS = cl_WCS.sub(['celestial'])
 cl_WCS = cl_WCS.slice((slice(None, None, 10), slice(None, None, 10)))  # downsample, too high res!
 cl_pix_icrs = ifits.pix_grid(cl_WCS)  # (3, N_cl_lon, N_cl_lat) ICRS reference frame

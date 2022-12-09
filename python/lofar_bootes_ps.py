@@ -82,10 +82,9 @@ for t, f, S in ProgressBar(
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
     W = ms.beamformer(XYZ, wl)
-    G = gram(XYZ, W, wl)
     S, W = measurement_set.filter_data(S, W)
 
-    D, V, c_idx = I_dp(S, G)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
     _ = I_mfs(D, V, XYZ.data, W.data, c_idx)
     c += 1
     if c > 20: break
@@ -112,10 +111,9 @@ for t, f, S in ProgressBar(
     wl = constants.speed_of_light / f.to_value(u.Hz)
     XYZ = ms.instrument(t)
     W = ms.beamformer(XYZ, wl)
-    G = gram(XYZ, W, wl)
     S, W = measurement_set.filter_data(S, W)
 
-    D, V = S_dp(G)
+    D, V = S_dp(XYZ, W, wl)
     _ = S_mfs(D, V, XYZ.data, W.data, cluster_idx=np.zeros(N_eig, dtype=int))
     c += 1
     if c > 20: break

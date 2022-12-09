@@ -253,6 +253,42 @@ inline auto gemm(HandleType handle, OperationType transa, OperationType transb, 
 #endif  // BLUEBILD_CUDA
 }
 
+inline auto gemm_batched(HandleType handle,
+                         OperationType transa,
+                         OperationType transb,
+                         int m, int n, int k,
+                         const ComplexFloatType *alpha,
+                         const ComplexFloatType* const A[], int lda,
+                         const ComplexFloatType* const B[], int ldb,
+                         const ComplexFloatType *beta,
+                         ComplexFloatType* const C[], int ldc,
+                         int batchCount
+                         ) -> StatusType {
+#if defined(BLUEBILD_CUDA)
+  return cublasCgemmBatched(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batchCount);
+#else
+  return rocblas_cgemm_batched(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batchCount);
+#endif  // BLUEBILD_CUDA
+}
+
+inline auto gemm_batched(HandleType handle,
+                         OperationType transa,
+                         OperationType transb,
+                         int m, int n, int k,
+                         const ComplexDoubleType *alpha,
+                         const ComplexDoubleType* const A[], int lda,
+                         const ComplexDoubleType* const B[], int ldb,
+                         const ComplexDoubleType *beta,
+                         ComplexDoubleType* const C[], int ldc,
+                         int batchCount
+                         ) -> StatusType {
+#if defined(BLUEBILD_CUDA)
+  return cublasZgemmBatched(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batchCount);
+#else
+  return rocblas_zgemm_batched(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batchCount);
+#endif  // BLUEBILD_CUDA
+}
+
 inline auto dgmm(HandleType handle, SideModeType mode, int m, int n, const float *A, int lda,
                  const float *x, int incx, float *C, int ldc) -> StatusType {
 #if defined(BLUEBILD_CUDA)

@@ -7,6 +7,7 @@
 
 #include "bluebild/bluebild.h"
 #include "bluebild/config.h"
+#include "bluebild/context.hpp"
 #include "context_internal.hpp"
 #include "host/eigensolver_host.hpp"
 
@@ -114,10 +115,11 @@ BLUEBILD_EXPORT BluebildError bluebild_eigh_s(BluebildContext ctx, int m,
     return BLUEBILD_INVALID_HANDLE_ERROR;
   }
   try {
-    eigh<float>(*reinterpret_cast<ContextInternal *>(ctx), m, nEig,
-                reinterpret_cast<const std::complex<float> *>(a), lda,
-                reinterpret_cast<const std::complex<float> *>(b), ldb, nEigOut,
-                d, reinterpret_cast<std::complex<float> *>(v), ldv);
+    eigh<float>(
+        *InternalContextAccessor::get(*reinterpret_cast<Context *>(ctx)), m,
+        nEig, reinterpret_cast<const std::complex<float> *>(a), lda,
+        reinterpret_cast<const std::complex<float> *>(b), ldb, nEigOut, d,
+        reinterpret_cast<std::complex<float> *>(v), ldv);
   } catch (const bluebild::GenericError &e) {
     return e.error_code();
   } catch (...) {
@@ -135,10 +137,11 @@ BLUEBILD_EXPORT BluebildError bluebild_eigh_d(BluebildContext ctx, int m,
     return BLUEBILD_INVALID_HANDLE_ERROR;
   }
   try {
-    eigh<double>(*reinterpret_cast<ContextInternal *>(ctx), m, nEig,
-                 reinterpret_cast<const std::complex<double> *>(a), lda,
-                 reinterpret_cast<const std::complex<double> *>(b), ldb,
-                 nEigOut, d, reinterpret_cast<std::complex<double> *>(v), ldv);
+    eigh<double>(
+        *InternalContextAccessor::get(*reinterpret_cast<Context *>(ctx)), m,
+        nEig, reinterpret_cast<const std::complex<double> *>(a), lda,
+        reinterpret_cast<const std::complex<double> *>(b), ldb, nEigOut, d,
+        reinterpret_cast<std::complex<double> *>(v), ldv);
   } catch (const bluebild::GenericError &e) {
     return e.error_code();
   } catch (...) {

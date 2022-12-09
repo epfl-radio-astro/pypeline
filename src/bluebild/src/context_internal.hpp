@@ -6,6 +6,7 @@
 #include "bluebild/bluebild.h"
 #include "bluebild/config.h"
 #include "bluebild/exceptions.hpp"
+#include "bluebild/context.hpp"
 #include "memory/allocator_collection.hpp"
 
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
@@ -15,6 +16,7 @@
 #endif
 
 namespace bluebild {
+
 
 class ContextInternal {
   public:
@@ -42,6 +44,14 @@ class ContextInternal {
         gpu::check_status(gpu::stream_create_with_flags(&stream, gpu::flag::StreamNonBlocking));
         gpuStream_ = std::unique_ptr<gpu::StreamType, std::function<void(gpu::StreamType*)>>(
             new gpu::StreamType(stream), [](gpu::StreamType* ptr) {
+              gpu::stream_destroy(*ptr);
+              delete ptr;
+            });
+        // create stream
+        gpu::StreamType stream2;
+        gpu::check_status(gpu::stream_create_with_flags(&stream2, gpu::flag::StreamNonBlocking));
+        gpuStream2_ = std::unique_ptr<gpu::StreamType, std::function<void(gpu::StreamType*)>>(
+            new gpu::StreamType(stream2), [](gpu::StreamType* ptr) {
               gpu::stream_destroy(*ptr);
               delete ptr;
             });
@@ -80,6 +90,9 @@ class ContextInternal {
     auto gpu_stream() const -> const gpu::StreamType& {
       return *gpuStream_;
     }
+    auto gpu_stream2() const -> const gpu::StreamType& {
+      return *gpuStream2_;
+    }
 
     auto gpu_blas_handle() const -> const gpu::blas::HandleType& {
       return *gpuBlasHandle_;
@@ -99,10 +112,17 @@ class ContextInternal {
     AllocatorCollection allocators_;
 
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
-    std::unique_ptr<gpu::StreamType, std::function<void(gpu::StreamType*)>> gpuStream_;
+    std::unique_ptr<gpu::StreamType, std::function<void(gpu::StreamType*)>> gpuStream_, gpuStream2_;
     std::unique_ptr<gpu::blas::HandleType, std::function<void(gpu::blas::HandleType*)>> gpuBlasHandle_;
     std::unique_ptr<cusolverDnHandle_t, std::function<void(cusolverDnHandle_t*)>> gpuSolverHandle_;
 #endif
+};
+
+
+struct InternalContextAccessor {
+  static auto get(const Context& ctx) -> const std::shared_ptr<ContextInternal>& {
+    return ctx.ctx_;
+  }
 };
 
 }  // namespace bluebild

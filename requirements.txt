@@ -30,5 +30,12 @@ scipy == 1.5.*
 sphinx == 2.1.*
 sphinx_rtd_theme == 0.4.*
 tqdm == 4.29.*
+<<<<<<< HEAD
 #cupy-cuda102               #no conda
 #finufft==2.0.3.post1
+=======
+pycsou == 1.0.5
+cupy-cuda102
+bluebild-tools
+
+>>>>>>> 919c0a878b32360407bdf4493f0811a4b1daa7a2

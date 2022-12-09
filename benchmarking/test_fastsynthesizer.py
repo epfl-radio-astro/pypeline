@@ -1,20 +1,28 @@
+
+import os
+if os.getenv('OMP_NUM_THREADS') == None : os.environ['OMP_NUM_THREADS'] = "1"
+
+import bluebild_tools.cupy_util as bbt_cupy
+use_cupy = bbt_cupy.is_cupy_usable()
+
 import sys,timing
 import numpy as np
-import cupy as cp
 import scipy.sparse as sparse
-
 import imot_tools.io.s2image as image
 import imot_tools.math.sphere.transform as transform
 import astropy.time as atime
 import matplotlib.pyplot as plt
-
 import pypeline.phased_array.bluebild.field_synthesizer.fourier_domain as synth_periodic
 import pypeline.phased_array.bluebild.field_synthesizer.spatial_domain as synth_standard
-
 import dummy_synthesis 
 from dummy_synthesis import synthesize, synthesize_stack
-
 from data_gen_utils import RandomDataGen, SimulatedDataGen, RealDataGen
+
+
+# For CuPy agnostic code
+# ----------------------
+xp = bbt_cupy.cupy if use_cupy else np
+
 
 def draw_comparison(stats_standard, field_periodic, pix, icrs_grid):
     img_standard = image.Image(stats_standard, pix)
@@ -137,19 +145,24 @@ if __name__ == "__main__":
     for t in range(0,10):
         (V, XYZ, W, D) = data.getVXYZWD(t)
         print("t = {0}".format(t))
-
+        
         if isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix):
-          W = W.toarray()
+            W = W.toarray()
 
-        XYZ_gpu = cp.asarray(XYZ)
-        W_gpu  = cp.asarray(W)
-        V_gpu  = cp.asarray(V)
+        print("use_cupy =", use_cupy)
+
+        if use_cupy:
+            XYZ = xp.asarray(XYZ)
+            W   = xp.asarray(W)
+            V   = xp.asarray(V)
+
+        stats_standard = synthesizer_standard(V, XYZ, W)
+        print("stats_standard = ", type(stats_standard))
+        stats_periodic = synthesizer_periodic(V, XYZ, W)
+        print("stats_periodic = ", type(stats_periodic))
 
         # call the Bluebild Synthesis Kernels
-        stats_periodic = synthesizer_periodic(V,XYZ,W)
         #stats_standard = synthesizer_standard(V,XYZ,W)
-        stats_standard_gpu = synthesizer_standard(V_gpu,XYZ_gpu,W_gpu)
-        stats_standard = stats_standard_gpu.get()
 
         D_r =  D.reshape(-1, 1, 1)
 

@@ -140,10 +140,8 @@ for t in ProgressBar(time[0:25]):
     ICRS_baselines.append(baseline_rescaling * ICRS_baselines_t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    G = gram(XYZ, W, wl)
-    W = W.data
-    D, V, _ = I_dp(S, G)
-    S_corrected = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
+    D, V, _ = I_dp(S, XYZ, W, wl)
+    S_corrected = (W.data @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.data.transpose().conj()
     gram_corrected_visibilities.append(S_corrected)
 
 UVW_baselines = np.stack(UVW_baselines, axis=0)
@@ -202,10 +200,8 @@ sensitivity_coeffs = []
 for t in ProgressBar(time[0:25]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
-    G = gram(XYZ, W, wl)
-    W = W.data
-    D, V = S_dp(G)
-    S_sensitivity = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
+    D, V = S_dp(XYZ, W, wl)
+    S_sensitivity = (W.data @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.data.transpose().conj()
     sensitivity_coeffs.append(S_sensitivity)
 
 sensitivity_coeffs = np.stack(sensitivity_coeffs, axis=0).reshape(-1)

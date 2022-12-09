@@ -104,10 +104,10 @@ time_end = 1
 time_chunk = 1
 
 use_raw_vis = False # Use visibilities from .ms file
-do3D        = False  # 3D NUFFT 
+do3D        = True  # 3D NUFFT 
 doPlan      = False # ??
 
-for use_raw_vis in  True, False,:
+for use_raw_vis in  True, False :
     for use_ms in True, False:
 
         print (f"use_raw_vis:{use_raw_vis}, use_ms:{use_ms}")
@@ -131,6 +131,7 @@ for use_raw_vis in  True, False,:
         #channel_id = 100
         channel_id = 4 #64
         #frequency = 1e8
+        N_pix = 500 # changed from 256
         freq_ms = ms.channels["FREQUENCY"][channel_id]
         frequency = freq_ms.to_value(u.Hz)
         wl = constants.speed_of_light / frequency
@@ -172,7 +173,7 @@ for use_raw_vis in  True, False,:
 
             # Imaging grid
             lim = np.sin(FoV / 2)
-            N_pix = 500 # changed from 256
+            
             pix_slice = np.linspace(-lim, lim, N_pix)
             Lpix, Mpix = np.meshgrid(pix_slice, pix_slice)
             Jpix = np.sqrt(1 - Lpix ** 2 - Mpix ** 2)  # No -1 if r on the sphere !

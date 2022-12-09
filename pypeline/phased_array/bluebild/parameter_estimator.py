@@ -194,6 +194,10 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         """
         N_data = len(self._visibilities)
         N_beam = N_eig_max = self._visibilities[0].shape[0]
+
+        if self._N_level > N_beam:
+            raise ValueError(f"Initialization parameter N_level (set to {self._N_level}) cannot exceed the number of beams ({N_beam}).")
+
         D_all = np.zeros((N_data, N_eig_max))
         for i, (S, G) in enumerate(zip(self._visibilities, self._grams)):
             # Remove broken BEAM_IDs

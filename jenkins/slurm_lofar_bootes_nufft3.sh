@@ -1,5 +1,4 @@
 #!/bin/bash
-
 #SBATCH --partition build
 #SBATCH --time 00-01:00:00
 #SBATCH --qos gpu
@@ -7,44 +6,28 @@
 #SBATCH --mem 40G
 #SBATCH --cpus-per-task 1
 
-set -e
-
-module load gcc
-module load fftw
-module load cuda/11.0.2;
-module list
-
-CONDA_ENV=pype-111
-eval "$(conda shell.bash hook)"
-conda activate $CONDA_ENV
-conda env list
-
-PYTHON=`which python`
-echo PYTHON = $PYTHON
-python -V
-pip show pypeline
-
-echo; pwd
-echo; hostname
-echo
-
-# Check finufft version that is used
-#FINUFFT=./finufft
-#cd $FINUFFT
-#FINUFFT_DIR=`pwd` python -m pip install -e ./python
-$PYTHON -c "import finufft as _; print(_.__path__)" # Print path to finufft
-#cd ..
-#exit 0
-
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export VECLIB_MAXIMUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
+set -e
+
+SCRIPT=$(realpath "$0")
+SCRIPT_DIR=$(dirname "$SCRIPT")
+source $SCRIPT_DIR/install.sh
+bb_load_gcc_stack
+bb_activate_venv
+
+# Python script to be run
+PY_SCRIPT="$SCRIPT_DIR/lofar_bootes_nufft3.py"
+[ -f $PY_SCRIPT ] || (echo "Fatal: PY_SCRIPT >>$PY_SCRIPT<< not found"; exit 1)
+echo "PY_SCRIPT = $PY_SCRIPT"; echo
+
 # || true to avoid failure when grep returns nothing under set -e
 echo; echo
-env | grep UM_THREADS || true
+env | grep THREADS || true
 echo
 env | grep SLURM || true
 echo; echo
@@ -77,10 +60,6 @@ else
     fi
 fi
 ARG_TEST_DIR="--outdir ${TEST_DIR}"
-
-# Script to be run
-PY_SCRIPT="./jenkins/lofar_bootes_nufft3.py"
-echo "PY_SCRIPT = $PY_SCRIPT"; echo
 
 
 # Note: --outdir is omitted, no output is written on disk
@@ -122,7 +101,7 @@ fi
 ls -rtl $TEST_DIR
 
 # To test from command line
-#export TMPOUT=/scratch/izar/orliac/test_pype-111e/; mkdir -pv $TMPOUT; PROFILE_NSIGHT=0 PROFILE_VTUNE=1 PROFILE_CPROFILE=1 TEST_SEFF=0 TEST_DIR=$TMPOUT CUPY_PYFFS=0 srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1  ./jenkins/slurm_lofar_bootes_nufft3.sh
+#export PYTHONPATH=./tests/ss_cpp/build_GCC/python/; export TMPOUT=/scratch/izar/orliac/test_pype-111e/; mkdir -pv $TMPOUT; PROFILE_NSIGHT=0 PROFILE_VTUNE=1 PROFILE_CPROFILE=0 TEST_SEFF=0 TEST_DIR=$TMPOUT CUPY_PYFFS=0 srun --partition build --time 00-00:15:00 --qos gpu --gres gpu:1 --mem 40G --cpus-per-task 1  ./jenkins/slurm_lofar_bootes_nufft3.sh
 
 
 # Hel + salloc + ssh

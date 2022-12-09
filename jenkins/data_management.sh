@@ -2,6 +2,22 @@
 
 set -e
 
+echo REF_DIR = $REF_DIR
+[ -d $REF_DIR ] || (echo "Error: reference directory $REF_DIR not found." && exit 1)
+
+
+# 06/04/2022: New reference for LBSSi/t solutions as grid was changed
+if [ 1 == 0 ]; then
+    REF_SOL=${WORK_DIR}/${GIT_BRANCH}/2022-03-30T07-03-54Z_34/
+    [ -d $REF_SOL ] || (echo "Error: reference directory $REF_SOL not found." && exit 1)
+    echo REF_SOL = $REF_SOL
+
+    [ -L $REF_DIR/lofar_bootes_ss ] && rm $REF_DIR/lofar_bootes_ss
+
+    ln -s $REF_SOL/lofar_bootes_ss $REF_DIR/lofar_bootes_ss
+fi
+
+
 
 # 29/11/2021: Jenkins history was lost after renaming of the workspace
 #             so it started again from build no 1
@@ -15,10 +31,7 @@ if [ 1 == 0 ]; then
     REF_SOL=${WORK_DIR}/${GIT_BRANCH}/2021-11-29T17-36-15Z_3/
     [ -d $REF_SOL ] || (echo "Error: reference directory $REF_SOL not found." && exit 1)
     echo REF_SOL = $REF_SOL
-    
-    echo REF_DIR = $REF_DIR
-    [ -d $REF_DIR ] || (echo "Error: reference directory $REF_DIR not found." && exit 1)
-    
+        
     [ -L $REF_DIR/test_standard_cpu ]            && rm $REF_DIR/test_standard_cpu
     [ -L $REF_DIR/test_standard_gpu ]            && rm $REF_DIR/test_standard_gpu 
     [ -L $REF_DIR/lofar_bootes_ss ]              && rm $REF_DIR/lofar_bootes_ss

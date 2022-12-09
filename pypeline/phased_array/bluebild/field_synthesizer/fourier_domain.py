@@ -7,14 +7,12 @@
 """
 Field synthesizers that work in Fourier Series domain.
 """
-
 import imot_tools.math.func as func
 import imot_tools.math.linalg as pylinalg
 import imot_tools.math.sphere.transform as transform
 import imot_tools.util.argcheck as chk
 import numexpr as ne
 import numpy as np
-import cupy as cp
 import pyffs
 import scipy.fftpack as fftpack
 import scipy.linalg as linalg
@@ -28,6 +26,11 @@ import warnings
 import finufft
 import astropy.coordinates as aspy
 
+
+try:
+    import bluebild
+except ImportError:
+    pass
 
 class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
     """
@@ -220,13 +223,16 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         self._FSk = None  # (N_antenna, N_height, N_FS+Q) FS coefficients
         self._XYZk = None  # (N_antenna, 3) BFSF coordinates
 
-    @chk.check(
+    # needed to remove this check for GPU/CPU flexibility
+    # TODO: add back in...
+    '''@chk.check(
         dict(
             V=chk.has_complex,
             XYZ=chk.has_reals,
             W=chk.is_instance(np.ndarray, sparse.csr_matrix, sparse.csc_matrix),
         )
     )
+    '''
     def __call__(self, V, XYZ, W):
         """
         Compute instantaneous field statistics.
@@ -247,35 +253,60 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         stat : :py:class:`~numpy.ndarray`
             (N_eig, N_height, N_FS + Q) field statistics.
         """
+
+        # for CuPy agnostic code
+        use_cupy = False
+        if (type(V) == np.ndarray):
+            xp = np
+        else:
+            import cupy as cp
+            if (cp.get_array_module(V) != cp):
+                print("Error. V was not recognized correctly as either Cupy or Numpy.")
+                sys.exit(1)
+            xp = cp
+            use_cupy = True
+        #print("Using:", xp.__name__)
+
+
         self.mark(self.timer_tag + "Synthesizer call")
         if not fsd._have_matching_shapes(V, XYZ, W):
             raise ValueError("Parameters[V, XYZ, W] are inconsistent.")
 
         self.mark(self.timer_tag + "Synthesizer: astype casts")
-        V = V.astype(self._cp, copy=False)
+        V   = V.astype(self._cp, copy=False)
         XYZ = XYZ.astype(self._fp, copy=False)
-        W = W.astype(self._cp, copy=False)
+        W   = W.astype(self._cp, copy=False)
         # need to convert array type to run on gpu
         if isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix):
-          W = W.toarray()
-
+            W = W.toarray()
         self.unmark(self.timer_tag + "Synthesizer: astype casts")
 
+        if use_cupy:
+            XYZ = xp.asarray(XYZ)
+            RT  = xp.asarray(self._R.T)
+        else:
+            RT  = self._R.T
+
         self.mark(self.timer_tag + "Synthesizer: matmul 1")
-        bfsf_XYZ = XYZ @ self._R.T
+        bfsf_XYZ = xp.matmul(XYZ, RT)
         self.unmark(self.timer_tag + "Synthesizer: matmul 1")
 
         self.mark(self.timer_tag + "Synthesizer: calc phase shift")
         if self._XYZk is None:
             phase_shift = np.inf
         else:
-            phase_shift = self._phase_shift(bfsf_XYZ)
+            if use_cupy:
+                print("type(bfsf_XYZ) = ", type(bfsf_XYZ))
+                bsfs_XYZ_np = bfsf_XYZ.get()
+                phase_shift = self._phase_shift(bsfs_XYZ_np)
+            else:
+                phase_shift = self._phase_shift(bfsf_XYZ)
         self.unmark(self.timer_tag + "Synthesizer: calc phase shift")
 
 
         if self._regen_required(phase_shift):
             self.mark(self.timer_tag + "Synthesizer: regenerate kernel")
-            self._regen_kernel(bfsf_XYZ)
+            self._regen_kernel(bfsf_XYZ, use_cupy, xp)
             phase_shift = 0
             self.unmark(self.timer_tag + "Synthesizer: regenerate kernel")
 
@@ -284,33 +315,38 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         Q = _2N1Q - self._NFS
         N_beam = W.shape[1]
 
-        self.mark(self.timer_tag + "Synthesizer: GPU array allocation")
-        WT_gpu = cp.asarray(W.T)
-        VT_gpu = cp.asarray(V.T) # TODO: buffer matrices on gpu to avoid slow allocation time, or directly compute on gpu
-        FSk_gpu = cp.asarray(self._FSk.reshape(N_antenna, N_height * _2N1Q))
-        self.unmark(self.timer_tag + "Synthesizer: GPU array allocation")
 
-        self.mark(self.timer_tag + "Synthesizer: GPU matmuls 2 & 3")
-        PW_FS = cp.matmul(WT_gpu, FSk_gpu)
-        E_FS = cp.matmul(VT_gpu, PW_FS)
-        E_FS = E_FS.reshape(E_FS.shape[0], N_height, _2N1Q)
-        self.unmark(self.timer_tag + "Synthesizer: GPU matmuls 2 & 3")
+        if use_cupy:
+            self.mark(self.timer_tag + "Synthesizer: GPU array allocation + transpose + reshape")
+        else:
+            self.mark(self.timer_tag + "Synthesizer: CPU transpose + reshape")
+        WT  = xp.asarray(W.T)
+        VT  = xp.asarray(V.T) # TODO: buffer matrices on gpu to avoid slow allocation time, or directly compute on gpu
+        FSk = xp.asarray(self._FSk.reshape(N_antenna, N_height * _2N1Q))
+        if use_cupy:
+            self.unmark(self.timer_tag + "Synthesizer: GPU array allocation + transpose + reshape")
+        else:
+            self.unmark(self.timer_tag + "Synthesizer: CPU transpose + reshape")
 
-        self.mark(self.timer_tag + "Synthesizer: apply phase shift")
+        self.mark(self.timer_tag + "Synthesizer: matmuls 2 & 3, CuPy = " + str(use_cupy))
+        PW_FS = xp.matmul(WT, FSk)
+        E_FS  = xp.matmul(VT, PW_FS)
+        E_FS  = E_FS.reshape(E_FS.shape[0], N_height, _2N1Q)
+        self.unmark(self.timer_tag + "Synthesizer: matmuls 2 & 3, CuPy = " + str(use_cupy))
+
+        self.mark(self.timer_tag + "Synthesizer: apply phase shift, CuPy = " + str(use_cupy))
         mod_phase = -1j * 2 * np.pi * phase_shift / self._T
-
         s = np.r_[-N : N + 1, np.zeros(Q)]
-        mod_phase_gpu = cp.asarray( np.exp(mod_phase) ** s)
-
-        E_FS *= mod_phase_gpu
-        self.unmark(self.timer_tag + "Synthesizer: apply phase shift")
-
-
+        mod_phase = xp.asarray( np.exp(mod_phase) ** s)
+        E_FS *= mod_phase
+        self.unmark(self.timer_tag + "Synthesizer: apply phase shift, CuPy = " + str(use_cupy))
+        
         self.mark(self.timer_tag + "Synthesizer: IFFS")
         E_Ny = pyffs.iffs(E_FS, self._T, self._Tc, self._NFS, axis=2) # TODO: send on GPU
         self.unmark(self.timer_tag + "Synthesizer: IFFS")
         I_Ny = E_Ny.real ** 2 + E_Ny.imag ** 2
-        I_Ny = I_Ny.get()
+        if use_cupy:
+            I_Ny = I_Ny.get()
         self.unmark(self.timer_tag + "Synthesizer call")
         return I_Ny
 
@@ -368,6 +404,8 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         theta : float
             Angular shift (radians) such that ``dot(_XYZk, R(theta).T) == XYZ``.
         """
+        print("type(self._XYZk) = ", type(self._XYZk))
+        print("type(XYZ)        = ", type(XYZ))
         R_T, *_ = linalg.lstsq(self._XYZk[:, :2], XYZ[:, :2])
 
         R = np.eye(3)
@@ -382,7 +420,7 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         else:
             return True
 
-    def _regen_kernel(self, XYZ):
+    def _regen_kernel(self, XYZ, use_cupy, xp):
         """
         Compute kernel.
 
@@ -394,35 +432,50 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             `XYZ` must be given in BFSF.
         """
 
-
         N_samples = fftpack.next_fast_len(self._NFS) # TODO: need to also cupy this (if possible)
-        lon_smpl = pyffs.ffs_sample(self._T, self._NFS, self._Tc, N_samples)[0] # TODO: need to take first element instead of two DONE
-        lon_smpl = lon_smpl.get()
+        lon_smpl  = pyffs.ffs_sample(self._T, self._NFS, self._Tc, N_samples)[0] # TODO: need to take first element instead of two DONE
+        print("type(lon_smpl) = ", type(lon_smpl))
+        if use_cupy:
+            lon_smpl = lon_smpl.get()
         pix_smpl = transform.pol2cart(1, self._grid_colat, lon_smpl.reshape(1, -1))
 
         N_antenna = len(XYZ)
-        N_height = len(self._grid_colat)
+        N_height  = len(self._grid_colat)
 
         # TODO: fix memory problems with DASK array => but can DASK work with gpu?
         #       or break up by blocks of antenna stations?
         #       
         # `self._NFS` assumes imaging is performed with `XYZ` centered at the origin.
         XYZ_c = XYZ - XYZ.mean(axis=0)
+
         window = func.Tukey(self._T, self._Tc, self._alpha_window)
-        k_smpl = np.zeros((N_antenna, N_height, N_samples), dtype=self._cp) # allocate on gpu
-        ne.evaluate(
-            "exp(A * B) * C",
-            dict(
-                A=1j * 2 * np.pi / self._wl,
-                B=np.tensordot(XYZ_c, pix_smpl, axes=1),
-                C=window(lon_smpl),
-            ),
-            out=k_smpl,
-            casting="same_kind",
-        )  # Due to limitations of NumExpr2
+        C = window(lon_smpl)
+
+        a = 1j * 2 * np.pi / self._wl
+
+        k_smpl = xp.empty((N_antenna, N_height, N_samples), dtype=self._cp)
+
+        if use_cupy:
+            for i in range(N_samples):
+                pix_smpl_i    = xp.asarray(pix_smpl[:,:,i])
+                B_i           = xp.matmul(XYZ_c, pix_smpl_i)
+                k_smpl[:,:,i] = xp.exp(a * B_i)
+        else:
+            ne.evaluate(
+                "exp(A * B) * C",
+                dict(
+                    A=1j * 2 * np.pi / self._wl,
+                    B=np.tensordot(XYZ_c, pix_smpl, axes=1),
+                    C=window(lon_smpl),
+                ),
+                out=k_smpl,
+                casting="same_kind",
+            )  # Due to limitations of NumExpr2
+        
 
         self._FSk = pyffs.ffs(k_smpl, self._T, self._Tc, self._NFS, axis=2) #TODO:  convert to run on GPU
-        self._XYZk = XYZ
+
+        self._XYZk = XYZ.get() if use_cupy else XYZ
 
 
 class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
@@ -432,16 +485,14 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
     _precision_mappings = dict(single=dict(complex=np.complex64, real=np.float32, dtype='float32'),
                                double=dict(complex=np.complex128, real=np.float64, dtype='float64'))
 
-    def __init__(self, wl: float, UVW: np.ndarray, grid_size: int, FoV: float, field_center: aspy.SkyCoord,
-                 eps: float = 1e-6, w_term: bool = True, n_trans: int = 1, precision: str = 'double'):
+    def __init__(self, wl: float, grid_size: int, FoV: float, field_center: aspy.SkyCoord,
+                 eps: float = 1e-3, n_trans: int = 1, precision: str = 'double', ctx = None):
         r"""
 
         Parameters
         ----------
         wl: float
             Observation wavelength.
-        UVW: np.ndarray
-            (3, N_uvw) UVW coordinates expressed in the local UVW frame.
         grid_size: int
             Size of the output imaging grid across each dimension.
         FoV: float
@@ -450,46 +501,39 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
             Center of the field of view for defining the local UVW frame.
         eps: float
             Relative tolerance of the NUFFT.
-        w_term: bool
-            Neglects the ``w_term`` (do not use for large FoV!).
         n_trans: int
             Number of simultaneous NUFFT transforms.
         precision: str
             Whether to use ``'single'`` or ``'double'`` precision.
+        ctx: :py:class:`~bluebild.Context`
+            Bluebuild context. If provided, the bluebild library will be used for computation.
         """
+        self._wl = wl
+        self._eps = eps
         self._precision = precision
+<<<<<<< HEAD
         UVW = np.array(UVW, copy=False)
         self._UVW = (2 * np.pi * UVW.reshape(3, -1) / wl).astype(self._precision_mappings[self._precision]['real'])
         print (f"Final UVW before NUFFT:{self._UVW}")
         self._grid_size = grid_size
+=======
+>>>>>>> 919c0a878b32360407bdf4493f0811a4b1daa7a2
         self._FoV = FoV
         self._field_center = field_center
-        self.lmn_grid, self.xyz_grid = self._make_grids()
+        self._ctx = ctx
+        if type(grid_size) != int:
+            uvw_frame = frame.uvw_basis(self._field_center)
+            self.xyz_grid = grid_size       # pass a grid instead of calculating it
+            self.lmn_grid = np.tensordot(np.linalg.inv(uvw_frame), self.xyz_grid, axes=1)
+        else:
+            self._grid_size = grid_size
+            self.lmn_grid, self.xyz_grid = self._make_grids()
+
         self._lmn_grid = self.lmn_grid.reshape(3, -1).astype(self._precision_mappings[self._precision]['real'])
         self._n_trans = n_trans
-        if w_term:
-            grid_center = self._lmn_grid.mean(axis=-1)
-            self._lmn_grid -= grid_center[:, None]
-            self._prephasing = np.exp(1j * np.sum(grid_center[:, None] * self._UVW, axis=0)).squeeze().astype(
-                self._precision_mappings[self._precision]['complex'])
-            self._plan = finufft.Plan(nufft_type=3, n_modes_or_dim=3, eps=eps, isign=1, n_trans=n_trans,
-                                      dtype=self._precision_mappings[self._precision]['dtype'])
-            self._plan.setpts(x=self._UVW[0], y=self._UVW[1], z=self._UVW[-1],
-                              s=self._lmn_grid[0], t=self._lmn_grid[1], u=self._lmn_grid[-1])
-            self._inner_fft_sizes = np.floor(4 * np.linalg.norm(self._lmn_grid, ord=np.infty, axis=-1) * \
-                                             np.linalg.norm(self._UVW, ord=np.infty, axis=-1) / np.pi +
-                                             np.log(1 / eps) + 1)
-        else:
-            warnings.warn('Setting the parameter w_term to False can result in a loss of accuracy for large FoVs!',
-                          UserWarning)
-            scaling = (2 * np.sin(self._FoV / 2) / self._grid_size).astype(
-                self._precision_mappings[self._precision]['real'])
-            self._prephasing = np.exp(1j * self._UVW[-1]).squeeze().astype(
-                self._precision_mappings[self._precision]['complex'])
-            self._plan = finufft.Plan(nufft_type=1, n_modes_or_dim=(self._grid_size, self._grid_size),
-                                      eps=eps, isign=1, n_trans=n_trans,
-                                      dtype=self._precision_mappings[self._precision]['dtype'])
-            self._plan.setpts(x=scaling * self._UVW[1], y=scaling * self._UVW[0])
+        self._grid_center = self._lmn_grid.mean(axis=-1)
+        self._lmn_grid -= self._grid_center[:, None]
+
         super(NUFFTFieldSynthesizerBlock, self).__init__()
 
     def _make_grids(self) -> typ.Tuple[np.ndarray, np.ndarray]:
@@ -510,12 +554,14 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         xyz_grid = np.tensordot(uvw_frame, lmn_grid, axes=1)
         return lmn_grid, xyz_grid
 
-    def __call__(self, V: np.ndarray) -> np.ndarray:
+    def __call__(self, UVW: np.ndarray, V: np.ndarray) -> np.ndarray:
         r"""
         Synthesize a set of virtual visibilities.
 
         Parameters
         ----------
+        UVW: np.ndarray
+            (3, N_uvw) UVW coordinates expressed in the local UVW frame.
         V: np.ndarray
             (M, N_uvw) stack of virtual visibilities to synthesize. If the ``n_trans`` parameter of the NUFFT plan is
              different from zero, then one must have ``M==n_trans``. In which case, the ``M`` NUFFTs are computed in parallel
@@ -525,21 +571,36 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         field: np.ndarray
             (M, N_pix) field values.
         """
+        UVW = np.array(UVW, copy=False)
+        UVW = (2 * np.pi * UVW.reshape(3, -1) / self._wl).astype(self._precision_mappings[self._precision]['real'])
         V = np.array(V, copy=False).squeeze().astype(self._precision_mappings[self._precision]['complex'])
+
+        prephasing = np.exp(1j * np.sum(self._grid_center[:, None] * UVW, axis=0)).squeeze().astype(
+            self._precision_mappings[self._precision]['complex'])
+
+        if self._ctx is not None:
+            plan = bluebild.Nufft3d3(self._ctx, 1, self._eps, self._n_trans, UVW[0], UVW[1], UVW[2],
+                    self._lmn_grid[0], self._lmn_grid[1], self._lmn_grid[-1])
+        else:
+            plan = finufft.Plan(nufft_type=3, n_modes_or_dim=3, eps=self._eps, isign=1, n_trans=self._n_trans,
+                                dtype=self._precision_mappings[self._precision]['dtype'])
+            plan.setpts(x=UVW[0], y=UVW[1], z=UVW[-1],
+                        s=self._lmn_grid[0], t=self._lmn_grid[1], u=self._lmn_grid[-1])
+
         if V.ndim > 1:
-            V = V.reshape(-1, self._UVW.shape[-1])
-            self._prephasing = self._prephasing[None, :]
-            V *= self._prephasing
+            V = V.reshape(-1, UVW.shape[-1])
+            prephasing = prephasing[None, :]
+            V *= prephasing
             if self._n_trans == 1:  # NUFFT are evaluated sequentially
                 out = []
                 for n in range(V.shape[0]):
-                    out.append(np.real(self._plan.execute(V[n])))
+                    out.append(np.real(plan.execute(V[n])))
                 out = np.stack(out, axis=0)
             else:
-                out = np.real(self._plan.execute(
+                out = np.real(plan.execute(
                     V))  # NUFFT are evaluated in parallel (not clear if multi-threaded or multi-processed?)
         else:
-            out = np.real(self._plan.execute(V * self._prephasing))
+            out = np.real(plan.execute(V * prephasing))
         return out
 
     def synthesize(self, V: np.ndarray) -> np.ndarray:
