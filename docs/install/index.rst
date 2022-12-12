@@ -37,8 +37,14 @@ activate alternate libraries to the default ones. Those are:
 * VC
 * HIP
 
-See pages :ref:`ref-spack-environment` and :ref:`ref-manual-installation` to get
+See pages on :ref:`ref-manual-installation` and setting up a :ref:`ref-spack-environment` to get
 the dependencies installed.
+
+
+Building ``bluebild++``
+=======================
+
+
 
 
 .. toctree::
