@@ -41,5 +41,5 @@ activate alternate libraries to the default ones. Those are:
 .. toctree::
    :maxdepth: 2
 
-   install/manual
-   install/spack_environment
+   manual
+   spack_environment
