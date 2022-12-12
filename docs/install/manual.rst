@@ -1,20 +1,21 @@
 .. ############################################################################
-.. epfl_izar.rst
+.. manual.rst
 .. ===========
 .. Author : E. Orliac @EPFL
 .. ############################################################################
 
 
 Manual installation
-===================
+###################
 
-The following describes how ``pypeline`` and ``bluebild`` (with its C++ CPU and
-GPU ports) can be installed on EPFL's GPU cluster 
-`izar <https://www.epfl.ch/research/facilities/scitas/hardware/izar/>`_ using
-the available GCC 9.3.0 software stack.
 
-Here we choose a root location where to install ``pypeline`` (and ``bluebild``)
-and all dependencies. This location is referred to as ``$PROJ_ROOT`` hereinafter.
+This pages illustrates how to install ``bluebild++`` in a standard HPC environment
+where we assume that standard software are available via modules. It is based
+on the environment that is currently available on EPFL's GPU cluster 
+`izar <https://www.epfl.ch/research/facilities/scitas/hardware/izar/>`_.
+
+For the sake of simplicity, every installation is made in a root location
+referred to as ``$PROJ_ROOT`` hereinafter.
 
 
 .. _modules:
