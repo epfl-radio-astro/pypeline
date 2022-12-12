@@ -58,14 +58,11 @@ or::
 
 Using the Spack environment
 ===========================
-A Spack environment can be activated with::
+If you built the Spack environment yourself, you can either use the ``spack env activate``
+and the ``spack env deactivate`` commands to activate and deactivate the environment.
 
-  spack env activate -p my-env
-
-Alternatively, if you generated a Shell script ``activate-my-env.sh`` to load
-the Spack environment to share it with other users as presented in the above section,
-simply source that file::
-
-  source /path/to/activate-my-env.sh
-
-To deactivate
+If you followed the hint above, other users can share the environment with you. To
+activated it::
+  source $SPACK_ROOT/var/spack/environments/bb-env/activate_bb-env.sh
+and to deactivated it::
+  source $SPACK_ROOT/var/spack/environments/bb-env/deactivate_bb-env.sh
