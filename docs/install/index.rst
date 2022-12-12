@@ -15,8 +15,10 @@ we make available for both Docker and Singularity.
 
 Required dependencies
 =====================
+
 Here are the dependencies needed to install `bluebild++` with its default
 configuration:
+
 * C++ compiler supporting C++17
 * CMake (3.11 or newer)
 * CUDA (11.2 or newer)
@@ -28,8 +30,10 @@ configuration:
 
 Optional dependencies
 =====================
+
 When compiling `bluebild++` there are certain options you can turn on, to
 activate alternate libraries to the default ones. Those are:
+
 * VC
 * HIP
 
