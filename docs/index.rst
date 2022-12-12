@@ -18,8 +18,7 @@ design and deploy holistic imaging pipelines. It is designed around the concept 
    :caption: Contents
    :hidden:
 
-   general/index
-   installs/index
+   install/index
    notes/index
    api/index
 
