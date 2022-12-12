@@ -4,14 +4,15 @@
 .. Author : E. Orliac @EPFL
 .. ############################################################################
 
+.. _ref-manual-installation:
 
 Manual installation
 ###################
 
 This pages illustrates how to install ``bluebild++`` in a standard HPC environment
-where we assume that standard software and libraries are available via modules.
-It is based on the environment that is currently available on EPFL's GPU cluster 
-`izar <https://www.epfl.ch/research/facilities/scitas/hardware/izar/>`_.
+where we assume that mainstream software and libraries are steadily available
+(via modules e.g.) to the user. It is based on the environment that is currently
+available on EPFL's GPU cluster `izar <https://www.epfl.ch/research/facilities/scitas/hardware/izar/>`_.
 
 .. note:: For the sake of simplicity, every installation is made in a root location
           referred to as ``$PROJ_ROOT`` hereinafter.
