@@ -5,8 +5,8 @@
 .. ############################################################################
 
 
-Installation on EPFL's GPU cluster Izar
-=======================================
+Manual installation
+===================
 
 The following describes how ``pypeline`` and ``bluebild`` (with its C++ CPU and
 GPU ports) can be installed on EPFL's GPU cluster 

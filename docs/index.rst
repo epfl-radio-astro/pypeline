@@ -15,6 +15,7 @@ design and deploy holistic imaging pipelines. It is designed around the concept 
 
 
 .. toctree::
+   :maxdepth: 2
    :caption: Contents
    :hidden:
 
