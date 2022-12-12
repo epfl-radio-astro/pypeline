@@ -23,8 +23,7 @@ configuration:
 * `CMake <https://cmake.org/>`_ (3.11 or newer)
 * `CUDA <https://developer.nvidia.com/cuda-downloads>`_ (11.2 or newer)
 * `FINUFFT <https://finufft.readthedocs.io/en/latest/index.html>`_
-* `cuFINUFFT <https://github.com/AdhocMan/cufinufft>`_ (from Simon Frasch's fork,
-containining type 3 for dimension 3)
+* `cuFINUFFT <https://github.com/AdhocMan/cufinufft>`_ (from Simon Frasch's fork, containining type 3 for dimension 3)
 * `Python <https://www.python.org/downloads>`_ (3.9 or newer)
 * `ImoT_tools <https://github.com/imagingofthings/ImoT_tools.git>`_ (``dev`` branch)
 
@@ -38,7 +37,7 @@ activate alternate libraries to the default ones. Those are:
 * VC
 * HIP
 
-See pages :ref:`_ref-spack-environment` and :ref:`_ref-manual-installation` to get
+See pages :ref:`ref-spack-environment` and :ref:`ref-manual-installation` to get
 the dependencies installed.
 
 
