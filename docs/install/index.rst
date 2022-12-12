@@ -44,7 +44,13 @@ the dependencies installed.
 Building ``bluebild++``
 =======================
 
+Default configuration
+*********************
 
+Advanced Configuration
+**********************
+In addition to the normal options provided by CMake, ``bluebild++`` uses some
+additional configuration arguments to control optional features and behavior.
 
 
 .. toctree::
