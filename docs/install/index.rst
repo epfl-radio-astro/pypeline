@@ -38,4 +38,8 @@ activate alternate libraries to the default ones. Those are:
 * VC
 * HIP
 
+.. toctree::
+   :maxdepth: 2
 
+   install/manual
+   install/spack_environment

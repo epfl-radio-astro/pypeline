@@ -20,8 +20,6 @@ design and deploy holistic imaging pipelines. It is designed around the concept 
    :hidden:
 
    install/index
-   install/manual
-   install/spack_environment
    run/index
    notes/index
    api/index
