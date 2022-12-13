@@ -37,8 +37,28 @@ activate alternate libraries to the default ones. Those are:
 * VC
 * HIP
 
-See pages on :ref:`ref-manual-installation` and setting up a :ref:`ref-spack-environment` to get
-the dependencies installed.
+Python packages
+===============
+
+The following Python packages need to be installed. Wrt to a manual installation,
+we advise the user to create a Python virtual environment for those.
+
+.. hlist::
+   :columns: 3
+      
+   * numpy
+   * astropy
+   * matplotlib
+   * tqdm
+   * pyproj
+   * healpy
+   * scikit-learn
+   * pandas
+
+
+.. important::
+   See pages on :ref:`ref-manual-installation` and setting up a :ref:`ref-spack-environment` to get
+   the dependencies installed.
 
 
 Building ``bluebild++``
