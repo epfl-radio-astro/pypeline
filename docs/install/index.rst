@@ -40,8 +40,9 @@ activate alternate libraries to the default ones. Those are:
 Python packages
 ===============
 
-The following Python packages need to be installed. Wrt to a manual installation,
-we advise the user to create a Python virtual environment for those.
+The following Python packages need to be installed. With respect to a manual installation,
+we advise the user to create a Python virtual environment to encompass them (see 
+:ref:`ref-manual-installation`).
 
 .. hlist::
    :columns: 3
@@ -64,8 +65,21 @@ we advise the user to create a Python virtual environment for those.
 Building ``bluebild++``
 =======================
 
+First, clone ``bluebild++`` Git repository and enter it::
+
+  git clone -b cpp_new_imager https://github.com/AdhocMan/pypeline.git
+  cd pypeline 
+
+
 Default configuration
 *********************
+
+The default configuration corresponds to the CMake ``Release`` build type.
+To install, run the following commands::
+
+  pip install --verbose --user --no-deps --no-build-isolation ./src/bluebild
+  pip install --user --no-deps --no-build-isolation -e .
+
 
 Advanced Configuration
 **********************
