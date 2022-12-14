@@ -9,10 +9,11 @@
 Spack environment
 #################
 
-You can use `Spack <https://spack.io/>`_ to install all the dependencies required
-to run ``bluebild++`` setting up an `environment <https://spack.readthedocs.io/en/latest/environments.html>`_.
+You can use `Spack <https://spack.io/>`_ to install the dependencies required
+to run ``bluebild++`` setting up a Spack `environment <https://spack.readthedocs.io/en/latest/environments.html>`_.
 
-This documentation assumes Spack v0.19.
+.. note::
+   The documentation assumes Spack v0.19.
 
 
 Building the Spack environment
@@ -20,12 +21,12 @@ Building the Spack environment
 
 We assume that Spack is available under ``$SPACK_ROOT``, that Spack is activated 
 (otherwise ``source $SPACK_ROOT/share/spack/setup-env.sh``), and that we build a
-Spack environment called ``bb-env``.
+Spack environment called ``bb-env``. Templates of the Spack environment manifest
+files (``spack.yaml`` files) can be found under our
+`SKA Spack environments repository <https://github.com/epfl-radio-astro/ska-spack-env>`_.
+Simply tune one of those template to fit your working environment.
 
-The environment can be built based on a template ``spack.yaml`` manifest file, available
-from here. Simply tune it to fit your environment.
-
-Then, you can create the environment with::
+You can create the environment with::
 
   spack env create bb-env spack.yaml
 
