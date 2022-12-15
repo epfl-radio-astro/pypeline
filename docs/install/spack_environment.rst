@@ -48,6 +48,8 @@ or::
 
   despacktivate
 
+.. _ref-spack-environment-hint:
+
 .. hint::
    if you aim to share the Spack environment with other users, build it
    in a location where others have read access and generate Shell scripts to
