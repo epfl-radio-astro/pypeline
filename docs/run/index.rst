@@ -42,4 +42,4 @@ instead of the default::
 
   ctx = bluebild.Context("AUTO")
 
-
+in the context creation (usually the first step of a ``bluebild++`` pipeline).

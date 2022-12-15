@@ -93,3 +93,4 @@ additional configuration arguments to control optional features and behavior.
     
    manual
    spack_environment
+   containers
