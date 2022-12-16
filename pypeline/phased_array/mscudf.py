@@ -330,7 +330,8 @@ class Cudfparquet:
         dat = cp.array(dfdata.list.leaves).reshape(len(dfdata),len(dfdata.iloc[0]),len(dfdata.iloc[0][0])).view(complex)
 
         utime, idx, cnt = cp.unique(timearray, return_index=True, return_counts=True)
-        time_id=slice(0, 1000, 1)
+        if chk.is_integer(time_id):
+            time_id = slice(time_id, time_id + 1, 1)
         N_time = len(timearray)
         time_id.indices(N_time)
         time_start, time_stop, time_step = time_id.indices(N_time)
