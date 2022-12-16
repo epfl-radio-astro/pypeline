@@ -212,17 +212,27 @@ class daskms:
 
         channel_id = self.channels["CHANNEL_ID"][channel_id]
 
+        timearray, ant1, ant2, flg, dat = dask.compute(ds.TIME.data, ds.ANTENNA1.data, ds.ANTENNA2.data, ds.FLAG.data, ds.DATA.data, scheduler='single-threaded')
+        utime, idx, cnt = np.unique(timearray, return_index=True, return_counts=True)
         if chk.is_integer(time_id):
             time_id = slice(time_id, time_id + 1, 1)
-        N_time = len(self.time)
+            
+        N_time = len(timearray)
+        time_id.indices(N_time)
         time_start, time_stop, time_step = time_id.indices(N_time)
-        unique_time = self.time[time_start:time_stop:time_step]
+        utime = utime[time_start:time_stop:time_step]
+        idx = idx[time_start:time_stop:time_step]
+        cnt = cnt[time_start:time_stop:time_step]
+        
+        for i in range(len(utime)):
+            t = utime[i]
+            start=idx[i]
+            end=start+cnt[i]-1
+            antenna1 = ant1[start:end]
+            antenna2 = ant2[start:end]
+            flag = flg[start:end]
+            data = dat[start:end]
 
-        for t in uniquetime:
-            beam_id_0 = self.datasets[0].query(row=f"TIME == {t}").ANTENNA1.data.compute()
-            beam_id_1 = self.datasets[0].query(row=f"TIME == {t}").ANTENNA2.data.compute()
-            flag = self.datasets[0].query(row=f"TIME == {t}").FLAG.data.compute()
-            data = self.datasets[0].query(row=f"TIME == {t}").DATA.data.compute()
 
             # We only want XX and YY correlations
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
@@ -271,6 +281,7 @@ class daskms:
                 v = _series2array(S[ch_id].rename("S", inplace=True))
                 visibility = vis.VisibilityMatrix(v, beam_idx)
                 yield t, f[ch_id], visibility
+                
                 
 def _series2array(visibility: pd.Series) -> np.ndarray:
     b_idx_0 = visibility.index.get_level_values("B_0").to_series()
