@@ -14,6 +14,7 @@ import casacore.tables as ct
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.instrument as instrument
 import pypeline.phased_array.data_gen.statistics as vis
+from time import perf_counter
 
 @chk.check(
     dict(S=chk.is_instance(vis.VisibilityMatrix), W=chk.is_instance(beamforming.BeamWeights))
@@ -97,7 +98,11 @@ class Daskms:
             raise NotADirectoryError(f"{file_name} is not a directory, so cannot be an MS file.")
 
         self._msf = str(path)
-        self._datasets = xds_from_ms(self._msf, columns=["TIME", "ANTENNA1", "ANTENNA2", "FLAG", "DATA"])
+            
+        self._datasets = xds_from_ms(self._msf, columns=["TIME", "ANTENNA1", "ANTENNA2", "FLAG", "MODEL_DATA"])
+        ds = self._datasets[0]
+        self._timearray, self._ant1, self._ant2, self._flg, self._dat = dask.compute(ds.TIME.data, ds.ANTENNA1.data, ds.ANTENNA2.data, ds.FLAG.data, ds.MODEL_DATA.data, scheduler='single-threaded')
+        
 
         # Buffered attributes
         self._field_center = None
@@ -237,15 +242,11 @@ class Daskms:
         """
 
         channel_id = self.channels["CHANNEL_ID"][channel_id]
-        datasets = self._datasets
-        ds = datasets[0]
-
-        timearray, ant1, ant2, flg, dat = dask.compute(ds.TIME.data, ds.ANTENNA1.data, ds.ANTENNA2.data, ds.FLAG.data, ds.DATA.data, scheduler='single-threaded')
-        utime, idx, cnt = np.unique(timearray, return_index=True, return_counts=True)
+        utime, idx, cnt = np.unique(self._timearray, return_index=True, return_counts=True)
         if chk.is_integer(time_id):
             time_id = slice(time_id, time_id + 1, 1)
             
-        N_time = len(timearray)
+        N_time = len(self._timearray)
         time_id.indices(N_time)
         time_start, time_stop, time_step = time_id.indices(N_time)
         utime = utime[time_start:time_stop:time_step]
@@ -256,11 +257,10 @@ class Daskms:
             tobs = utime[i]*1.15741e-5
             start=idx[i]
             end=start+cnt[i]
-            beam_id_0 = ant1[start:end]
-            beam_id_1 = ant2[start:end]
-            data_flag = flg[start:end]
-            data = dat[start:end]
-
+            beam_id_0 = self._ant1[start:end]
+            beam_id_1 = self._ant2[start:end]
+            data_flag = self._flg[start:end]
+            data = self._dat[start:end]
 
             # We only want XX and YY correlations
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
@@ -310,6 +310,8 @@ class Daskms:
                 visibility = vis.VisibilityMatrix(v, beam_idx)
                 yield t, f[ch_id], visibility
                 
+
+                
                 
 def _series2array(visibility: pd.Series) -> np.ndarray:
     b_idx_0 = visibility.index.get_level_values("B_0").to_series()
@@ -351,7 +353,7 @@ class LofarMeasurementSet(Daskms):
             station_only=chk.is_boolean,
         )
     )
-    def __init__(self, file_name, N_station=None, station_only=False):
+    def __init__(self, file_name, N_station=None, datacol=None, station_only=False):
         """
         Parameters
         ----------
