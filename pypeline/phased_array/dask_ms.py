@@ -7,13 +7,13 @@ import astropy.units as u
 import imot_tools.util.argcheck as chk
 import pandas as pd
 import xarray
+import dask
 from daskms import xds_from_ms
+import casacore.tables as ct
 
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.instrument as instrument
-import pypeline.phased_array.instrumentgpu as instrumentgpu
 import pypeline.phased_array.data_gen.statistics as vis
-import pypeline.phased_array.data_gen.statisticsgpu as visgpu
 
 @chk.check(
     dict(S=chk.is_instance(vis.VisibilityMatrix), W=chk.is_instance(beamforming.BeamWeights))
@@ -71,7 +71,7 @@ def filter_data(S, W):
     return S_f, W_f
 
 
-class daskms:
+class Daskms:
     """
     MS file reader.
 
@@ -97,7 +97,7 @@ class daskms:
             raise NotADirectoryError(f"{file_name} is not a directory, so cannot be an MS file.")
 
         self._msf = str(path)
-        self._datasets = xds_from_ms(self._msf)
+        self._datasets = xds_from_ms(self._msf, columns=["TIME", "ANTENNA1", "ANTENNA2", "FLAG", "DATA"])
 
         # Buffered attributes
         self._field_center = None
@@ -130,6 +130,34 @@ class daskms:
 
         return self._field_center
     
+    @property
+    def channels(self):
+        """
+        Frequency channels available.
+
+        Returns
+        -------
+        :py:class:`~astropy.table.QTable`
+            (N_channel, 2) table with columns
+
+            * CHANNEL_ID : int
+            * FREQUENCY : :py:class:`~astropy.units.Quantity`
+        """
+        if self._channels is None:
+            # Following the MS file specification from https://casa.nrao.edu/casadocs/casa-5.1.0/reference-material/measurement-set,
+            # the SPECTRAL_WINDOW sub-table contains CHAN_FREQ which gives the center frequency for
+            # each channel.
+            # It is generally encoded in [Hz].
+            # One must take care to verify the encoding scheme for different MS files as different
+            # conventions may be used.
+            query = f"select CHAN_FREQ, CHAN_WIDTH from {self._msf}::SPECTRAL_WINDOW"
+            table = ct.taql(query)
+
+            f = table.getcell("CHAN_FREQ", 0).flatten() * u.Hz
+            f_id = range(len(f))
+            self._channels = tb.QTable(dict(CHANNEL_ID=f_id, FREQUENCY=f))
+
+        return self._channels
 
 
     @property
@@ -147,7 +175,7 @@ class daskms:
         """
         if self._time is None:
             
-            self._time = self.datasets[0].TIME.data.compute()
+            self._time = self._datasets[0].TIME.data.compute()
 
         return self._time
 
@@ -207,10 +235,10 @@ class daskms:
             * freq (:py:class:`~astropy.units.Quantity`): center frequency of the visibility;
             * S (:py:class:`~pypeline.phased_array.data_gen.statistics.VisibilityMatrix`)
         """
-        if column not in ct.taql(f"select * from {self._msf}").colnames():
-            raise ValueError(f"column={column} does not exist in {self._msf}::MAIN.")
 
         channel_id = self.channels["CHANNEL_ID"][channel_id]
+        datasets = self._datasets
+        ds = datasets[0]
 
         timearray, ant1, ant2, flg, dat = dask.compute(ds.TIME.data, ds.ANTENNA1.data, ds.ANTENNA2.data, ds.FLAG.data, ds.DATA.data, scheduler='single-threaded')
         utime, idx, cnt = np.unique(timearray, return_index=True, return_counts=True)
@@ -225,12 +253,12 @@ class daskms:
         cnt = cnt[time_start:time_stop:time_step]
         
         for i in range(len(utime)):
-            t = utime[i]
+            tobs = utime[i]*1.15741e-5
             start=idx[i]
-            end=start+cnt[i]-1
-            antenna1 = ant1[start:end]
-            antenna2 = ant2[start:end]
-            flag = flg[start:end]
+            end=start+cnt[i]
+            beam_id_0 = ant1[start:end]
+            beam_id_1 = ant2[start:end]
+            data_flag = flg[start:end]
             data = dat[start:end]
 
 
@@ -274,7 +302,7 @@ class daskms:
             )
 
             # Break S into columns and stream out
-            t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
+            t = time.Time(tobs, format="mjd", scale="utc")
             f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
             for ch_id in channel_id:
@@ -311,7 +339,7 @@ def _series2array(visibility: pd.Series) -> np.ndarray:
     return S
 
 
-class LofarMeasurementSet(MeasurementSet):
+class LofarMeasurementSet(Daskms):
     """
     LOw-Frequency ARray (LOFAR) Measurement Set reader.
     """
@@ -428,7 +456,7 @@ class LofarMeasurementSet(MeasurementSet):
         return self._beamformer
 
 
-class MwaMeasurementSet(MeasurementSet):
+class MwaMeasurementSet(Daskms):
     """
     Murchison Widefield Array (MWA) Measurement Set reader.
     """
