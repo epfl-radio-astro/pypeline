@@ -45,6 +45,13 @@ List example imaging pipelines which run over simulated data::
   -rw-rw-r-- 1 root root 6018 Nov 23 18:21 pypeline/examples/simulation/lofar_bootes_nufft3_cpp.py
   -rw-rw-r-- 1 root root 4664 Nov 23 18:21 pypeline/examples/simulation/lofar_bootes_ss_cpp.py
 
+To run an example pipeline, proceed as follows. First, copy an example pipeline to your local filesystem::
+
+  singularity exec --bind $PWD bipp_latest.sif cp -iv /project/pypeline/examples/simulation/lofar_bootes_ss_cpp.py .
+
+Edit the file if you wish so. Then run it with::
+
+  singularity run --nv --bind $PWD:/work bipp_latest.sif "cd /work && python lofar_bootes_ss_cpp.py"
 
 Switching between GPU and CPU
 =============================
