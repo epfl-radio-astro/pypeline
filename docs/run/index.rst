@@ -34,10 +34,17 @@ Singularity
 -----------
 
 Pull the image::
+  
+  singularity pull --arch amd64 library://orliac/bipp/bipp:latest
 
-   singularity pull --arch amd64 library://orliac/bipp/bipp:latest
+This will download an Singularity Image Format (SIF) file called ``bipp_latest.sif``.
 
-   
+List example imaging pipelines which run over simulated data::
+
+  singularity run bipp_latest.sif "ls -l pypeline/examples/simulation/*_cpp.py"
+  -rw-rw-r-- 1 root root 6018 Nov 23 18:21 pypeline/examples/simulation/lofar_bootes_nufft3_cpp.py
+  -rw-rw-r-- 1 root root 4664 Nov 23 18:21 pypeline/examples/simulation/lofar_bootes_ss_cpp.py
+
 
 Switching between GPU and CPU
 =============================
