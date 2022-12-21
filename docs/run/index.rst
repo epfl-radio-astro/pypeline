@@ -55,11 +55,9 @@ Edit the file if you wish so. Then run it with::
 
 It will produce a image ``test.png`` that should look like:
 
-.. image:: images/wrong_test.png
-
-.. image:: /images/wrong_test.png
-
-.. image:: //images/wrong_test.png
+.. figure:: images/wrong_test.png
+            
+   Incorrect image produced by using the wrong filter ``STD`` (correct is ``INV_SQ``)
 
 
 Switching between GPU and CPU
