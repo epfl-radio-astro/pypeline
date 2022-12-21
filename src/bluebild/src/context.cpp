@@ -13,7 +13,6 @@ BluebildProcessingUnit Context::processing_unit() const {
 
 extern "C" {
 BLUEBILD_EXPORT BluebildError bluebild_ctx_create(BluebildProcessingUnit pu, BluebildContext* ctx) {
-  int nEigOut;
   try {
     *reinterpret_cast<Context**>(ctx) = new Context(pu);
   } catch (const bluebild::GenericError& e) {

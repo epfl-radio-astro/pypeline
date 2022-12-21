@@ -42,8 +42,11 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
 # Options
 option(BLUEBILD_BUILD_TESTS "Build tests" OFF)
 option(BLUEBILD_PYTHON "Build python module" ON)
+option(BLUEBILD_MAGMA "Use MAGMA library as eigensolver" OFF)
 option(BLUEBILD_PYBIND11_DOWNLOAD "Download pybind11 instead of looking for installation" OFF)
 option(BLUEBILD_UMPIRE "Use Umpire memory pool library" OFF)
+option(BLUEBILD_VC "Use VC vectorization library" OFF)
+option(BLUEBILD_OMP "Use OpenMP for multi-threading" ON)
 
 set(BLUEBILD_GPU "OFF" CACHE STRING "GPU backend")
 set_property(CACHE BLUEBILD_GPU PROPERTY STRINGS
@@ -54,6 +57,14 @@ set(BLUEBILD_INSTALL "LIB" CACHE STRING "Install the librariy (LIB), the python 
 set_property(CACHE BLUEBILD_INSTALL PROPERTY STRINGS
 	"LIB" "PYTHON" "OFF"
 	)
+set(CMAKE_HIP_ARCHITECTURES "gfx803;gfx900;gfx906" CACHE STRING "HIP GPU architectures")
+
+set(BLUEBILD_BUILD_TYPE "OFF" CACHE STRING "If set, overrides the CMAKE_BUILD_TYPE variable.")
+set_property(CACHE BLUEBILD_BUILD_TYPE PROPERTY STRINGS
+	"Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+if(BLUEBILD_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE ${BLUEBILD_BUILD_TYPE} CACHE STRING "Build type" FORCE)
+endif()
 
 # Options combination check
 set(BLUEBILD_CUDA OFF)
@@ -63,6 +74,7 @@ if(BLUEBILD_GPU)
 		set(BLUEBILD_CUDA ON)
 	elseif(BLUEBILD_GPU STREQUAL "ROCM")
 		set(BLUEBILD_ROCM ON)
+		set(BLUEBILD_MAGMA ON)
 	else()
 		message(FATAL_ERROR "Invalid GPU backend")
 	endif()
@@ -71,6 +83,11 @@ endif()
 if(BLUEBILD_INSTALL STREQUAL "PYTHON")
 	set(BLUEBILD_PYTHON ON)
 endif()
+
+
+set(BLUEBILD_FLAGS "")
+set(BLUEBILD_EXTERNAL_LIBS "")
+set(BLUEBILD_INCLUDE_DIRS "")
 
 # CUDA
 if(BLUEBILD_CUDA)
@@ -105,10 +122,25 @@ endif()
 
 # ROCm
 if(BLUEBILD_ROCM)
-	message(FATAL_ERROR "ROCM support not yet fully implemented") # TODO: remove when implemented
+	include(CheckCXXCompilerFlag)
+	check_cxx_compiler_flag("--amdgpu-target=gfx906" _IS_HIPCC)
+	if(NOT _IS_HIPCC)
+		message(FATAL_ERROR "ROCm build requires hipcc to be set as CXX compiler!")
+	endif()
+	list(APPEND BLUEBILD_FLAGS -fno-gpu-rdc)
+	foreach(arch ${CMAKE_HIP_ARCHITECTURES})
+		list(APPEND BLUEBILD_FLAGS --amdgpu-target=${arch})
+	endforeach()
 	find_package(hip CONFIG REQUIRED)
 	find_package(rocblas CONFIG REQUIRED)
   list(APPEND BLUEBILD_EXTERNAL_LIBS hip::host roc::rocblas)
+endif()
+
+# MAGMA
+if(BLUEBILD_MAGMA)
+	find_package(MAGMA MODULE REQUIRED)
+	list(APPEND BLUEBILD_EXTERNAL_LIBS MAGMA::MAGMA)
+	list(APPEND BLUEBILD_FLAGS -DUSE_HIP) # required to compile magma header
 endif()
 
 # Umpire
@@ -150,8 +182,15 @@ if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
 endif()
 
 # OpenMP
-find_package(OpenMP REQUIRED)
-list(APPEND BLUEBILD_EXTERNAL_LIBS OpenMP::OpenMP_CXX)
+if(BLUEBILD_OMP)
+  find_package(OpenMP REQUIRED)
+  list(APPEND BLUEBILD_EXTERNAL_LIBS OpenMP::OpenMP_CXX)
+endif()
+
+if(BLUEBILD_VC)
+  find_package(Vc CONFIG REQUIRED)
+  list(APPEND BLUEBILD_EXTERNAL_LIBS Vc::Vc)
+endif()
 
 # check if C api is available for blas and lapack
 # include(CheckCXXSymbolExists)
@@ -171,16 +210,12 @@ list(APPEND BLUEBILD_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/src)
 list(APPEND BLUEBILD_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/include)
 list(APPEND BLUEBILD_INCLUDE_DIRS ${PROJECT_BINARY_DIR})
 
-find_package(Marla REQUIRED)
-list(APPEND BLUEBILD_EXTERNAL_LIBS Marla::Marla)
-
 #############################################################################
 # All include dirs and definitions must be set before sub-directory is added!
 #############################################################################
 add_subdirectory(src)
 
 if(BLUEBILD_PYTHON)
-    message(STATUS "BLUEBILD_PYTHON")
 	add_subdirectory(python)
 endif()
 

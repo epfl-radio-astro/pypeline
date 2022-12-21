@@ -16,6 +16,7 @@ import pypeline.core as core
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.instrument as instrument
 import pypeline.util.array as array
+import bluebild
 
 
 class GramMatrix(array.LabeledMatrix):
@@ -171,7 +172,7 @@ class GramBlock(core.Block):
             (N_beam, N_beam) Gram matrix.
         """
         if self._ctx is not None:
-            return self._ctx.gram_matrix(np.array(XYZ.data, order='F'), np.array(W.data, order='F'), wl)
+            return bluebild.gram_matrix(self._ctx, np.array(XYZ.data, order='F'), np.array(W.data, order='F'), wl)
         else:
             N_antenna = XYZ.shape[0]
             baseline = linalg.norm(

@@ -41,9 +41,9 @@ list(APPEND BLUEBILD_TEST_LIBRARIES nlohmann_json::nlohmann_json)
 # test executables
 add_executable(run_tests
   run_tests.cpp
-  test_lofar.cpp
   test_nufft.cpp
-  test_lofar_ss.cpp
+  test_nufft_synthesis_lofar.cpp
+  test_standard_synthesis_lofar.cpp
 )
 target_link_libraries(run_tests PRIVATE ${BLUEBILD_TEST_LIBRARIES} bluebild_test)
 target_compile_options(run_tests PRIVATE -DBLUEBILD_TEST_DATA_DIR="${CMAKE_CURRENT_LIST_DIR}/data")

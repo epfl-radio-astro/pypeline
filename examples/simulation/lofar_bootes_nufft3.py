@@ -76,10 +76,10 @@ for t in ProgressBar(time[::200]):
     S = vis(XYZ, W, wl)
     I_est.collect(S, G)
 
-N_eig, c_centroid = I_est.infer_parameters()
+N_eig, intervals = I_est.infer_parameters()
 
 # Imaging
-I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
+I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig)
 IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq', 'sqrt'))
 
 nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
@@ -90,8 +90,8 @@ for t in ProgressBar(time[::time_slice]):
     UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    D, V, c_idx = I_dp(S, XYZ, W, wl)
-    S_corrected = IV_dp(D, V, W, c_idx)
+    D, V = I_dp(S, XYZ, W, wl)
+    S_corrected = IV_dp(D, V, W, intervals)
     nufft_imager.collect(UVW_baselines_t, S_corrected)
 
 
@@ -120,7 +120,7 @@ for t in ProgressBar(time[::time_slice]):
     UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
     W = mb(XYZ, wl)
     D, V = S_dp(XYZ, W, wl)
-    S_sensitivity = SV_dp(D, V, W, cluster_idx=np.zeros(N_eig, dtype=int))
+    S_sensitivity = SV_dp(D, V, W)
     nufft_imager.collect(UVW_baselines_t, S_sensitivity)
 
 sensitivity_image = nufft_imager.get_statistic()[0]

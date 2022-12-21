@@ -9,6 +9,8 @@
 
 namespace bluebild {
 template <typename T>
-auto gram_matrix_gpu(ContextInternal& ctx, int m, int n, const gpu::ComplexType<T>* w, int ldw,
-                     const T* xyz, int ldxyz, T wl, gpu::ComplexType<T>* g, int ldg) -> void;
+auto gram_matrix_gpu(ContextInternal &ctx, std::size_t m, std::size_t n,
+                     const gpu::ComplexType<T> *w, std::size_t ldw,
+                     const T *xyz, std::size_t ldxyz, T wl,
+                     gpu::ComplexType<T> *g, std::size_t ldg) -> void;
 }  // namespace bluebild

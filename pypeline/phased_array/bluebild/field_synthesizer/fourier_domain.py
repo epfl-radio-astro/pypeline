@@ -13,7 +13,7 @@ import imot_tools.math.sphere.transform as transform
 import imot_tools.util.argcheck as chk
 import numexpr as ne
 import numpy as np
-import pyffs
+#  import pyffs
 import scipy.fftpack as fftpack
 import scipy.linalg as linalg
 import scipy.sparse as sparse
@@ -268,18 +268,15 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         #print("Using:", xp.__name__)
 
 
-        self.mark(self.timer_tag + "Synthesizer call")
         if not fsd._have_matching_shapes(V, XYZ, W):
             raise ValueError("Parameters[V, XYZ, W] are inconsistent.")
 
-        self.mark(self.timer_tag + "Synthesizer: astype casts")
         V   = V.astype(self._cp, copy=False)
         XYZ = XYZ.astype(self._fp, copy=False)
         W   = W.astype(self._cp, copy=False)
         # need to convert array type to run on gpu
         if isinstance(W, sparse.csr.csr_matrix) or isinstance(W, sparse.csc.csc_matrix):
             W = W.toarray()
-        self.unmark(self.timer_tag + "Synthesizer: astype casts")
 
         if use_cupy:
             XYZ = xp.asarray(XYZ)
@@ -287,11 +284,8 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         else:
             RT  = self._R.T
 
-        self.mark(self.timer_tag + "Synthesizer: matmul 1")
         bfsf_XYZ = xp.matmul(XYZ, RT)
-        self.unmark(self.timer_tag + "Synthesizer: matmul 1")
 
-        self.mark(self.timer_tag + "Synthesizer: calc phase shift")
         if self._XYZk is None:
             phase_shift = np.inf
         else:
@@ -301,14 +295,11 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
                 phase_shift = self._phase_shift(bsfs_XYZ_np)
             else:
                 phase_shift = self._phase_shift(bfsf_XYZ)
-        self.unmark(self.timer_tag + "Synthesizer: calc phase shift")
 
 
         if self._regen_required(phase_shift):
-            self.mark(self.timer_tag + "Synthesizer: regenerate kernel")
             self._regen_kernel(bfsf_XYZ, use_cupy, xp)
             phase_shift = 0
-            self.unmark(self.timer_tag + "Synthesizer: regenerate kernel")
 
         N_antenna, N_height, _2N1Q = self._FSk.shape
         N = (self._NFS - 1) // 2
@@ -316,38 +307,23 @@ class FourierFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         N_beam = W.shape[1]
 
 
-        if use_cupy:
-            self.mark(self.timer_tag + "Synthesizer: GPU array allocation + transpose + reshape")
-        else:
-            self.mark(self.timer_tag + "Synthesizer: CPU transpose + reshape")
         WT  = xp.asarray(W.T)
         VT  = xp.asarray(V.T) # TODO: buffer matrices on gpu to avoid slow allocation time, or directly compute on gpu
         FSk = xp.asarray(self._FSk.reshape(N_antenna, N_height * _2N1Q))
-        if use_cupy:
-            self.unmark(self.timer_tag + "Synthesizer: GPU array allocation + transpose + reshape")
-        else:
-            self.unmark(self.timer_tag + "Synthesizer: CPU transpose + reshape")
 
-        self.mark(self.timer_tag + "Synthesizer: matmuls 2 & 3, CuPy = " + str(use_cupy))
         PW_FS = xp.matmul(WT, FSk)
         E_FS  = xp.matmul(VT, PW_FS)
         E_FS  = E_FS.reshape(E_FS.shape[0], N_height, _2N1Q)
-        self.unmark(self.timer_tag + "Synthesizer: matmuls 2 & 3, CuPy = " + str(use_cupy))
 
-        self.mark(self.timer_tag + "Synthesizer: apply phase shift, CuPy = " + str(use_cupy))
         mod_phase = -1j * 2 * np.pi * phase_shift / self._T
         s = np.r_[-N : N + 1, np.zeros(Q)]
         mod_phase = xp.asarray( np.exp(mod_phase) ** s)
         E_FS *= mod_phase
-        self.unmark(self.timer_tag + "Synthesizer: apply phase shift, CuPy = " + str(use_cupy))
         
-        self.mark(self.timer_tag + "Synthesizer: IFFS")
         E_Ny = pyffs.iffs(E_FS, self._T, self._Tc, self._NFS, axis=2) # TODO: send on GPU
-        self.unmark(self.timer_tag + "Synthesizer: IFFS")
         I_Ny = E_Ny.real ** 2 + E_Ny.imag ** 2
         if use_cupy:
             I_Ny = I_Ny.get()
-        self.unmark(self.timer_tag + "Synthesizer call")
         return I_Ny
 
     @chk.check("stat", chk.has_reals)

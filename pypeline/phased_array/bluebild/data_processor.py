@@ -52,17 +52,13 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
     Data processor for computing intensity fields.
     """
 
-    @chk.check(dict(N_eig=chk.is_integer, cluster_centroids=chk.has_reals))
-    def __init__(self, N_eig, cluster_centroids, ctx=None):
+    @chk.check(dict(N_eig=chk.is_integer))
+    def __init__(self, N_eig):
         """
         Parameters
         ----------
         N_eig : int
             Number of eigenpairs to output after PCA decomposition.
-        cluster_centroids : array-like(float)
-            Intensity centroids for energy-level clustering.
-        ctx: :py:class:`~bluebild.Context`
-            Bluebuild context. If provided, will use bluebild module for computation.
 
         Notes
         -----
@@ -76,8 +72,6 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
 
         super().__init__()
         self._N_eig = N_eig
-        self._cluster_centroids = np.array(cluster_centroids, copy=False)
-        self._ctx = ctx
 
     @chk.check(
         dict(
@@ -112,9 +106,6 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
 
         V : :py:class:`~numpy.ndarray`
             (N_beam, N_eig) complex-valued eigenvectors.
-
-        cluster_idx : :py:class:`~numpy.ndarray`
-            (N_eig,) cluster indices of each eigenpair.
 
         Examples
         --------
@@ -175,21 +166,13 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
         else:
             S, W = S.data, W.data
 
-        if self._ctx is not None:
-            D, V, cluster_idx = self._ctx.intensity_field_data(self._N_eig, np.array(XYZ.data, order='F'), np.array(W.data, order='F'),
-                    wl, S, self._cluster_centroids)
-        else:
-            G = gram.GramBlock().compute(XYZ.data, W, wl)
+        G = gram.GramBlock().compute(XYZ.data, W, wl)
 
-            # Functional PCA
-            if not np.allclose(S, 0):
-                D, V = pylinalg.eigh(S, G, tau=1, N=self._N_eig)
-            else:  # S is broken beyond use
-                D, V = np.zeros(self._N_eig), 0
-
-            # Determine energy-level clustering
-            cluster_dist = np.absolute(D.reshape(-1, 1) - self._cluster_centroids.reshape(1, -1))
-            cluster_idx = np.argmin(cluster_dist, axis=1)
+        # Functional PCA
+        if not np.allclose(S, 0):
+            D, V = pylinalg.eigh(S, G, tau=1, N=self._N_eig)
+        else:  # S is broken beyond use
+            D, V = np.zeros(self._N_eig), 0
 
         # Add broken BEAM_IDs
         if broken_row_id.size:
@@ -198,7 +181,7 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
         else:
             V_aligned = V
 
-        return D, V_aligned, cluster_idx
+        return D, V_aligned
 
 
 class SensitivityFieldDataProcessorBlock(DataProcessorBlock):
@@ -207,14 +190,12 @@ class SensitivityFieldDataProcessorBlock(DataProcessorBlock):
     """
 
     @chk.check("N_eig", chk.is_integer)
-    def __init__(self, N_eig, ctx=None):
+    def __init__(self, N_eig):
         """
         Parameters
         ----------
         N_eig : int
             Number of eigenpairs to output after PCA decomposition.
-        ctx: :py:class:`~bluebild.Context`
-            Bluebuild context. If provided, will use bluebild module for computation.
 
         Notes
         -----
@@ -228,7 +209,6 @@ class SensitivityFieldDataProcessorBlock(DataProcessorBlock):
 
         super().__init__()
         self._N_eig = N_eig
-        self._ctx = ctx
 
     @chk.check(
         dict(
@@ -297,14 +277,11 @@ class SensitivityFieldDataProcessorBlock(DataProcessorBlock):
            array([9.2e-05, 9.4e-05])
         """
 
-        if self._ctx is not None:
-            return self._ctx.sensitivity_field_data(self._N_eig, np.array(XYZ.data, order='F'), np.array(W.data, order='F'), wl)
-        else:
-            G = gram.GramBlock()(XYZ, W, wl)
-            N_beam = len(G.data)
-            D, V = pylinalg.eigh(G.data, np.eye(N_beam), tau=1, N=self._N_eig)
-            Dg = 1 / (D ** 2)
-            return Dg, V
+        G = gram.GramBlock()(XYZ, W, wl)
+        N_beam = len(G.data)
+        D, V = pylinalg.eigh(G.data, np.eye(N_beam), tau=1, N=self._N_eig)
+        Dg = 1 / (D ** 2)
+        return Dg, V
 
 
 class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
@@ -332,7 +309,7 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
         self._N_eig = N_eig
 
     def __call__(self, D: np.ndarray, V: np.ndarray, W: typ.Optional[beamforming.MatchedBeamformerBlock] = None,
-                 cluster_idx: typ.Optional[np.ndarray] = None) -> np.ndarray:
+                 intervals: typ.Optional[np.ndarray] = None) -> np.ndarray:
         r"""
         Filter the fPCA eigenlevels and transform them into virtual visibilities. If a beamforming matrix is provided the
         filtered eigenlevels are also uncompressed (i.e. beamforming reversed).
@@ -345,30 +322,39 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
             (N_antenna, N_eig) --or (N_beam, N_eig) with beamforming-- complex-valued eigenvectors.
         W: Optional[pypeline.phased_array.beamforming.MatchedBeamformerBlock]
             (N_antenna, N_beam) optional beamforming matrix.
-        cluster_idx: Optional[np.ndarray]
-            (N_eig,) cluster indices defining each eigenlevel.
+        intervals: Optional[np.ndarray]
+            (N_intervals, 2) cluster indices defining each eigenlevel, defined by [:, 0] as lower and [:, 1] as upper bound.
 
         Returns
         -------
         virtual_vis_stack: np.ndarray
-         (N_filter, N_eig, N_antenna, N_antenna) stack of (N_antenna, N_antenna) virtual visibilities.
+         (N_filter, N_intervals, N_antenna, N_antenna) stack of (N_antenna, N_antenna) virtual visibilities.
         """
-        Filtered_eigs = dict(lsq=D, std=np.ones(D.size, np.float), sqrt=np.sqrt(D), inv=1 / D)
+        if intervals is None:
+            intervals = np.array([[0, np.finfo('f').max]])
+
+        Filtered_eigs = dict(lsq=D, std=np.ones(D.size, D.dtype), sqrt=np.sqrt(D), inv=1 / D)
         if W is not None:
             W = sparse.csr_matrix(W.data)
             V_unbeamformed = np.asarray(W * V)
-            virtual_vis_stack = np.zeros((len(self.filters), np.unique(cluster_idx).size, W.shape[0], W.shape[0]),
+            virtual_vis_stack = np.zeros((len(self.filters), intervals.shape[0], W.shape[0], W.shape[0]),
                                          dtype=np.complex128)
         else:
             V_unbeamformed = V
-            virtual_vis_stack = np.zeros((len(self.filters), np.unique(cluster_idx).size, V.shape[0], V.shape[0]),
+            virtual_vis_stack = np.zeros((len(self.filters), intervals.shape[0], V.shape[0], V.shape[0]),
                                          dtype=np.complex128)
-        if cluster_idx is None:
-            cluster_idx = np.zeros(self._N_eig)
 
-        for k, filter in enumerate(self.filters):
-            for i in np.unique(cluster_idx):
-                filtered_eig = Filtered_eigs[filter][i == cluster_idx]
-                virtual_vis_stack[k, i] = (V_unbeamformed[:, i == cluster_idx] * filtered_eig[None, :]) \
-                                          @ V_unbeamformed[:, i == cluster_idx].transpose().conj()
+
+        D_flipped = np.flip(D)
+        for i, interv in enumerate(intervals):
+            indices = D.size - np.flip(np.searchsorted(D_flipped, interv, side='left')) # D is in descending order
+            V_selection = V_unbeamformed[:, indices[0]:indices[1]]
+            if indices[0] < indices[1]:
+                for k, f in enumerate(self.filters):
+                    filtered_eig = Filtered_eigs[f][indices[0]:indices[1]]
+                    VMul = V_selection * filtered_eig[None, :]
+                    virtual_vis_stack[k, i] = VMul \
+                                              @ V_selection.transpose().conj()
         return virtual_vis_stack
+
+

@@ -21,4 +21,11 @@ auto gemmexp(const std::size_t M,
              std::complex<T>* __restrict__ C,
              const std::size_t ldc) -> void;
 
+template <typename T>
+auto gemmexp(std::size_t nEig, std::size_t nPixel, std::size_t nAntenna,
+             T alpha, const std::complex<T> *__restrict__ vUnbeam,
+             std::size_t ldvw, const T *__restrict__ xyz, std::size_t ldxyz,
+             const T *__restrict__ pixelX, const T *__restrict__ pixelY,
+             const T *__restrict__ pixelZ, T *__restrict__ out,
+             std::size_t ldout) -> void;
 }  // namespace bluebild

@@ -9,6 +9,7 @@
 
 #elif defined(BLUEBILD_ROCM)
 #include <hip/hip_runtime_api.h>
+#include <hip/hip_complex.h>
 #define GPU_PREFIX(val) hip##val
 #endif
 
@@ -229,6 +230,11 @@ inline auto stream_synchronize(ARGS&&... args) -> StatusType {
 template <typename... ARGS>
 inline auto memset_async(ARGS&&... args) -> StatusType {
   return GPU_PREFIX(MemsetAsync)(std::forward<ARGS>(args)...);
+}
+
+template <typename... ARGS>
+inline auto memset_2d_async(ARGS&&... args) -> StatusType {
+  return GPU_PREFIX(Memset2DAsync)(std::forward<ARGS>(args)...);
 }
 
 template <typename... ARGS>

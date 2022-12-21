@@ -20,24 +20,24 @@
 namespace bluebild {
 
 template <typename T, typename>
-BLUEBILD_EXPORT auto gram_matrix(Context &ctx, int m, int n,
-                                 const std::complex<T> *w, int ldw,
-                                 const T *xyz, int ldxyz, T wl,
-                                 std::complex<T> *g, int ldg) -> void {
+BLUEBILD_EXPORT auto gram_matrix(Context &ctx, std::size_t m, std::size_t n,
+                                 const std::complex<T> *w, std::size_t ldw,
+                                 const T *xyz, std::size_t ldxyz, T wl,
+                                 std::complex<T> *g, std::size_t ldg) -> void {
   auto &ctxInternal = *InternalContextAccessor::get(ctx);
   if (ctxInternal.processing_unit() == BLUEBILD_PU_GPU) {
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
     // Syncronize with default stream. TODO: replace with event
-    gpu::stream_synchronize(nullptr);
+    gpu::check_status(gpu::stream_synchronize(nullptr));
 
     BufferType<gpu::ComplexType<T>> wBuffer, gBuffer;
     BufferType<T> xyzBuffer;
     auto wDevice = reinterpret_cast<const gpu::ComplexType<T> *>(w);
     auto gDevice = reinterpret_cast<gpu::ComplexType<T> *>(g);
     auto xyzDevice = xyz;
-    int ldwDevice = ldw;
-    int ldgDevice = ldg;
-    int ldxyzDevice = ldxyz;
+    std::size_t ldwDevice = ldw;
+    std::size_t ldgDevice = ldg;
+    std::size_t ldxyzDevice = ldxyz;
 
     // copy input if required
     if (!is_device_ptr(w)) {
@@ -88,24 +88,20 @@ BLUEBILD_EXPORT auto gram_matrix(Context &ctx, int m, int n,
   }
 }
 
+template auto gram_matrix(Context &ctx, std::size_t m, std::size_t n,
+                          const std::complex<float> *w, std::size_t ldw,
+                          const float *xyz, std::size_t ldxyz, float wl,
+                          std::complex<float> *g, std::size_t ldg) -> void;
 
-template auto gram_matrix(Context &ctx, int m, int n,
-                          const std::complex<float> *w, int ldw,
-                          const float *xyz, int ldxyz, float wl,
-                          std::complex<float> *g, int ldg) -> void;
-
-template auto gram_matrix(Context &ctx, int m, int n,
-                          const std::complex<double> *w, int ldw,
-                          const double *xyz, int ldxyz, double wl,
-                          std::complex<double> *g, int ldg) -> void;
-
+template auto gram_matrix(Context &ctx, std::size_t m, std::size_t n,
+                          const std::complex<double> *w, std::size_t ldw,
+                          const double *xyz, std::size_t ldxyz, double wl,
+                          std::complex<double> *g, std::size_t ldg) -> void;
 
 extern "C" {
-BLUEBILD_EXPORT BluebildError bluebild_gram_matrix_s(BluebildContext ctx, int m,
-                                                     int n, const void *w,
-                                                     int ldw, const float *xyz,
-                                                     int ldxyz, float wl,
-                                                     void *g, int ldg) {
+BLUEBILD_EXPORT BluebildError bluebild_gram_matrix_s(
+    BluebildContext ctx, size_t m, size_t n, const void *w, size_t ldw,
+    const float *xyz, size_t ldxyz, float wl, void *g, size_t ldg) {
   if (!ctx) {
     return BLUEBILD_INVALID_HANDLE_ERROR;
   }
@@ -122,11 +118,9 @@ BLUEBILD_EXPORT BluebildError bluebild_gram_matrix_s(BluebildContext ctx, int m,
   return BLUEBILD_SUCCESS;
 }
 
-BLUEBILD_EXPORT BluebildError bluebild_gram_matrix_d(BluebildContext ctx, int m,
-                                                     int n, const void *w,
-                                                     int ldw, const double *xyz,
-                                                     int ldxyz, double wl,
-                                                     void *g, int ldg) {
+BLUEBILD_EXPORT BluebildError bluebild_gram_matrix_d(
+    BluebildContext ctx, size_t m, size_t n, const void *w, size_t ldw,
+    const double *xyz, size_t ldxyz, double wl, void *g, size_t ldg) {
   if (!ctx) {
     return BLUEBILD_INVALID_HANDLE_ERROR;
   }

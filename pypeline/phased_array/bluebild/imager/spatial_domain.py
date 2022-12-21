@@ -123,7 +123,7 @@ class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
             wl=chk.is_real, pix_grid=chk.has_reals, N_level=chk.is_integer, precision=chk.is_integer
         )
     )
-    def __init__(self, wl, pix_grid, N_level, precision=64, ctx=None):
+    def __init__(self, wl, pix_grid, N_level, precision=64):
         """
         Parameters
         ----------
@@ -137,8 +137,6 @@ class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
             Numerical accuracy of floating-point operations.
 
             Must be 32 or 64.
-        ctx: :py:class:`~bluebild.Context`
-            Bluebuild context. If provided, will use bluebild module for computation.
         """
         super().__init__()
 
@@ -154,21 +152,9 @@ class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
         if N_level <= 0:
             raise ValueError("Parameter[N_level] must be positive.")
         self._N_level = N_level
-        
         self.timer = None
 
-        self._ctx = ctx
-
-        if self._ctx is not None:
-            _, Nh, Nw = pix_grid.shape
-            self._grid = np.array(pix_grid, order='F', dtype=self._fp)
-            self._stats_std_cum = np.zeros((self._N_level, Nh, Nw), order="F", dtype=self._fp)
-            self._stats_lsq_cum = np.zeros((self._N_level, Nh, Nw), order="F", dtype=self._fp)
-            print("self._ctx.processing_unit() =", self._ctx.processing_unit())
-            self._synthesizer = bluebild.SS(self._ctx, wl, N_level, Nh, Nw, self._grid,
-                                            self._stats_std_cum, self._stats_lsq_cum)
-        else:
-            self._synthesizer = ssd.SpatialFieldSynthesizerBlock(wl, pix_grid, precision)
+        self._synthesizer = ssd.SpatialFieldSynthesizerBlock(wl, pix_grid, precision)
 
         self._cum_proc_time = 0
 
@@ -189,7 +175,7 @@ class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
             cluster_idx=chk.has_integers,
         )
     )'''
-    def __call__(self, D, V, XYZ, W, cluster_idx, d2h=True):
+    def __call__(self, D, V, XYZ, W, intervals=np.array([[0, np.finfo('f').max]])):
         """
         Compute (clustered) integrated field statistics for least-squares and standardized estimates.
 
@@ -205,66 +191,56 @@ class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
             `XYZ` must be defined in the same reference frame as `pix_grid` from :py:meth:`~pypeline.phased_array.bluebild.imager.Spatial_IMFS_Block.__init__`.
         W : :py:class:`~numpy.ndarray` or :py:class:`~scipy.sparse.csr_matrix` or :py:class:`~scipy.sparse.csc_matrix`
             (N_antenna, N_beam) synthesis beamweights.
-        cluster_idx : :py:class:`~numpy.ndarray`
-            (N_eig,) cluster indices of each eigenpair.
+        intervals: Optional[np.ndarray]
+            (N_intervals, 2) cluster indices defining each eigenlevel.
 
         Returns
         -------
         stat : :py:class:`~numpy.ndarray`
             (2, N_level, N_px) field statistics.
         """
-        self.mark("Imager call")
-
         XYZ = XYZ.astype(self._fp, copy=False)
         D   = D.astype(self._fp, copy=False)
         V   = V.astype(self._cp, copy=False)
         W   = W.astype(self._cp, copy=False)
-
-        self.mark("Image synthesis")
 
         Na, Nc = XYZ.shape
         assert Nc == 3, f'Nc expected to be 3'
         _,  Nb = W.shape
         _,  Ne = V.shape
 
-        if self._ctx is not None:
-            tic = perf_counter()
-            self._synthesizer.execute(D, V, XYZ, W, np.array(cluster_idx.data, order='F', dtype=np.uint), d2h)
-            self._cum_proc_time += (perf_counter() - tic)
-            return
-        else:
-            tic = perf_counter()
-            assert self._synthesizer._grid.dtype == self._fp, f'_grid {self._grid.dtype} not of expected type {self._fp}'
-            stat_std = self._synthesizer(V, XYZ, W)
-                        
-            assert stat_std.dtype == self._fp, f'stat_std {stat_std.dtype} not of expected type {self._fp}'
+        tic = perf_counter()
+        assert self._synthesizer._grid.dtype == self._fp, f'_grid {self._grid.dtype} not of expected type {self._fp}'
+        stat_std = self._synthesizer(V, XYZ, W)
+        assert stat_std.dtype == self._fp, f'stat_std {stat_std.dtype} not of expected type {self._fp}'
 
-            # get result from GPU
-            if (type(stat_std) != np.ndarray):
-                import cupy as cp
-                if (cp.get_array_module(stat_std) != cp):
-                    print("Error. stat_std was not recognized correctly as either Cupy or Numpy.")
-                    sys.exit(1)
-                stat_std = stat_std.get()
+        # get result from GPU
+        if (type(stat_std) != np.ndarray):
+            import cupy as cp
+            if (cp.get_array_module(stat_std) != cp):
+                print("Error. stat_std was not recognized correctly as either Cupy or Numpy.")
+                sys.exit(1)
+            stat_std = stat_std.get()
 
-            self.unmark("Image synthesis")
-            stat_lsq = stat_std * D.reshape(-1, 1, 1)
+        stat_lsq = stat_std * D.reshape(-1, 1, 1)
 
-            stat = np.stack([stat_std, stat_lsq], axis=0)
+        stat = np.stack([stat_std, stat_lsq], axis=0)
 
-            self.mark("Image cluster layers")
-            stat = bim.cluster_layers(stat, cluster_idx, N=self._N_level, axis=1)
-            self.unmark("Image cluster layers")
+        self.filters=['lsq', 'std']
+        clustered_stat = np.zeros((len(self.filters), len(intervals), stat.shape[2], stat.shape[3]), dtype=stat.dtype)
+        D_flipped = np.flip(D)
+        for idx_filter, f in enumerate(self.filters):
+            for idx_interv, interv in enumerate(intervals):
+                indices = D.size - np.flip(np.searchsorted(D_flipped, interv, side='left')) # D is in descending order
+                for idx_eig in range(indices[0], indices[1]):
+                    clustered_stat[idx_filter, idx_interv] += stat[idx_filter, idx_eig]
 
-            self.mark("Image update iteration")
-            self._update(stat)
-            self.unmark("Image update iteration")
 
-            self.unmark("Imager call")
-    
-            self._cum_proc_time += (perf_counter() - tic)
+        self._update(clustered_stat)
 
-            return stat
+        self._cum_proc_time += (perf_counter() - tic)
+
+        return stat
 
 
     def as_image(self):
@@ -280,13 +256,9 @@ class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
             (N_level, N_px) least-squares energy-levels.
         """
 
-        if self._ctx is not None:
-            std = image.Image(self._stats_std_cum, self._grid)
-            lsq = image.Image(self._stats_lsq_cum, self._grid)
-        else:
-            stat_std = self._statistics[0]
-            std = image.Image(stat_std, self._synthesizer._grid)
-            stat_lsq = self._statistics[1]
-            lsq = image.Image(stat_lsq, self._synthesizer._grid)
+        stat_std = self._statistics[0]
+        std = image.Image(stat_std, self._synthesizer._grid)
+        stat_lsq = self._statistics[1]
+        lsq = image.Image(stat_lsq, self._synthesizer._grid)
 
         return std, lsq

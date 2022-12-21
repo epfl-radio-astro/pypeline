@@ -1,35 +1,42 @@
 set(BLUEBILD_SOURCE_FILES
 	eigensolver.cpp
 	gram_matrix.cpp
-	intensity_field_data.cpp
-	sensitivity_field_data.cpp
 	nufft_3d3.cpp
-    standard_synthesizer.cpp
+	standard_synthesis.cpp
 	context.cpp
+	nufft_synthesis.cpp
 	host/eigensolver_host.cpp
 	host/gram_matrix_host.cpp
-	host/sensitivity_field_data_host.cpp
-	host/intensity_field_data_host.cpp
+	host/nufft_synthesis_host.cpp
 	host/nufft_3d3_host.cpp
-    host/ss_host.cpp
-    host/gemmexp.cpp
-    host/standard_synthesizer_host.cpp
+	host/virtual_vis_host.cpp
+	host/ss_host.cpp
+	host/gemmexp.cpp
+	host/standard_synthesis_host.cpp
 	)
 
 if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
 	list(APPEND BLUEBILD_SOURCE_FILES
 		gpu/eigensolver_gpu.cpp
-		gpu/sensitivity_field_data_gpu.cpp
-		gpu/intensity_field_data_gpu.cpp
 		gpu/gram_matrix_gpu.cpp
 		gpu/nufft_3d3_gpu.cpp
-        gpu/standard_synthesizer_gpu.cpp
+		gpu/nufft_synthesis_gpu.cpp
+		gpu/virtual_vis_gpu.cpp
+		gpu/standard_synthesis_gpu.cpp
+		gpu/util/solver_api.cpp
 		gpu/kernels/reverse.cu
-		gpu/kernels/inv_square.cu
-		gpu/kernels/min_diff.cu
 		gpu/kernels/gram.cu
-        gpu/kernels/standard_synthesizer.cu
+		gpu/kernels/scale_matrix.cu
+		gpu/kernels/apply_filter.cu
+		gpu/kernels/add_vector.cu
+		gpu/kernels/gemmexp.cu
+		gpu/kernels/center_vector.cu
 		)
+endif()
+
+# set all files to CXX, such that .cu files are compiled by the CXX compiler with ROCM enabled
+if(BLUEBILD_ROCM)
+    set_source_files_properties(${BLUEBILD_SOURCE_FILES} PROPERTIES LANGUAGE CXX)
 endif()
 
 
@@ -58,13 +65,10 @@ macro(bluebild_create_library _TARGET_NAME)
 		set_property(TARGET ${_TARGET_NAME} PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
 	endif()
 
-	target_compile_options(${_TARGET_NAME} PRIVATE ${BLUEBILD_DEFINITIONS} ${BLUEBILD_EXTERNAL_COMPILE_OPTIONS})
-	target_include_directories(${_TARGET_NAME} PRIVATE ${BLUEBILD_EXTERNAL_INCLUDE_DIRS} ${BLUEBILD_INCLUDE_DIRS})
-
-
+	target_compile_options(${_TARGET_NAME} PRIVATE ${BLUEBILD_FLAGS})
+	target_include_directories(${_TARGET_NAME} PRIVATE ${BLUEBILD_INCLUDE_DIRS})
 	target_link_libraries(${_TARGET_NAME} PRIVATE ${BLUEBILD_EXTERNAL_LIBS})
 
-	target_include_directories(${_TARGET_NAME} INTERFACE ${BLUEBILD_INTERFACE_INCLUDE_DIRS})
 	target_include_directories(${_TARGET_NAME} INTERFACE $<INSTALL_INTERFACE:include>) # for install(EXPORT ...)
 	target_include_directories(${_TARGET_NAME} INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>) # for export(...)
 

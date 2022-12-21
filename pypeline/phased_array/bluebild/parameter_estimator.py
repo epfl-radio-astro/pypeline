@@ -28,6 +28,40 @@ import pypeline.phased_array.data_gen.statistics as vis
 import pypeline.phased_array.bluebild.gram as gr
 
 
+
+def centroid_to_intervals(centroid):
+    r"""
+    Convert centroid to invervals as required by VirtualVisibilitiesDataProcessingBlock.
+
+    Parameters
+    ----------
+    centroid: Optional[np.ndarray]
+        (N_centroid) centroid values. If None, [0, max_float] is returned.
+
+    Returns
+    -------
+    intervals: np.ndarray
+     (N_centroid, 2) Intervals matching the input with lower and upper bound.
+    """
+    if centroid is None or centroid.size <= 1:
+        return np.array([[0, np.finfo('f').max]])
+    intervals = np.empty((centroid.size, 2))
+    sorted_idx = np.argsort(centroid)
+    sorted_centroid = centroid[sorted_idx]
+    for i in range(centroid.size):
+        idx = sorted_idx[i]
+        if idx == 0:
+            intervals[i, 0] = 0
+        else:
+            intervals[i, 0] = (sorted_centroid[idx] + sorted_centroid[idx - 1]) / 2
+
+        if idx == centroid.size - 1:
+            intervals[i, 1] = np.finfo('f').max
+        else:
+            intervals[i, 1] = (sorted_centroid[idx] + sorted_centroid[idx + 1]) / 2
+
+    return intervals
+
 class ParameterEstimator:
     """
     Top-level public interface of Bluebild parameter estimators.
@@ -189,8 +223,8 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         N_eig : int
             Number of eigenpairs to use.
 
-        cluster_centroid : :py:class:`~numpy.ndarray`
-            (N_level,) intensity field cluster centroids.
+        cluster_intervals : :py:class:`~numpy.ndarray`
+            (N_level,2) intensity field cluster intervals.
         """
         N_data = len(self._visibilities)
         N_beam = N_eig_max = self._visibilities[0].shape[0]
@@ -226,7 +260,7 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         N_eig = max(int(np.ceil(len(D_all) / N_data)), self._N_level)
         cluster_centroid = np.sort(np.exp(kmeans.cluster_centers_)[:, 0])[::-1]
 
-        return N_eig, cluster_centroid
+        return N_eig, centroid_to_intervals(cluster_centroid)
 
 
 class SensitivityFieldParameterEstimator(ParameterEstimator):

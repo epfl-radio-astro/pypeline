@@ -27,8 +27,6 @@ using StatusType = cublasStatus_t;
 using OperationType = cublasOperation_t;
 using SideModeType = cublasSideMode_t;
 using FillModeType = cublasFillMode_t;
-using ComplexFloatType = cuComplex;
-using ComplexDoubleType = cuDoubleComplex;
 #endif
 
 #if defined(BLUEBILD_ROCM)
@@ -37,8 +35,6 @@ using StatusType = rocblas_status;
 using OperationType = rocblas_operation;
 using SideModeType = rocblas_side;
 using FillModeType = rocblas_fill;
-using ComplexFloatType = rocblas_float_complex;
-using ComplexDoubleType = rocblas_double_complex;
 #endif
 
 namespace operation {
@@ -122,6 +118,8 @@ static const char *get_string(StatusType error) {
 
     case CUBLAS_STATUS_LICENSE_ERROR:
       return "CUBLAS_STATUS_LICENSE_ERROR";
+    default:
+      return "CUBLAS_ERROR";
   }
 #endif
 
@@ -159,6 +157,8 @@ static const char *get_string(StatusType error) {
 
     case rocblas_status_size_unchanged:
       return "rocblas_status_size_unchanged";
+    default:
+      return "rocblas_error";
   }
 #endif
 
@@ -238,7 +238,12 @@ inline auto gemm(HandleType handle, OperationType transa, OperationType transb, 
 #if defined(BLUEBILD_CUDA)
   return cublasCgemm(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
 #else
-  return rocblas_cgemm(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+  return rocblas_cgemm(handle, transa, transb, m, n, k,
+                       reinterpret_cast<const rocblas_float_complex *>(alpha),
+                       reinterpret_cast<const rocblas_float_complex *>(A), lda,
+                       reinterpret_cast<const rocblas_float_complex *>(B), ldb,
+                       reinterpret_cast<const rocblas_float_complex *>(beta),
+                       reinterpret_cast<rocblas_float_complex *>(C), ldc);
 #endif  // BLUEBILD_CUDA
 }
 
@@ -249,7 +254,12 @@ inline auto gemm(HandleType handle, OperationType transa, OperationType transb, 
 #if defined(BLUEBILD_CUDA)
   return cublasZgemm(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
 #else
-  return rocblas_zgemm(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+  return rocblas_zgemm(handle, transa, transb, m, n, k,
+                       reinterpret_cast<const rocblas_double_complex *>(alpha),
+                       reinterpret_cast<const rocblas_double_complex *>(A), lda,
+                       reinterpret_cast<const rocblas_double_complex *>(B), ldb,
+                       reinterpret_cast<const rocblas_double_complex *>(beta),
+                       reinterpret_cast<rocblas_double_complex *>(C), ldc);
 #endif  // BLUEBILD_CUDA
 }
 
@@ -265,9 +275,16 @@ inline auto gemm_batched(HandleType handle,
                          int batchCount
                          ) -> StatusType {
 #if defined(BLUEBILD_CUDA)
-  return cublasCgemmBatched(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batchCount);
+  return cublasCgemmBatched(handle, transa, transb, m, n, k, alpha, A, lda, B,
+                            ldb, beta, C, ldc, batchCount);
 #else
-  return rocblas_cgemm_batched(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batchCount);
+  return rocblas_cgemm_batched(
+      handle, transa, transb, m, n, k,
+      reinterpret_cast<const rocblas_float_complex *>(alpha),
+      reinterpret_cast<const rocblas_float_complex *const *>(A), lda,
+      reinterpret_cast<const rocblas_float_complex *const *>(B), ldb,
+      reinterpret_cast<const rocblas_float_complex *>(beta),
+      reinterpret_cast<rocblas_float_complex *const *>(C), ldc, batchCount);
 #endif  // BLUEBILD_CUDA
 }
 
@@ -283,9 +300,16 @@ inline auto gemm_batched(HandleType handle,
                          int batchCount
                          ) -> StatusType {
 #if defined(BLUEBILD_CUDA)
-  return cublasZgemmBatched(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batchCount);
+  return cublasZgemmBatched(handle, transa, transb, m, n, k, alpha, A, lda, B,
+                            ldb, beta, C, ldc, batchCount);
 #else
-  return rocblas_zgemm_batched(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batchCount);
+  return rocblas_zgemm_batched(
+      handle, transa, transb, m, n, k,
+      reinterpret_cast<const rocblas_double_complex *>(alpha),
+      reinterpret_cast<const rocblas_double_complex *const *>(A), lda,
+      reinterpret_cast<const rocblas_double_complex *const *>(B), ldb,
+      reinterpret_cast<const rocblas_double_complex *>(beta),
+      reinterpret_cast<rocblas_double_complex *const *>(C), ldc, batchCount);
 #endif  // BLUEBILD_CUDA
 }
 
@@ -313,7 +337,10 @@ inline auto dgmm(HandleType handle, SideModeType mode, int m, int n, const Compl
 #if defined(BLUEBILD_CUDA)
   return cublasCdgmm(handle, mode, m, n, A, lda, x, incx, C, ldc);
 #else
-  return rocblas_cdgmm(handle, mode, m, n, A, lda, x, incx, C, ldc);
+  return rocblas_cdgmm(handle, mode, m, n,
+                       reinterpret_cast<const rocblas_float_complex *>(A), lda,
+                       reinterpret_cast<const rocblas_float_complex *>(x), incx,
+                       reinterpret_cast<rocblas_float_complex *>(C), ldc);
 #endif  // BLUEBILD_CUDA
 }
 
@@ -323,7 +350,10 @@ inline auto dgmm(HandleType handle, SideModeType mode, int m, int n, const Compl
 #if defined(BLUEBILD_CUDA)
   return cublasZdgmm(handle, mode, m, n, A, lda, x, incx, C, ldc);
 #else
-  return rocblas_zdgmm(handle, mode, m, n, A, lda, x, incx, C, ldc);
+  return rocblas_zdgmm(
+      handle, mode, m, n, reinterpret_cast<const rocblas_double_complex *>(A),
+      lda, reinterpret_cast<const rocblas_double_complex *>(x), incx,
+      reinterpret_cast<rocblas_double_complex *>(C), ldc);
 #endif  // BLUEBILD_CUDA
 }
 
@@ -354,7 +384,12 @@ inline auto symm(HandleType handle, SideModeType side, FillModeType uplo, int m,
 #if defined(BLUEBILD_CUDA)
   return cublasCsymm(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc);
 #else
-  return rocblas_csymm(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc);
+  return rocblas_csymm(handle, side, uplo, m, n,
+                       reinterpret_cast<const rocblas_float_complex *>(alpha),
+                       reinterpret_cast<const rocblas_float_complex *>(A), lda,
+                       reinterpret_cast<const rocblas_float_complex *>(B), ldb,
+                       reinterpret_cast<const rocblas_float_complex *>(beta),
+                       reinterpret_cast<rocblas_float_complex *>(C), ldc);
 #endif  // BLUEBILD_CUDA
 }
 
@@ -365,7 +400,30 @@ inline auto symm(HandleType handle, SideModeType side, FillModeType uplo, int m,
 #if defined(BLUEBILD_CUDA)
   return cublasZsymm(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc);
 #else
-  return rocblas_zsymm(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc);
+  return rocblas_zsymm(handle, side, uplo, m, n,
+                       reinterpret_cast<const rocblas_double_complex *>(alpha),
+                       reinterpret_cast<const rocblas_double_complex *>(A), lda,
+                       reinterpret_cast<const rocblas_double_complex *>(B), ldb,
+                       reinterpret_cast<const rocblas_double_complex *>(beta),
+                       reinterpret_cast<rocblas_double_complex *>(C), ldc);
+#endif  // BLUEBILD_CUDA
+}
+
+inline auto axpy(HandleType handle, int n, const float *alpha, const float *x,
+                 int incx, float *y, int incy) -> StatusType {
+#if defined(BLUEBILD_CUDA)
+  return cublasSaxpy(handle, n, alpha, x, incx, y, incy);
+#else
+  return rocblas_saxpy(handle, n, aplha, x, incx, incy);
+#endif  // BLUEBILD_CUDA
+}
+
+inline auto axpy(HandleType handle, int n, const double *alpha, const double *x,
+                 int incx, double *y, int incy) -> StatusType {
+#if defined(BLUEBILD_CUDA)
+  return cublasDaxpy(handle, n, alpha, x, incx, y, incy);
+#else
+  return rocblas_daxpy(handle, n, aplha, x, incx, incy);
 #endif  // BLUEBILD_CUDA
 }
 

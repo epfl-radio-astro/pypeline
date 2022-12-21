@@ -10,8 +10,9 @@
 namespace bluebild {
 
 template <typename T>
-auto eigh_host(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::complex<T>* a,
-               std::size_t lda, const std::complex<T>* b, std::size_t ldb, int* nEigOut, T* d,
-               std::complex<T>* v, std::size_t ldv) -> void;
+auto eigh_host(ContextInternal &ctx, std::size_t m, std::size_t nEig,
+               const std::complex<T> *a, std::size_t lda,
+               const std::complex<T> *b, std::size_t ldb, std::size_t *nEigOut,
+               T *d, std::complex<T> *v, std::size_t ldv) -> void;
 
 }  // namespace bluebild
