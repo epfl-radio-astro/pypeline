@@ -53,7 +53,7 @@ Edit the file if you wish so. Then run it with::
 
   singularity run --nv --bind $PWD:/work bipp_latest.sif "cd /work && python lofar_bootes_ss_cpp.py"
 
-It will produce a image ``test.png`` that should look like::
+It will produce a image ``test.png`` that should look like:
 
   .. image:: images/wrong_test.png
              
