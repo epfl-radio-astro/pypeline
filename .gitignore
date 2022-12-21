@@ -6,7 +6,7 @@
 
 *~
 slurm-*.out
-*.png
+#*.png
 *.fits
 *_environment_*_*.yml
 
