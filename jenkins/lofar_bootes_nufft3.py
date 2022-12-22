@@ -8,16 +8,17 @@
 Simulation LOFAR imaging with Bluebild (NUFFT).
 """
 
-import os, sys, argparse
-import astropy.units as u
+import os
+import sys
+import time
 import astropy.coordinates as coord
 import astropy.time as atime
+import astropy.units as u
 import imot_tools.io.s2image as s2image
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as constants
 import finufft
-from imot_tools.io.plot import cmap
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.bluebild.gram as bb_gr
@@ -30,41 +31,22 @@ import pypeline.phased_array.data_gen.statistics as statistics
 from mpl_toolkits.mplot3d import Axes3D
 import imot_tools.io.s2image as im
 import imot_tools.io.plot as implt
-import time as tt
+from pypeline.util import frame
+import bipptb
 
 
+args = bipptb.check_args(sys.argv)
+
+# For reproducible results
 np.random.seed(0)
 
-
-
-# Dump data to args.outdir if defined
-def dump_data(stats, filename):
-    if args.outdir:
-        fp = os.path.join(args.outdir, filename + '.npy')
-        with open(fp, 'wb') as f:
-            np.save(f, stats)
-            print("Wrote ", fp)
-
-jkt0_s = tt.time()
-
-
-# Check arguments
-parser = argparse.ArgumentParser()
-parser.add_argument("--outdir",   help="Path to dumping location (no dumps if not set)")
-args = parser.parse_args()
-if args.outdir:
-    if not os.path.exists(args.outdir):
-        print('fatal: --outdir ('+args.outdir+') must exists if defined.')
-        sys.exit(1)
-    print("Dumping directory: ", args.outdir)        
-else:
-    print("Will not dump anything, --outdir not set.")
-
+jkt0_s = time.time()
 
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
 field_center = coord.SkyCoord(ra=218 * u.deg, dec=34.5 * u.deg, frame="icrs")
-FoV, frequency = np.deg2rad(8), 145e6
+FoV_deg = 8.0
+FoV, frequency = np.deg2rad(FoV_deg), 145e6
 wl = constants.speed_of_light / frequency
 
 # Instrument
@@ -76,47 +58,61 @@ gram = bb_gr.GramBlock()
 
 # Data generation
 T_integration = 8
-sky_model = source.from_tgss_catalog(field_center, FoV, N_src=40)
-vis = statistics.VisibilityGeneratorBlock(sky_model, T_integration, fs=196000, SNR=30)
-time = obs_start + (T_integration * u.s) * np.arange(3595)
-obs_end = time[-1]
+N_src     = 40
+fs        = 196000
+SNR       = 30
+sky_model = source.from_tgss_catalog(field_center, FoV, N_src=N_src)
+vis       = statistics.VisibilityGeneratorBlock(sky_model, T_integration, fs=fs, SNR=SNR)
+times     = obs_start + (T_integration * u.s) * np.arange(3595)
+N_antenna = dev(times[0]).data.shape[0]
 
 # Imaging parameters
-N_pix = 512
-N_level = 3
-precision = 'single'
+N_pix      = 512
+N_levels   = 3
+precision  = args.precision
+eps        = 1e-3
 time_slice = 200
-eps = 1e-3
-print("\nImaging parameters")
-print(f'N_pix {N_pix}\nN_level {N_level}\nprecision {precision}')
-print(f'time_slice {time_slice}\neps {eps}\n')
+times = times[::time_slice]
 
-t1 = tt.time()
+
+print(f"-I- precision = {precision}")
+print(f"-I- N_station =", N_station)
+print(f"-I- N_antenna = {N_antenna:d}")
+print(f"-I- T_integration =", T_integration)
+print(f"-I- Field center  =", field_center)
+print(f"-I- Field of view =", FoV_deg, "deg")
+print(f"-I- frequency =", frequency)
+print(f"-I- SNR =", SNR)
+print(f"-I- fs =", fs)
+print(f"-I- N_pix =", N_pix)
+print(f"-I- N_levels =", N_levels)
+print(f"-I- eps =", eps)
+print(f"-I- OMP_NUM_THREADS =", os.getenv('OMP_NUM_THREADS'))
+
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
-ifpe_s = tt.time()
-I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=0.95)
-for t in time[::200]:
+ifpe_s = time.time()
+I_est = bb_pe.IntensityFieldParameterEstimator(N_levels, sigma=0.95)
+for t in times:
     XYZ = dev(t)
     W = mb(XYZ, wl)
     G = gram(XYZ, W, wl)
     S = vis(XYZ, W, wl)
     I_est.collect(S, G)
-
 N_eig, intervals = I_est.infer_parameters()
-ifpe_e = tt.time()
+ifpe_e = time.time()
 print(f"#@#IFPE {ifpe_e-ifpe_s:.3f} sec")
 
 # Imaging
-ifim_s = tt.time()
+ifim_s = time.time()
 I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig)
 IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq', 'sqrt'))
 nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
                                       field_center=field_center, eps=eps,
                                       n_trans=1, precision=precision)
 
-for t in time[::time_slice]:
+for t in times:
     XYZ = dev(t)
     UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
     W = mb(XYZ, wl)
@@ -127,32 +123,31 @@ for t in time[::time_slice]:
 
 # NUFFT Synthesis
 lsq_image, sqrt_image = nufft_imager.get_statistic()
-ifim_e = tt.time()
+ifim_e = time.time()
 print(f"#@#IFIM {ifim_e-ifim_s:.3f} sec")
 
 
 ### Sensitivity Field =========================================================
 # Parameter Estimation
-sfpe_s = tt.time()
+sfpe_s = time.time()
 S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=0.95)
-for t in time[::200]:
+for t in times:
     XYZ = dev(t)
     W = mb(XYZ, wl)
     G = gram(XYZ, W, wl)
     S_est.collect(G)
-
 N_eig = S_est.infer_parameters()
-sfpe_e = tt.time()
+sfpe_e = time.time()
 print(f"#@#SFPE {sfpe_e-sfpe_s:.3f} sec")
 
 # Imaging
-sfim_s = tt.time()
+sfim_s = time.time()
 S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
 SV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq',))
 nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
                                       field_center=field_center, eps=eps,
                                       n_trans=1, precision=precision)
-for t in time[::time_slice]:
+for t in times:
     XYZ = dev(t)
     UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
     W = mb(XYZ, wl)
@@ -162,29 +157,32 @@ for t in time[::time_slice]:
 
 sensitivity_image = nufft_imager.get_statistic()[0]
 
-I_lsq_eq = s2image.Image(lsq_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
-dump_data(I_lsq_eq.data, 'I_lsq_eq_data')
-dump_data(I_lsq_eq.grid, 'I_lsq_eq_grid')
-
+I_lsq_eq  = s2image.Image(lsq_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
 I_sqrt_eq = s2image.Image(sqrt_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
 
-sfim_e = tt.time()
+sfim_e = time.time()
 print(f"#@#SFIM {sfim_e-sfim_s:.3f} sec")
 
-t2 = tt.time()
-print(f'Elapsed time: {t2 - t1} seconds.')
-
-jkt0_e = tt.time()
+jkt0_e = time.time()
 print(f"#@#TOT {jkt0_e-jkt0_s:.3f} sec\n")
 
+#EO: early exit when profiling
+if os.getenv('BB_EARLY_EXIT') == "1":
+    print("-I- early exit signal detected")
+    sys.exit(0)
 
-### Plotting section
+print(I_lsq_eq.data)
+
+bipptb.dump_data(I_lsq_eq.data, 'I_lsq_eq_data', args.outdir)
+bipptb.dump_data(I_lsq_eq.grid, 'I_lsq_eq_grid', args.outdir)
+
+
+### Plot results
 plt.figure()
 ax = plt.gca()
 I_lsq_eq.draw(catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'), show_gridlines=False, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5))
 ax.set_title(f'Bluebild least-squares, sensitivity-corrected image (NUFFT)\n'
-             f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180 / np.pi)} degrees.\n'
-             f'Run time {np.floor(t2 - t1)} seconds.')
+             f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {FoV_deg} degrees.')
 fp = "I_lsq_nufft3.png"
 if args.outdir:
     fp = os.path.join(args.outdir, fp)
@@ -194,8 +192,7 @@ plt.figure()
 ax = plt.gca()
 I_sqrt_eq.draw(catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'), show_gridlines=False, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5))
 ax.set_title(f'Bluebild sqrt, sensitivity-corrected image (NUFFT)\n'
-             f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180 / np.pi)} degrees.\n'
-             f'Run time {np.floor(t2 - t1)} seconds.')
+             f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {FoV_deg} degrees.')
 fp = "I_sqrt_nufft3.png"
 if args.outdir:
     fp = os.path.join(args.outdir, fp)
@@ -204,7 +201,7 @@ plt.savefig(fp)
 plt.figure()
 titles = ['Strong sources', 'Mild sources', 'Faint Sources']
 for i in range(lsq_image.shape[0]):
-    plt.subplot(1, N_level, i + 1)
+    plt.subplot(1, N_levels, i + 1)
     ax = plt.gca()
     plt.title(titles[i])
     I_lsq_eq.draw(index=i, catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'),

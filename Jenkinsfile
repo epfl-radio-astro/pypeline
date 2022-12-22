@@ -52,7 +52,8 @@ pipeline {
                 sh "mkdir -pv ${env.TEST_DIR}"
 
                 //EO: with --full it deletes and rebuild all dependencies
-                sh "srun --partition debug --time 00-01:00:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 20 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_install.sh --full"
+                //sh "srun --partition build --time 00-01:00:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 20 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_install.sh --full"
+                sh "srun --partition build --time 00-01:00:00 --qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 20 -o ${env.TEST_DIR}/slurm-%j.out ./jenkins/slurm_install.sh"
 
                 sh "cat ${env.TEST_DIR}/slurm-*.out"
             }
@@ -79,8 +80,8 @@ pipeline {
                 TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_nufft3_cpu_64"
                 CUPY_PYFFS = "0"
                 SLURM_OPTS = "--qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 20 -o ${env.TEST_DIR}/slurm-%j.out"
-                COMMAND    = "${BB_SH_LIB} ${env.WORKSPACE}/jenkins/new_lofar_bootes_nufft3.py \
-                              --processing_unit none --precision double --outdir ${env.TEST_DIR}"
+                COMMAND    = "${BB_SH_LIB} ${env.WORKSPACE}/jenkins/lofar_bootes_nufft3.py \
+                              --precision double --outdir ${env.TEST_DIR}"
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"
@@ -92,7 +93,7 @@ pipeline {
                     ).trim()
                     sh "seff ${JOBID} >> ${env.TEST_DIR}/slurm-${JOBID}.out"
                 }
-                sh "srun --partition debug --time 00-00:30:00 \
+                sh "srun --partition build --time 00-00:30:00 \
                     ${SLURM_OPTS} ./jenkins/slurm_profiling ${COMMAND}"
                 sh "cat ${env.TEST_DIR}/slurm-*.out"
             }
@@ -104,7 +105,7 @@ pipeline {
                 TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_nufft3_cpp_cpu_64"
                 CUPY_PYFFS = "0"
                 SLURM_OPTS = "--qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 20 -o ${env.TEST_DIR}/slurm-%j.out"
-                COMMAND    = "${BB_SH_LIB} ${env.WORKSPACE}/jenkins/new_lofar_bootes_nufft3.py \
+                COMMAND    = "${BB_SH_LIB} ${env.WORKSPACE}/jenkins/lofar_bootes_nufft3_cpp.py \
                               --processing_unit cpu --precision double --outdir ${env.TEST_DIR}"
             }
             steps {
@@ -117,7 +118,7 @@ pipeline {
                     ).trim()
                     sh "seff ${JOBID} >> ${env.TEST_DIR}/slurm-${JOBID}.out"
                 }
-                sh "srun --partition debug --time 00-00:30:00 \
+                sh "srun --partition build --time 00-00:30:00 \
                     ${SLURM_OPTS} ./jenkins/slurm_profiling ${COMMAND}"
                 sh "cat ${env.TEST_DIR}/slurm-*.out"
             }
@@ -129,7 +130,7 @@ pipeline {
                 TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_nufft3_cpp_gpu_64"
                 CUPY_PYFFS = "0"
                 SLURM_OPTS = "--qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 20 -o ${env.TEST_DIR}/slurm-%j.out"
-                COMMAND    = "${BB_SH_LIB} ${env.WORKSPACE}/jenkins/new_lofar_bootes_nufft3.py \
+                COMMAND    = "${BB_SH_LIB} ${env.WORKSPACE}/jenkins/lofar_bootes_nufft3_cpp.py \
                               --processing_unit gpu --precision double --outdir ${env.TEST_DIR}"
                 PROFILE_NSIGHT = "0"
             }
@@ -143,7 +144,7 @@ pipeline {
                     ).trim()
                     sh "seff ${JOBID} >> ${env.TEST_DIR}/slurm-${JOBID}.out"
                 }
-                sh "srun --partition debug --time 00-00:30:00 \
+                sh "srun --partition build --time 00-00:30:00 \
                     ${SLURM_OPTS} ./jenkins/slurm_profiling ${COMMAND}"
                 sh "cat ${env.TEST_DIR}/slurm-*.out"
             }
@@ -159,8 +160,8 @@ pipeline {
                 TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_ss_cpu_64"
                 CUPY_PYFFS = "0"
                 SLURM_OPTS = "--qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 20 -o ${env.TEST_DIR}/slurm-%j.out"
-                COMMAND    = "${BB_SH_LIB} ${env.WORKSPACE}/jenkins/new_lofar_bootes_ss.py \
-                              --processing_unit none --precision double --outdir ${env.TEST_DIR}"
+                COMMAND    = "${BB_SH_LIB} ${env.WORKSPACE}/jenkins/lofar_bootes_ss.py \
+                              --precision double --outdir ${env.TEST_DIR}"
             }
             steps {
                 sh "mkdir -pv ${env.TEST_DIR}"
@@ -172,7 +173,7 @@ pipeline {
                     ).trim()
                     sh "seff ${JOBID} >> ${env.TEST_DIR}/slurm-${JOBID}.out"
                 }
-                sh "srun --partition debug --time 00-00:30:00 \
+                sh "srun --partition build --time 00-00:30:00 \
                     ${SLURM_OPTS} ./jenkins/slurm_profiling ${COMMAND}"
                 sh "cat ${env.TEST_DIR}/slurm-*.out"
             }
@@ -183,7 +184,7 @@ pipeline {
                 TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_ss_cpp_cpu_64"
                 CUPY_PYFFS = "0"
                 SLURM_OPTS = "--qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 20 -o ${env.TEST_DIR}/slurm-%j.out"
-                COMMAND    = "${BB_SH_LIB} ${env.WORKSPACE}/jenkins/new_lofar_bootes_ss.py \
+                COMMAND    = "${BB_SH_LIB} ${env.WORKSPACE}/jenkins/lofar_bootes_ss_cpp.py \
                               --processing_unit cpu --precision double --outdir ${env.TEST_DIR}"
             }
             steps {
@@ -196,7 +197,7 @@ pipeline {
                     ).trim()
                     sh "seff ${JOBID} >> ${env.TEST_DIR}/slurm-${JOBID}.out"
                 }
-                sh "srun --partition debug --time 00-00:30:00 \
+                sh "srun --partition build --time 00-00:30:00 \
                     ${SLURM_OPTS} ./jenkins/slurm_profiling ${COMMAND}"
                 sh "cat ${env.TEST_DIR}/slurm-*.out"
             }
@@ -208,7 +209,7 @@ pipeline {
                 TEST_DIR   = "${env.OUT_DIR}/lofar_bootes_ss_cpp_gpu_64"
                 CUPY_PYFFS = "0"
                 SLURM_OPTS = "--qos ${QOS} --gres gpu:1 --mem 40G --cpus-per-task 20 -o ${env.TEST_DIR}/slurm-%j.out"
-                COMMAND    = "${BB_SH_LIB} ${env.WORKSPACE}/jenkins/new_lofar_bootes_ss.py \
+                COMMAND    = "${BB_SH_LIB} ${env.WORKSPACE}/jenkins/lofar_bootes_ss_cpp.py \
                               --processing_unit gpu --precision double --outdir ${env.TEST_DIR}"
                 PROFILE_NSIGHT = "0"
             }
@@ -222,7 +223,7 @@ pipeline {
                     ).trim()
                     sh "seff ${JOBID} >> ${env.TEST_DIR}/slurm-${JOBID}.out"
                 }
-                sh "srun --partition debug --time 00-00:30:00 \
+                sh "srun --partition build --time 00-00:30:00 \
                     ${SLURM_OPTS} ./jenkins/slurm_profiling ${COMMAND}"
                 sh "cat ${env.TEST_DIR}/slurm-*.out"
             }

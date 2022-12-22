@@ -86,10 +86,11 @@ function bb_create_python_venv() {
         numpy   astropy healpy \
         numexpr pandas  pybind11 \
         scipy   pbr     pyproj \
-        plotly  sklearn nvtx \
+        plotly  nvtx \
         python-casacore cupy-cuda110 \
         bluebild_tools  tqdm \
-        tk sphinx sphinx_rtd_theme
+        tk sphinx sphinx_rtd_theme \
+        scikit-learn
     pip install --no-deps \
         pycsou  pyFFS
     deactivate

@@ -27,20 +27,19 @@ import pypeline.phased_array.data_gen.source as source
 import pypeline.phased_array.instrument as instrument
 import imot_tools.math.sphere.transform as transform
 import pypeline.phased_array.data_gen.statistics as statistics
-from mpl_toolkits.mplot3d import Axes3D
-import imot_tools.io.s2image as im
 import imot_tools.io.plot as implt
 import time as tt
-
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
+# For reproducible results
+np.random.seed(0)
 
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
 field_center = coord.SkyCoord(ra=218 * u.deg, dec=34.5 * u.deg, frame="icrs")
-FoV, frequency = np.deg2rad(10), 145e6
+FoV, frequency = np.deg2rad(8), 145e6
 wl = constants.speed_of_light / frequency
 
 # Instrument
@@ -55,16 +54,15 @@ T_integration = 8
 sky_model = source.from_tgss_catalog(field_center, FoV, N_src=40)
 vis = statistics.VisibilityGeneratorBlock(sky_model, T_integration, fs=196000, SNR=30)
 time = obs_start + (T_integration * u.s) * np.arange(3595)
-obs_end = time[-1]
 
 # Imaging
 N_pix = 512
 eps = 1e-3
-precision = 'single'
+precision = 'double'
 
 t1 = tt.time()
 N_level = 3
-time_slice = 25
+time_slice = 200
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
@@ -75,7 +73,6 @@ for t in ProgressBar(time[::200]):
     G = gram(XYZ, W, wl)
     S = vis(XYZ, W, wl)
     I_est.collect(S, G)
-
 N_eig, intervals = I_est.infer_parameters()
 
 # Imaging
@@ -129,6 +126,9 @@ I_lsq_eq = s2image.Image(lsq_image / sensitivity_image, nufft_imager._synthesize
 I_sqrt_eq = s2image.Image(sqrt_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
 t2 = tt.time()
 print(f'Elapsed time: {t2 - t1} seconds.')
+
+print(I_lsq_eq.data)
+
 
 plt.figure()
 ax = plt.gca()

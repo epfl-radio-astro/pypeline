@@ -19,21 +19,27 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as constants
 import pypeline.phased_array.beamforming as beamforming
-import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.bluebild.gram as bb_gr
-import pypeline.phased_array.bluebild.imager.spatial_domain as bb_sd
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.data_gen.source as source
 import pypeline.phased_array.data_gen.statistics as statistics
 import pypeline.phased_array.instrument as instrument
 from pypeline.util import frame
+import bluebild
 import bipptb
 
 
 args = bipptb.check_args(sys.argv)
+#print("-I- args =", args)
 
 # For reproducible results
 np.random.seed(0)
+
+# Create context with selected processing unit.
+# Options are "AUTO", "CPU" and "GPU".
+print("-I- processing unit:", args.processing_unit)
+ctx = bluebild.Context(args.processing_unit)
+
 
 jkt0_s = time.time()
 
@@ -49,7 +55,7 @@ N_station = 24
 dev = instrument.LofarBlock(N_station)
 mb_cfg = [(_, _, field_center) for _ in range(N_station)]
 mb = beamforming.MatchedBeamformerBlock(mb_cfg)
-gram = bb_gr.GramBlock()
+gram = bb_gr.GramBlock(ctx)
 
 # Data generation
 T_integration = 8
@@ -65,7 +71,6 @@ N_antenna = dev(times[0]).data.shape[0]
 N_pix      = 512
 N_levels   = 3
 precision  = args.precision
-N_bits = 32 if precision == "single" else 64
 time_slice = 200
 times = times[::time_slice]
 
@@ -73,9 +78,9 @@ times = times[::time_slice]
 lmn_grid, xyz_grid = frame.make_grids(N_pix, FoV, field_center)
 px_w = xyz_grid.shape[1]
 px_h = xyz_grid.shape[2]
+xyz_grid = xyz_grid.reshape(3, -1)
 
-
-print(f"-I- precision = {precision} ({N_bits} bits)")
+print(f"-I- precision =", precision)
 print(f"-I- N_station =", N_station)
 print(f"-I- N_antenna = {N_antenna:d}")
 print(f"-I- T_integration =", T_integration)
@@ -100,25 +105,36 @@ for t in times:
     S = vis(XYZ, W, wl)
     G = gram(XYZ, W, wl)
     I_est.collect(S, G)
-N_eig, intervals = I_est.infer_parameters()
+N_eig, intensity_intervals = I_est.infer_parameters()
+print(N_eig, intensity_intervals)
 ifpe_e = time.time()
 print(f"#@#IFPE {ifpe_e - ifpe_s:.3f} sec")
 
 # Imaging
 ifim_s = time.time()
-I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig)
-I_mfs = bb_sd.Spatial_IMFS_Block(wl, xyz_grid, N_levels, N_bits)
+imager = bluebild.StandardSynthesis(
+    ctx,
+    N_antenna,
+    N_station,
+    intensity_intervals.shape[0],
+    ["LSQ", "STD"],
+    xyz_grid[0],
+    xyz_grid[1],
+    xyz_grid[2],
+    precision)
+
 for t in times:
     XYZ = dev(t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    D, V = I_dp(S, XYZ, W, wl)
-    _ = I_mfs(D, V, XYZ.data, W.data, intervals)
-I_std, I_lsq = I_mfs.as_image()
+    imager.collect(N_eig, wl, intensity_intervals, W.data, XYZ.data, S.data)
+
+I_lsq = imager.get("LSQ").reshape((-1, px_w, px_h))
+I_std = imager.get("STD").reshape((-1, px_w, px_h))
 ifim_e = time.time()
 print(f"#@#IFIM {ifim_e - ifim_s:.3f} sec")
 
-print(I_lsq.data)
+print(I_lsq)
 
 
 ### Sensitivity Field =========================================================
@@ -136,17 +152,29 @@ print(f"#@#SFPE {sfpe_e - sfpe_s:.3f} sec")
 
 # Imaging
 sfim_s = time.time()
-S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
-S_mfs = bb_sd.Spatial_IMFS_Block(wl, xyz_grid, 1, N_bits)
+sensitivity_intervals = np.array([[0, np.finfo("f").max]])
+imager = None  # release previous imager first to some additional memory
+imager = bluebild.StandardSynthesis(
+    ctx,
+    N_antenna,
+    N_station,
+    sensitivity_intervals.shape[0],
+    ["INV_SQ"],
+    xyz_grid[0],
+    xyz_grid[1],
+    xyz_grid[2],
+    precision,
+)
+
 for t in times:
     XYZ = dev(t)
     W = mb(XYZ, wl)
-    D, V = S_dp(XYZ, W, wl)
-    _ = S_mfs(D, V, XYZ.data, W.data)
-_, S = S_mfs.as_image()
+    imager.collect(N_eig, wl, sensitivity_intervals, W.data, XYZ.data)
 
-I_lsq_eq = s2image.Image(I_lsq.data / S.data, I_lsq.grid)
+sensitivity_image = imager.get("INV_SQ").reshape((-1, px_w, px_h))
 
+I_std_eq = s2image.Image(I_std / sensitivity_image, xyz_grid.reshape(3, px_w, px_h))
+I_lsq_eq = s2image.Image(I_lsq / sensitivity_image, xyz_grid.reshape(3, px_w, px_h))
 
 sfim_e = time.time()
 print(f"#@#SFIM {sfim_e - sfim_s:.3f} sec")
@@ -166,19 +194,23 @@ bipptb.dump_data(I_lsq_eq.data, 'I_lsq_eq_data', args.outdir)
 bipptb.dump_data(I_lsq_eq.grid, 'I_lsq_eq_grid', args.outdir)
 
 
-# Plot results
-fig, ax = plt.subplots(ncols=2)
-I_std_eq = s2image.Image(I_std.data / S.data, I_std.grid)
-I_std_eq.draw(catalog=sky_model.xyz.T, ax=ax[0])
-ax[0].set_title("Bluebild Standardized Image")
-
-#I_lsq_eq = s2image.Image(I_lsq.data / S.data, I_lsq.grid)
-I_lsq_eq.draw(catalog=sky_model.xyz.T, ax=ax[1])
-ax[1].set_title("Bluebild Least-Squares Image")
-fp = "test.png"
-if args.outdir:
-    fp = os.path.join(args.outdir, fp)
+### Plot results
+plt.figure()
+ax = plt.gca()
+I_lsq_eq.draw(catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'), show_gridlines=False, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5))
+ax.set_title(f'BIPP LSQ, sensitivity-corrected image (NEW SS)\n'
+             f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {FoV_deg} degrees.')
+fp = "I_lsq.png"
+if args.outdir: fp = os.path.join(args.outdir, fp)
 plt.savefig(fp)
 
-fig.show()
-plt.show()
+
+plt.figure()
+ax = plt.gca()
+I_std_eq.draw(catalog=sky_model.xyz.T, ax=ax, data_kwargs=dict(cmap='cubehelix'), show_gridlines=False, catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5))
+ax.set_title(f'BIPP STD, sensitivity-corrected image (NEW SS)\n'
+             f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {FoV_deg} degrees.')
+fp = "I_std.png"
+if args.outdir: fp = os.path.join(args.outdir, fp)
+plt.savefig(fp)
+

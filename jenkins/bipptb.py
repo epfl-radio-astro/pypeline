@@ -7,12 +7,6 @@ import json
 import bluebild
 
 
-PROCESSING_UNIT = {'auto': bluebild.ProcessingUnit.AUTO,
-                   'none': None,
-                   'cpu' : bluebild.ProcessingUnit.CPU,
-                   'gpu' : bluebild.ProcessingUnit.GPU}
-
-
 def dump_json(v_shape, w_shape, grid_shape, t_ifim, t_vis, t_idp, t_imfs, filename, outdir):
 
     Nb, Ne     = v_shape
@@ -93,8 +87,9 @@ def check_args(args_in):
     else:
         print("-W- will not dump anything since --outdir was not set")
 
-    args.processing_unit_name = args.processing_unit
-    args.processing_unit  = PROCESSING_UNIT[args.processing_unit]
+    if args.processing_unit == 'none':
+        print('-E- processing unit cannot be \'none\'.')
+        sys.exit(1)
 
     return args
 
