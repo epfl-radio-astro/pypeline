@@ -64,7 +64,7 @@ fidelity_calculation = 0
 structural_similarity_calculation = 0
 
 # only used if both fields above are false: 
-FoV = np.deg2rad(7) # degrees - Solar sim ~ 14.4 - Solar Obs
+FoV = np.deg2rad(6) # degrees - Solar sim ~ 14.4 - Solar Obs
 # Solar RA Dec
 user_fieldcenter = coord.SkyCoord(ra = 248.7713797* u.deg, dec = -22.0545530* u.deg, frame = 'icrs')# true coordinate but BB images flipped
 user_fieldcenter = coord.SkyCoord(ra = 251.6385842 * u.deg, dec = -17.3889944 * u.deg, frame = 'icrs') # false coordinate, but until fix is enacted this will image sun not true coordinate
@@ -298,7 +298,7 @@ for t, f, S in ProgressBar(
     G = gram(XYZ, W, wl)
     S, W = measurement_set.filter_data(S, W)
 
-    D, V, c_idx = I_dp(S, G)
+    D, V, c_idx = I_dp(S, XYZ, W, wl)
 
     #fig_vis, ax_vis = plt.subplots(1, V.shape[0] + 1)
 
@@ -320,7 +320,7 @@ for t, f, S in ProgressBar(
 
     _ = I_mfs(D, V_gpu, XYZ_gpu, W_gpu, c_idx)
     """
-    _ = I_mfs(D, cp.asarray(V), cp.asarray(XYZ.data), cp.asarray(W.data.toarray()), c_idx)
+    _ = I_mfs(D, cp.asarray(V), cp.asarray(XYZ.data), cp.asarray(W.data), c_idx)
 
 I_std, I_lsq = I_mfs.as_image()
 
@@ -358,7 +358,7 @@ for t, f, S in ProgressBar(
     G = gram(XYZ, W, wl)
     S, W = measurement_set.filter_data(S, W)
 
-    D, V = S_dp(G)
+    D, V = S_dp(XYZ, W, wl)
     _ = S_mfs(D, V, XYZ.data, W.data, cluster_idx=np.zeros(N_eig, dtype=int))
 _, S = S_mfs.as_image()
 
@@ -405,7 +405,7 @@ elif ((normalization == "mean") or (normalization == "standard")):
     levels_deviation_std = np.tile(np.std(I_std_eq.data, axis = (1,2)), (I_std_eq.data.shape[1], I_std_eq.data.shape[2], 1)).T
     levels_deviation_lsq = np.tile(np.std(I_lsq_eq.data, axis = (1,2)), (I_lsq_eq.data.shape[1], I_lsq_eq.data.shape[2], 1)).T
 
-    I_std_levels_eq = s2image.Image((I_sI_std_nstd_eq.data - levels_mean_std)/levels_deviation_std, I_std_eq.grid)
+    I_std_levels_eq = s2image.Image((I_std_eq.data - levels_mean_std)/levels_deviation_std, I_std_eq.grid)
     I_lsq_levels_eq = s2image.Image((I_lsq_eq.data - levels_mean_lsq)/levels_deviation_lsq, I_lsq_eq.grid)
 
     I_std_eq = s2image.Image((np.sum(I_std_eq.data, axis = 0) - global_mean_std)/global_deviation_std, I_std_eq.grid)
@@ -756,7 +756,7 @@ f_interp = (f_interp  # We need to transpose axes due to the FORTRAN
 f_interp = I_lsq_eq.data.transpose(0, 2, 1)
 #"""
 
-print((np.sum(f_interp, axis = 0).reshape(1, f_interp.shape[1], f_interp.shape[2]).shape, f_interp.shape, cl_WCS.shape, np.vstack((np.sum(f_interp, axis = 0).reshape(1, f_interp.shape[1], f_interp.shape[2]), f_interp)).shape) )
+#print((np.sum(f_interp, axis = 0).reshape(1, f_interp.shape[1], f_interp.shape[2]).shape, f_interp.shape, cl_WCS.shape, np.vstack((np.sum(f_interp, axis = 0).reshape(1, f_interp.shape[1], f_interp.shape[2]), f_interp)).shape) )
 I_lsq_eq_interp = s2image.WCSImage(np.vstack((np.sum(f_interp, axis = 0).reshape(1, f_interp.shape[1], f_interp.shape[2]), f_interp)), cl_WCS)
 
 if (custom_output_name):

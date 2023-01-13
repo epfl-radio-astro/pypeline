@@ -293,12 +293,12 @@ class MeasurementSet:
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
             data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
 
-            print (f'Data shape: {data.shape}, flagged data shape:{data_flag.shape}, nonzero data: {np.count_nonzero(data)}, percentage of non zero data: {np.count_nonzero(data)/(np.count_nonzero(data) + np.count_nonzero(data ==0))}')
+            #print (f'Data shape: {data.shape}, flagged data shape:{data_flag.shape}, nonzero data: {np.count_nonzero(data)}, percentage of non zero data: {np.count_nonzero(data)/(np.count_nonzero(data) + np.count_nonzero(data ==0))}')
 
             # Set broken visibilities to 0
             # Set Flagging off for MeerKAT Data
             data[data_flag] = 0
-            print (f'Data shape: {data.shape}, flagged data shape:{data_flag.shape}, nonzero data: {np.count_nonzero(data)}, percentage of non zero data: {np.count_nonzero(data)/(np.count_nonzero(data) + np.count_nonzero(data ==0))}')
+            #print (f'Data shape: {data.shape}, flagged data shape:{data_flag.shape}, nonzero data: {np.count_nonzero(data)}, percentage of non zero data: {np.count_nonzero(data)/(data.size)}, flagged # :{np.count_nonzero(data_flag)}')
 
 
             # DataFrame description of visibility data.

@@ -511,13 +511,6 @@ class NUFFTFieldSynthesizerBlock(synth.FieldSynthesizerBlock):
         self._wl = wl
         self._eps = eps
         self._precision = precision
-<<<<<<< HEAD
-        UVW = np.array(UVW, copy=False)
-        self._UVW = (2 * np.pi * UVW.reshape(3, -1) / wl).astype(self._precision_mappings[self._precision]['real'])
-        print (f"Final UVW before NUFFT:{self._UVW}")
-        self._grid_size = grid_size
-=======
->>>>>>> 919c0a878b32360407bdf4493f0811a4b1daa7a2
         self._FoV = FoV
         self._field_center = field_center
         self._ctx = ctx

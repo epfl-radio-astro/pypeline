@@ -17,7 +17,7 @@ import pypeline.phased_array.bluebild.imager as bim
 import imot_tools.io.s2image as image
 import imot_tools.util.argcheck as chk
 import pypeline.util.array as array
-import bluebild
+#import bluebild
 
 class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
     """
@@ -164,8 +164,7 @@ class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
             self._stats_std_cum = np.zeros((self._N_level, Nh, Nw), order="F", dtype=self._fp)
             self._stats_lsq_cum = np.zeros((self._N_level, Nh, Nw), order="F", dtype=self._fp)
             print("self._ctx.processing_unit() =", self._ctx.processing_unit())
-            self._synthesizer = bluebild.SS(self._ctx, wl, N_level, Nh, Nw, self._grid,
-                                            self._stats_std_cum, self._stats_lsq_cum)
+            #self._synthesizer = bluebild.SS(self._ctx, wl, N_level, Nh, Nw, self._grid, self._stats_std_cum, self._stats_lsq_cum)
         else:
             self._synthesizer = ssd.SpatialFieldSynthesizerBlock(wl, pix_grid, precision)
 
