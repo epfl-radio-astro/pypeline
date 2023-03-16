@@ -154,6 +154,4 @@ for i in range(lsq_image.shape[0]):
                   catalog_kwargs=dict(s=30, linewidths=0.5, alpha = 0.5), show_gridlines=False)
 
 plt.suptitle(f'Bluebild Eigenmaps')
-
 plt.savefig('final.png')
-#  plt.show()

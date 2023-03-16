@@ -68,22 +68,6 @@ v_dir = np.array(
      np.cos(field_center_lat)])
 uvw_frame = np.stack((u_dir, v_dir, w_dir), axis=-1)
 
-# fig = plt.figure()
-# ax = Axes3D(fig)
-# ax.plot3D([0, 1], [0, 0], [0, 0], '-ok', linewidth=2)
-# ax.text3D(1, 0, 0, 'x', fontsize='large')
-# ax.plot3D([0, 0], [0, 1], [0, 0], '-ok', linewidth=2)
-# ax.text3D(0, 1, 0, 'y', fontsize='large')
-# ax.plot3D([0, 0], [0, 0], [0, 1], '-ok', linewidth=2)
-# ax.text3D(0, 0, 1, 'z', fontsize='large')
-#
-# ax.plot3D([0, u_dir[0]], [0, u_dir[1]], [0, u_dir[-1]], '-sr', linewidth=2)
-# ax.text3D(u_dir[0], u_dir[1], u_dir[-1], 'u', fontsize='large')
-# ax.plot3D([0, v_dir[0]], [0, v_dir[1]], [0, v_dir[-1]], '-sr', linewidth=2)
-# ax.text3D(v_dir[0], v_dir[1], v_dir[-1], 'v', fontsize='large')
-# ax.plot3D([0, w_dir[0]], [0, w_dir[1]], [0, w_dir[-1]], '-sr', linewidth=2)
-# ax.text3D(w_dir[0], w_dir[1], w_dir[-1], 'w', fontsize='large')
-
 # Imaging grid
 lim = np.sin(FoV / 2)
 N_pix = 256
@@ -110,7 +94,7 @@ _, pix_lat, pix_lon = transform.cart2eq(*pix_xyz)
 t1 = tt.time()
 N_level = 4
 N_bits = 32
-time_slice = 200
+time_slice = 100
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
@@ -148,36 +132,18 @@ UVW_baselines = np.stack(UVW_baselines, axis=0)
 ICRS_baselines = np.stack(ICRS_baselines, axis=0).reshape(-1, 3)
 gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=0).reshape(-1)
 
-# UVW_baselines = UVW_baselines.reshape((UVW_baselines.shape[0], -1, 3))
-#
-# plt.figure()
-# colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-# for i in range(0, UVW_baselines.shape[1], 10):
-#     plt.plot(UVW_baselines[:,i, 0] * 2 * lim / N_pix, UVW_baselines[:,i, 1] * 2 * lim / N_pix, color=colors[0], linewidth=0.01)
-# plt.xlim(-np.pi, np.pi)
-# plt.ylim(-np.pi, np.pi)
-
-
-# fig = plt.figure()
-# # ax = Axes3D(fig)
-# # ax.scatter3D(UVW_baselines[::N_station, 0], UVW_baselines[::N_station, 1], UVW_baselines[::N_station, -1], s=.01)
-# # plt.xlabel('u')
-# # plt.ylabel('v')
-# # ax.set_zlabel('w')
-# plt.figure()
-# plt.scatter(UVW_baselines[:, 0], UVW_baselines[:, 1], s=0.01)
-# plt.xlabel('u')
-# plt.ylabel('v')
 
 UVW_baselines=UVW_baselines.reshape(-1,3)
 w_correction = np.exp(1j * UVW_baselines[:, -1])
 gram_corrected_visibilities *= w_correction
 scalingx = 2 * lim / N_pix
 scalingy = 2 * lim / N_pix
+
 bb_image = finufft.nufft2d1(x=scalingx * UVW_baselines[:, 1],
                             y=scalingy * UVW_baselines[:, 0],
                             c=gram_corrected_visibilities,
                             n_modes=N_pix, eps=1e-4)
+
 
 bb_image = np.real(bb_image)
 
@@ -226,7 +192,7 @@ ax.set_title(f'Bluebild Least-squares, sensitivity-corrected image (NUFFT)\n'
              f'Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180/np.pi)} degrees.\n'
              f'Run time {np.floor(t2 - t1)} seconds.')
 
-plt.savefig("test_nufft")
+plt.savefig("test2_nufft")
 
 
 gaussian=np.exp(-(Lpix ** 2 + Mpix ** 2)/(4*lim))
