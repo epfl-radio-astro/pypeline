@@ -465,8 +465,11 @@ class LofarMeasurementSet(MeasurementSet):
             # Why do we not just use `station_mean` above? Because it arbitrarily
             # points to some sub-antenna, not the station centroid.
             if self._station_only:
-                cfg = cfg.groupby("STATION_ID").mean()
-                station_id = cfg.index.get_level_values("STATION_ID")
+                
+                #cfg = cfg.groupby("STATION_ID").mean()
+                # TEST
+                cfg = pd.DataFrame(data=station_mean.reshape(N_station, 3), columns=("X", "Y", "Z"), index=station_id) # no flagging?
+                #station_id = cfg.index.get_level_values("STATION_ID")
                 cfg.index = pd.MultiIndex.from_product(
                     [station_id, [0]], names=["STATION_ID", "ANTENNA_ID"]
                 )

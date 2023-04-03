@@ -21,8 +21,6 @@ ValueError: shape mismatch: value array of shape (666,3) could not be broadcast 
 # when filter data W passed in Sensitivity Imaging divide by zero error (306) multiply error (372)
 might not be an issue 
 TODO: 
-
-RASCIL FOR WSClean generation
 1) Check script and calibration and UVW baseline check for LOFAR 
  - check with old mean code
 LOFAR Baseline check shows 2-4 m difference between MS baselines and BB baselines
@@ -35,15 +33,13 @@ LOFAR UVW does not need another -ive sign - 1 negative sign in measurement_set m
 2) write code to separate images based on flux bins - test on LOFAR + MWA
 3) Read more WL papers
 6) Upload code to spk_dev branch or create new branch and upload !?!?\
-7) Conference applications : EAS?  (mid Jan?), cargese school (april 9), US Radio school. 
-
+7) Conference applications : URSI sapporo (25/1), Canada (???), EAS?  (mid Jan?), cargese school (april 9)
+URSI 
 Mock images using bluebild(Robert feldmann)
 - diffuse image reconstruction 
 - oskar .ms generation and wsclean vs bluebild comparison 
 - FIREBOX stuff - detecting Dwarf Galaxies' HI emission - realistic stellar feedback therefore able to make 
 predictions regarding dwarf galaxies (low mass end of lambda CDM) 
-
-
 Solar data using bluebild (need to write add on for flux separation of eigenlevels)
 - Calibration (Single Channel and multi channel)
 - simulation comparison (v/s wsclean and bluebild)
@@ -123,27 +119,18 @@ def RZ(teta):
 ###############################################################
 # Path Variables
 ###############################################################
-ms_file = "/work/ska/MWA/1133149192-187-188_Sun_10s_cal.ms/" # MWA
-
-WSClean_image_path = "/scratch/izar/krishna/MWA/WSClean/"
-#WSClean_image_name = "1133149192-187-188_Sun_10s_cal1024_Pixels_0_64_channels-image.fits" # full channel, uniform weighting
-#WSClean_image_name ="1133149192-187-188_Sun_10s_cal1024_Pixels_4_5_channels-image.fits" # 4-5 channels, uniform weighting
-#WSClean_image_name ="1133149192-187-188_Sun_10s_cal_0_64_channels_weighting_natural-image.fits" # 0-64 channels, natural weighting
-#WSClean_image_name ="1133149192-187-188_Sun_10s_cal_0_64_channels_weighting_uniform-image.fits" # 0-64 channels, uniform weighting
-#WSClean_image_name ="1133149192-187-188_Sun_10s_cal_0_5_channels_weighting_natural-image.fits" # 0-5 channels, natural weighting
-#WSClean_image_name ="1133149192-187-188_Sun_10s_cal_0_5_channels_weighting_uniform-image.fits" # 0-5 channels, uniform weighting
-WSClean_image_name ="1133149192-187-188_Sun_10s_cal_4_5_channels_weighting_natural-image.fits" # 4-5 channels, natural weighting
-#WSClean_image_name ="1133149192-187-188_Sun_10s_cal_4_5_channels_weighting_uniform-image.fits" # 4-5 channels, uniform weighting
-
-WSClean_image_path += WSClean_image_name
+ms_file = "/home/krishna/bluebild/testData/gauss4_t201806301100_SBL180.MS"
+        
+WSClean_image_path = "/scratch/izar/krishna/LOFAR/WSClean/gauss4_t201806301100_SBL180.MS_WSClean-dirty.fits"
 
 output_dir = "/scratch/izar/krishna/Calibration/"
+
 ###############################################################
 # Control Variables
 ###############################################################
 
 #Image params
-N_pix = 1024
+N_pix = 2000
 
 # error tolerance for FFT
 eps = 1e-3
@@ -169,7 +156,7 @@ sampling = 1
 column_name = "DATA"
 
 # WSClean Grid: Use Coordinate grid from WSClean image if True
-WSClean_grid = False
+WSClean_grid = True
 
 #ms_fieldcenter: Use field center from MS file if True; only invoked if WSClean_grid is False
 ms_fieldcenter = True
@@ -179,19 +166,23 @@ user_fieldcenter = coord.SkyCoord(ra=218 * u.deg, dec=34.5 * u.deg, frame="icrs"
 
 #Time
 time_start = 0
-time_end = -1
+time_end = 1
 time_slice = 1
 
 # channel
-channel_id = np.array([4], dtype = np.int)
-#channel_id = np.arange(64, dtype = np.int)
+channel_id = np.array([0], dtype = np.int)
+#channel_id = np.arange(4, dtype = np.int)
 
 
 ###############################################################
 # Observation set up
 ###############################################################
 
-ms = measurement_set.MwaMeasurementSet(ms_file)
+ms = measurement_set.LofarMeasurementSet(ms_file, station_only = True)
+# without station_only - the BB visibilities treat each LOFAR antenna pair as a baseline
+# visibilities only stored for each station, NOT for each antenna in .ms file
+
+#ms = measurement_set.LofarMeasurementSet(ms_file, N_station =24, station_only= True)
 
 try:
     if (channel_id.shape[0] > 1):
@@ -204,7 +195,7 @@ except:
     frequency = ms.channels["FREQUENCY"][channel_id]
     print ("Single channel mode.")
 
-wl = constants.speed_of_light / frequency.to_value(u.Hz) [0]
+wl = constants.speed_of_light / frequency.to_value(u.Hz)
 print (f"wl:{wl}; f: {frequency}")
 
 # pixel grid; uses either i/p WSClean image, or ms.field_center & FoV or user.field_center & FoV
@@ -299,12 +290,12 @@ for t, f, S, uvw in ProgressBar(
     S_corrected = IV_dp(D, V, W, c_idx)
 
     if ((np.max(S.data) != 0)):
-        #ratio = np.max(S_corrected) / np.max(S.data)
+        ratio = np.max(S_corrected) / np.max(S.data)
         multiply_counter += 1
     else:
         nomultiply_counter += 1
 
-    print (f'Visibility Ratio: {ratio}')
+    print (f'Visibility Ratio: {ratio}') # Visibility Ratio: (4.621542121831689e-06-2.533961786709179e-07j)
 
     S_corrected *= ratio
 
@@ -315,8 +306,19 @@ for t, f, S, uvw in ProgressBar(
     UVW_t =  (UVW_t[:, None, :] - UVW_t[None, ...])
 
     UVW_t[uvw == 0] = 0
+    #"""
+    if (np.any(uvw - UVW_t>2e-1)):
+        fig, ax = plt.subplots(2,3, figsize = (40,20))
+        for i in np.arange(3):
+            ax[0, i].plot(-uvw[:, :, i], -uvw[:, :, (i+1)%3], "b.", alpha = 0.5)
+            ax[0, i].plot(UVW_t[:, :, i], UVW_t[:, :, (i+1)%3], "r.", alpha = 0.2)
+            ax[0, i].set_title(f"{i} vs {(i+1)%3}")
+            ax[1, i].plot(uvw[:, :, i] - UVW_t[:, :, i], uvw[:, :, (i+1)%3] - UVW_t[:, :, (i+1)%3], "y.")
+            ax[1, i].set_title(f"Difference {i} vs {(i+1)%3}")
 
-    if (np.any(-uvw - UVW_t>2e-1)):
+        plt.savefig("Inconsistent_coordinate_plots")
+        plt.close(fig)
+
         print (uvw.shape, UVW_t.shape)
         residual = np.where(np.abs(-uvw-UVW_t) >2e-1, np.abs(-uvw-UVW_t), 0)
         if (np.count_nonzero(residual.ravel) > 0):
@@ -324,13 +326,13 @@ for t, f, S, uvw in ProgressBar(
 
             print (np.count_nonzero(residual), residual.size)
             print (residual[residual != 0])
-        raise Exception("UVW Coordinates are inconsistent")
+            raise Exception("UVW Coordinates are inconsistent")
+    #"""
 
 
     #uvw baselines passed without 2pi/wl factor!
     #nufft_imager.collect(-1 * uvw  , S_corrected)
-    #nufft_imager.collect(UVW_t , S_corrected)
-    nufft_imager.collect(2* np.pi / wl * - 1 * uvw, np.stack([S.data.reshape(1, S.data.shape[-2], S.data.shape[-1]), S.data.reshape(1, S.data.shape[-2], S.data.shape[-1])], axis = 0))
+    nufft_imager.collect(UVW_t , S_corrected)
 
 print (f'No. of non singular scalings: {multiply_counter}\n No. of singular scalings: {nomultiply_counter}')
 # NUFFT Synthesis
@@ -387,12 +389,12 @@ for t, f, S, uvw in ProgressBar(
 sensitivity_image = nufft_imager.get_statistic()[0]
 
 print (lsq_image.shape, sensitivity_image.shape,nufft_imager._synthesizer.xyz_grid.shape)
-#"""
-# Without sensitivity imaging output
+
 I_lsq_eq = s2image.Image(lsq_image.reshape(lsq_image.shape[-2:]), nufft_imager._synthesizer.xyz_grid)
 I_std_eq = s2image.Image(std_image.reshape(std_image.shape[-2:]), nufft_imager._synthesizer.xyz_grid)
 t2 = tt.time()
-
+#"""
+# without sensitivity plots
 fig, ax = plt.subplots(2, N_level + 2, figsize = (40, 20))
 
 I_std_eq.draw(ax = ax[0,0], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
@@ -415,7 +417,7 @@ cax = divider.append_axes("right", size="5%", pad=0.05)
 cbar = plt.colorbar(WSClean_scale, cax)
 
 
-plt.savefig("spk_master_max_scaling_wos_op.png")
+plt.savefig("spk_lofar_max_scaling_wos_op.png")
 #"""
 
 I_lsq_eq = s2image.Image(lsq_image.reshape(lsq_image.shape[-2:])/ sensitivity_image.reshape(sensitivity_image.shape[-2:]), nufft_imager._synthesizer.xyz_grid)
@@ -443,7 +445,7 @@ divider = make_axes_locatable(ax[0, -1])
 cax = divider.append_axes("right", size="5%", pad=0.05)
 cbar = plt.colorbar(WSClean_scale, cax)
 
-residual_image = np.flipud(lsq_image.reshape(lsq_image.shape[-2:])/ sensitivity_image.reshape(sensitivity_image.shape[-2:])) - WSClean_image
+residual_image = np.fliplr((lsq_image.reshape(lsq_image.shape[-2:])/ sensitivity_image.reshape(sensitivity_image.shape[-2:]))) - WSClean_image
 
 ratio_scale = ax[1, -1].imshow(residual_image, cmap='cubehelix')
 ax[1, -1].set_title(f'LSQ - WSC Image max:{np.max(residual_image)}, min: {np.min(residual_image)} \
@@ -454,5 +456,5 @@ cbar = plt.colorbar(ratio_scale, cax)
 
 print (f'Residual Max: {np.max(residual_image)}, Min: {np.min(residual_image)}, Mean: {np.mean(residual_image)}, Std: {np.std(residual_image)}, Median: {np.median(residual_image)}')
 
-plt.savefig("spk_master_max_scaling_op.png")
+plt.savefig("spk_lofar_max_scaling_op.png")
 print(f'Elapsed time: {tt.time() - start_time} seconds.')

@@ -216,8 +216,8 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
                 D_all[i, : len(D)] = D
         D_all = D_all[D_all.nonzero()]
 
-        kmeans = skcl.KMeans(n_clusters=self._N_level).fit(np.log(D_all).reshape(-1, 1)) # commented out because negative spectrum preserved
-        #kmeans = skcl.KMeans(n_clusters=self._N_level).fit((D_all).reshape(-1, 1))
+        #kmeans = skcl.KMeans(n_clusters=self._N_level).fit(np.log(D_all).reshape(-1, 1)) # commented out because negative spectrum preserved
+        kmeans = skcl.KMeans(n_clusters=self._N_level).fit((D_all).reshape(-1, 1))
 
         # For extremely small telescopes or datasets that are mostly 'broken', we can have (N_eig < N_level).
         # In this case we have two options: (N_level = N_eig) or (N_eig = N_level).
@@ -227,8 +227,8 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         # are clustered together anyway, the trailing energy levels will be (close to) all-0 and can be discarded
         # on inspection.
         N_eig = max(int(np.ceil(len(D_all) / N_data)), self._N_level)
-        cluster_centroid = np.sort(np.exp(kmeans.cluster_centers_)[:, 0])[::-1] # commented out because negative spectrum preserved
-        #cluster_centroid = np.sort(kmeans.cluster_centers_)[:,0][::-1]
+        #cluster_centroid = np.sort(np.exp(kmeans.cluster_centers_)[:, 0])[::-1] # commented out because negative spectrum preserved
+        cluster_centroid = np.sort(kmeans.cluster_centers_)[:,0][::-1]
 
         return N_eig, cluster_centroid
 
