@@ -18,7 +18,9 @@ uvw_frame = frame.uvw_basis(self._field_center)
 xyz_grid = np.tensordot(uvw_frame, lmn_grid, axes=1)
 when .T is added - image is rotated by 45 degrees or so
 3
-- 
+-
+
+ONE 2 pi/wl factor in uvw baselines and w correction in bb image both necessary!
 """
 
 from tqdm import tqdm as ProgressBar
@@ -86,19 +88,22 @@ source = coord.SkyCoord(ra = 248.7713797* u.deg, dec = -22.0545530* u.deg, frame
 ### DEFINE UVW FRAME
 ### Rotate X,Y plane so that it becomes tangent to celestial sphere at source with
 ### with Z'' (i.e. w) pointing to source and Y'' (i.e. v) lookind Nothwards to match convention.
-uvw_frame = RX(np.pi/2 - source.dec.rad) @ RZ(np.pi/2 + source.ra.rad)
-print (uvw_frame)
+
 
 # From https://ska-telescope.gitlab.io/external/rascil/_modules/rascil/processing_components/simulation/configurations.html#create_configuration_from_file
 #low_location = coord.EarthLocation(
 #    lon=116.76444824 * u.deg, lat=-26.824722084 * u.deg, height=300.0
 #)
-
+t1 = tt.time()
 ms_file = "/work/ska/MWA/1133149192-187-188_Sun_10s_cal.ms"
-WSClean_image_path = "/scratch/izar/krishna/MWA/WSClean/individual_channels/1133149192-187-188_Sun_10s_cal1024_Pixels_4_5_channels_50_cellsize-image.fits" # only channel 4
-#WSClean_image_path = "/scratch/izar/krishna/MWA/WSClean/individual_channels/1133149192-187-188_Sun_10s_cal.ms_WSClean-image.fits"
+#ms_file = "/work/ska/MWA/1133149192-084-085_Sun_10s_cal.ms"
+WSClean_image_path = "/scratch/izar/krishna/MWA/WSClean/1133149192-187-188_Sun_10s_cal_4_5_channels_weighting_natural-image.fits" # 187-88 channel 4, natural weighting
+#WSClean_image_path = "/scratch/izar/krishna/MWA/WSClean/1133149192-187-188_Sun_10s_cal_0_64_channels_weighting_natural-image.fits" # 187-188 all channels, natural weighting
+#WSClean_image_path = "/scratch/izar/krishna/MWA/WSClean/1133149192-084-085_Sun_10s_cal.ms_WSClean-image.fits"
 cl_WCS = ifits.wcs(WSClean_image_path)
 ms = measurement_set.MwaMeasurementSet(ms_file) # stations 1 - N_station 
+source = ms.field_center
+uvw_frame = RX(np.pi/2 - source.dec.rad) @ RZ(np.pi/2 + source.ra.rad)
 time_start = 0
 time_end = 1
 time_chunk = 1
@@ -106,15 +111,18 @@ time_chunk = 1
 use_raw_vis = False # Use visibilities from .ms file
 do3D        = True  # 3D NUFFT 
 doPlan      = False # ??
+sensitivity_calculation = True
+
+fig, ax = plt.subplots(2, 5)
+plot_index = 0
 
 for use_raw_vis in  True, False :
     for use_ms in True, False:
 
         print (f"use_raw_vis:{use_raw_vis}, use_ms:{use_ms}")
-        read_coords_from_ms = use_ms
         uvw_from_ms         = use_ms
 
-        outfilename = 'test_mwa_nufft_' + ('msUVW_' if uvw_from_ms else '') + ('rawVis_' if use_raw_vis else 'BBVis')
+        outfilename = ('msUVW_' if uvw_from_ms else '') + ('rawVis_' if use_raw_vis else 'BBVis')
 
         gram = bb_gr.GramBlock()
 
@@ -122,23 +130,30 @@ for use_raw_vis in  True, False :
         width_px, height_px= 2*cl_WCS.wcs.crpix 
         cdelt_x, cdelt_y = cl_WCS.wcs.cdelt 
         #FoV = np.deg2rad(abs(cdelt_x*width_px) )
-        FoV = np.deg2rad(5)
+        FoV = np.deg2rad(6)
         source = ms.field_center
             
         print("Reading {0}\n".format(ms_file))
         print("FoV is ", np.rad2deg(FoV))
 
-        #channel_id = 100
-        channel_id = 4 #64
-        #frequency = 1e8
-        N_pix = 500 # changed from 256
-        freq_ms = ms.channels["FREQUENCY"][channel_id]
-        frequency = freq_ms.to_value(u.Hz)
-        wl = constants.speed_of_light / frequency
-        #print(freq_ms.to_value(u.Hz), frequency)
-        #assert freq_ms.to_value(u.Hz) == frequency
-        obs_start, obs_end = ms.time["TIME"][[0, -1]]
+        channel_id = 4
+        #channel_id = np.arange(64) #64
+        N_pix = 1024 #
 
+        try:
+            if (channel_id.shape[0] > 1):
+                frequency = ms.channels["FREQUENCY"][0] + (ms.channels["FREQUENCY"][-1] - ms.channels["FREQUENCY"][0])/2
+                print ("Multi-channel mode with ", channel_id.shape[0], "channels.")
+            else: 
+                frequency = ms.channels["FREQUENCY"][channel_id]
+                print ("Single channel mode.")
+        except:
+            frequency = ms.channels["FREQUENCY"][channel_id]
+            print ("Single channel mode.")
+
+        wl = constants.speed_of_light / frequency.to_value(u.Hz)
+        
+        print (f"wl:{wl}; f: {frequency}")
         # Imaging Parameters
         #t1 = tt.time()
         N_level = 1
@@ -164,12 +179,13 @@ for use_raw_vis in  True, False :
 
         baseline_rescaling = 2 * np.pi / wl
 
+        visibilities = 0
         timestep = 0
         for t, f, S, uvw in ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_chunk), column="DATA", return_UVW=True):
-            print (f"UVW from MS: {uvw}")
             XYZ = ms.instrument(t)
             wl = constants.speed_of_light / f.to_value(u.Hz)
-            print(f"Timestep: {timestep}, frequency: {f.to_value(u.Hz)},wavelength:{wl}")
+            print(f"BBVis: {not use_raw_vis}, BB UVW: {not use_ms},Timestep: {t}, frequency: {f.to_value(u.Hz)},wavelength:{wl}")
+            
 
             # Imaging grid
             lim = np.sin(FoV / 2)
@@ -181,20 +197,19 @@ for use_raw_vis in  True, False :
             pix_xyz = np.tensordot(uvw_frame.transpose(), lmn_grid, axes=1)  #EO: check this one!
             
             if uvw_from_ms:
-                print("BB using MS")
                 UVW_baselines_t = -uvw
             else:
-                print("BB on his own")
                 UVW = (uvw_frame @ XYZ.data.transpose()).transpose()
                 UVW_baselines_t = (UVW[:, None, :] - UVW[None, ...])
             
-            UVW_baselines.append(baseline_rescaling * UVW_baselines_t)
-            print (f"UVW added to list: {baseline_rescaling * UVW_baselines_t}")
+            #UVW_baselines.append(baseline_rescaling * UVW_baselines_t)
+            UVW_baselines.append( UVW_baselines_t)
 
-            # one 2 pi/wl factor
+            # one 2 pi/wl (averaged) factor
             
             ###ICRS_baselines.append(baseline_rescaling * ICRS_baselines_t)
             W = ms.beamformer(XYZ, wl)
+            S, W = measurement_set.filter_data(S, W)
             G = gram(XYZ, W, wl)
             """
             fig_gram, ax_gram = plt.subplots(2,2)
@@ -228,17 +243,15 @@ for use_raw_vis in  True, False :
             plt.close(fig_gram)
             #print(f"W {W.shape}\n", W)
             #"""
-
-            S, _ = measurement_set.filter_data(S, W)
-
-            D, V, c_idx = I_dp(S, G)
+            try:
+                D, V, c_idx = I_dp(S, G)
+            except:
+                D, V, c_idx = I_dp(S, XYZ, W, wl)
             W = W.data
-            print ("Weights Matrix\n",W.shape,"\n",)
             S_corrected = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.conj().T
 
             #S_corrected = (W @ ((V @ np.diag(D)) @linalg.inv(V))) @ linalg.inv(W) # linalg inv V not possible
             #S_corrected = (W @ invG @((V @ np.diag(D)) @V.conj().T)) @ invG @ W.conj().T
-            print('BB Vis shape', S_corrected.shape,"OG Vis Shape", S.shape)
             """
             # max scaling 
             scaler1 = np.max(np.real(S.data))/ np.max(np.real(S_corrected))
@@ -249,9 +262,12 @@ for use_raw_vis in  True, False :
 
             if use_raw_vis:
                 gram_corrected_visibilities.append(S.data)
+                visibilities += np.count_nonzero(S.data)
             else:
                 gram_corrected_visibilities.append(S_corrected)
+                visibilities += np.count_nonzero(S_corrected)
                 #print("UVW_baselines_t",UVW_baselines_t)
+            timestep += 1
             """
             # try max scaling for BB / OG vis scaling
             real_OG = np.real(S.data)
@@ -316,23 +332,68 @@ for use_raw_vis in  True, False :
         UVW_baselines = np.stack(UVW_baselines, axis=0)
         gram_corrected_visibilities = np.stack(gram_corrected_visibilities, axis=0).reshape(-1)
         
-        UVW_baselines=UVW_baselines.reshape(-1,3)
-        w_correction = np.exp(1j * UVW_baselines[:, -1])
+        UVW_baselines= 2 * np.pi * UVW_baselines.reshape(-1,3)/ wl
+        w_correction = np.exp(1j * UVW_baselines[:, -1]) # small FoV? Compare with HVOX
 
-        if not use_raw_vis:
+        if ((not use_raw_vis)):
             gram_corrected_visibilities *= w_correction
-
+        
         lmn_grid = lmn_grid.reshape(3, -1)
         grid_center = lmn_grid.mean(axis=-1)
         lmn_grid -= grid_center[:, None]
         lmn_grid = lmn_grid.reshape(3, -1)
 
-        UVW_baselines = 2 * np.pi * UVW_baselines.T.reshape(3, -1) / wl
 
-        print (f"Final UVW before NUFFT: {UVW_baselines}")
 
         # second 2 pi/ wl factor!!!
-        #UVW_baselines =  UVW_baselines.T.reshape(3, -1) 
+        UVW_baselines =  UVW_baselines.T.reshape(3, -1) 
+        s_timestep = 0
+        s_visibilities =0
+        if (sensitivity_calculation):
+
+            ### Sensitivity Field =========================================================
+            # Parameter Estimation
+            S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=1)
+            for t, f, S in ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_chunk), column="DATA"):
+                wl = constants.speed_of_light / f.to_value(u.Hz)
+                XYZ = ms.instrument(t)
+                W = ms.beamformer(XYZ, wl)
+                _, W = measurement_set.filter_data(S, W)
+                G = gram(XYZ, W, wl)
+
+                S_est.collect(G)
+            N_eig = S_est.infer_parameters()
+            print (f"Sensitivity eigs:{N_eig}")
+
+            # Imaging
+            S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
+            sensitivity_coeffs = []
+            for t, f, S in ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_chunk), column="DATA"):
+                wl = constants.speed_of_light / f.to_value(u.Hz)
+                XYZ = ms.instrument(t)
+                W = ms.beamformer(XYZ, wl)
+                print (f"Beamforming matrix before filtering shape:{W.shape}\n{W.data[:5]}\n{W.data[-5:]}")
+                _, W = measurement_set.filter_data(S, W)
+                print (f"Beamforming matrix after filtering shape:{W.shape}\n{W.data[:5]}\n{W.data[-5:]}")
+                G = gram(XYZ, W, wl)
+                print (f"Gram Matrix:\n{G.data}")
+                try:
+                    D, V = S_dp(G)
+                except:
+                    D, V = S_dp(XYZ, W, wl)
+                print (f"D:{D}\nV 1st 5:{V[:5]}\nV last 5{V[-5:]}")
+                W = W.data
+                S_sensitivity = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
+                sensitivity_coeffs.append(S_sensitivity)
+                s_timestep +=1 
+                s_visibilities += np.count_nonzero(S_sensitivity)
+
+            
+            sensitivity_coeffs = np.stack(sensitivity_coeffs, axis=0).reshape(-1)
+            sensitivity_coeffs *= w_correction
+            
+            
+        
 
         print ("Nufft Portion begins")
 
@@ -344,9 +405,16 @@ for use_raw_vis in  True, False :
                 plan.setpts(x= UVW_baselines[0], y=UVW_baselines[1], z=UVW_baselines[2],
                             s=lmn_grid[0], t=lmn_grid[1],u=lmn_grid[2])
                 V = gram_corrected_visibilities #*prephasing
-                print('V', V)
                 bb_image = np.real(plan.execute(V)) 
                 bb_image = bb_image.reshape(pix_xyz.shape[1:])
+
+                if (sensitivity_calculation):
+                    plans = finufft.Plan(nufft_type=3, n_modes_or_dim=3, eps=1e-4, isign=1)       
+                    plans.setpts(x= UVW_baselines[0], y=UVW_baselines[1], z=UVW_baselines[2],
+                                s=lmn_grid[0], t=lmn_grid[1],u=lmn_grid[2])
+                    Vs = sensitivity_coeffs #*prephasing
+                    bbs_image = np.real(plan.execute(Vs)) 
+                    bbs_image = bb_image.reshape(pix_xyz.shape[1:])
             else:
                 ##########################################################################################
                 print ("Nufft 3D portion begins")
@@ -357,9 +425,21 @@ for use_raw_vis in  True, False :
                                             t=lmn_grid[1],
                                             u=lmn_grid[2],
                                             c=gram_corrected_visibilities, eps=1e-4)
-                print ("Nufft 3D portion ends")
+                
                 bb_image = np.real(bb_image)
                 bb_image = bb_image.reshape(pix_xyz.shape[1:])
+
+                if (sensitivity_calculation):
+                    bbs_image = finufft.nufft3d3(x= UVW_baselines[0],
+                                                y= UVW_baselines[1],
+                                                z= UVW_baselines[2],
+                                                s=lmn_grid[0],
+                                                t=lmn_grid[1],
+                                                u=lmn_grid[2],
+                                                c=sensitivity_coeffs, eps=1e-4)
+                    bbs_image = np.real(bbs_image)
+                    bbs_image = bbs_image.reshape(pix_xyz.shape[1:])
+            print ("Nufft 3D portion ends")
             ##########################################################################################
         else:
             outfilename += "2D"
@@ -371,6 +451,12 @@ for use_raw_vis in  True, False :
                 plan.setpts(x= UVW_baselines[1], y= UVW_baselines[0])  
                 V = gram_corrected_visibilities
                 bb_image = np.real(plan.execute(V))  
+
+                if (sensitivity_calculation):
+                    plans = finufft.Plan(nufft_type=1, n_modes_or_dim= (N_pix, N_pix), eps=1e-4, isign=1)
+                    plans.setpts(x= UVW_baselines[1], y= UVW_baselines[0])  
+                    Vs = sensitivity_coeffs
+                    bbs_image = np.real(plan.execute(Vs))  
                 ########################################################################################## 
             else:
                 ##########################################################################################
@@ -379,112 +465,59 @@ for use_raw_vis in  True, False :
                                             c=gram_corrected_visibilities,
                                             n_modes=N_pix, eps=1e-4)
                 bb_image = np.real(bb_image)
+                if (sensitivity_calculation):
+                    bbs_image = finufft.nufft2d1(x= UVW_baselines[1],
+                                                y= UVW_baselines[0],
+                                                c=sensitivity_coeffs,
+                                                n_modes=N_pix, eps=1e-4)
+                    bbs_image = np.real(bbs_image)
                 ##########################################################################################
         
+        if (sensitivity_calculation):
+            I_lsq_S_eq = s2image.Image(bb_image/bbs_image, pix_xyz)
+        
         ################################################################################################
-        """
-        ### Sensitivity Field =========================================================
-        # Parameter Estimation
-        S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=1)
-        for t, f, S in ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_chunk), column="DATA"):
-            wl = constants.speed_of_light / f.to_value(u.Hz)
-            XYZ = ms.instrument(t)
-            W = ms.beamformer(XYZ, wl)
-            G = gram(XYZ, W, wl)
-
-            S_est.collect(G)
-        N_eig = S_est.infer_parameters()
-
-        # Imaging
-        S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
-        sensitivity_coeffs = []
-        for t, f, S in ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_chunk), column="DATA"):
-            wl = constants.speed_of_light / f.to_value(u.Hz)
-            XYZ = ms.instrument(t)
-            W = ms.beamformer(XYZ, wl)
-            G = gram(XYZ, W, wl)
-            W = W.data
-            D, V = S_dp(G)
-            S_sensitivity = (W @ ((V @ np.diag(D)) @ V.transpose().conj())) @ W.transpose().conj()
-            sensitivity_coeffs.append(S_sensitivity)
-
-        sensitivity_coeffs = np.stack(sensitivity_coeffs, axis=0).reshape(-1)
-        sensitivity_coeffs *= w_correction
-        sensitivity_image = finufft.nufft2d1(x= UVW_baselines[:, 1],
-                                            y= UVW_baselines[:, 0],
-                                            c=sensitivity_coeffs,
-                                            n_modes=N_pix, eps=1e-4)
-
-        sensitivity_image = np.real(sensitivity_image)
-
-        print(sensitivity_image.shape,sensitivity_image[0,0])
-
-        I_lsq_eq = s2image.Image(bb_image / sensitivity_image, pix_xyz)
-        ############################################################################################
-        
-        ### Sensitivity Field =========================================================
-        # Parameter Estimation
-        S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=1)
-        for t, f, S in ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_chunk), column="DATA"):
-            wl = constants.speed_of_light / f.to_value(u.Hz)
-            XYZ = ms.instrument(t)
-            W = ms.beamformer(XYZ, wl)
-            G = gram(XYZ, W, wl)
-
-            S_est.collect(G)
-        N_eig = S_est.infer_parameters()
-
-        # Imaging
-        S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
-        SV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq',))
-        sensitivity_coeffs = []
-        for t, f, S in ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_chunk), column="DATA"):
-            wl = constants.speed_of_light / f.to_value(u.Hz)
-            XYZ = ms.instrument(t)
-            W = ms.beamformer(XYZ, wl)
-            G = gram(XYZ, W, wl)
-            D, V = S_dp(G)
-            S_sensitivity = SV_dp(D, V, W, cluster_idx=np.zeros(N_eig, dtype=int))
-            sensitivity_coeffs.append(S_sensitivity)
-
-        sensitivity_coeffs = np.stack(sensitivity_coeffs, axis=0).reshape(-1)
-        nufft_imager = bb_fd.NUFFT_IMFS_Block(wl=wl, UVW=UVW_baselines.T, grid_size=N_pix, FoV=FoV,
-                                            field_center=source, eps=1e-3, w_term=True,
-                                            n_trans=1, precision='single')
-        print(nufft_imager._synthesizer._inner_fft_sizes)
-        sensitivity_image = nufft_imager(sensitivity_coeffs)
-        
-
-        I_lsq_eq = s2image.Image(bb_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
-        #I_sqrt_eq = s2image.Image(sqrt_image / sensitivity_image, nufft_imager._synthesizer.xyz_grid)
-        """
         I_lsq_eq = s2image.Image(bb_image, pix_xyz)
 
         ##################################################################################
         #"""
         t2 = tt.time()
-        #print(f'Elapsed time: {t2 - t1} seconds.')
-
-        fig, ax = plt.subplots(1, 2)
-        I_lsq_eq.draw( ax=ax[0], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-        ax[0].set_title(outfilename)
+        print(f'Elapsed time: {t2 - t1} seconds.')
 
         WSClean_image = ap_fits.getdata(WSClean_image_path)[0, :, :]
         if (WSClean_image.shape[0] == 1):
             WSClean_image = WSClean_image[0, :, :]
-        WSClean_scale= ax[1].imshow((WSClean_image), cmap='cubehelix')
-        ax[1].set_title("WSClean Image")
-        divider = make_axes_locatable(ax[1])
-        cax = divider.append_axes("right", size="5%", pad=0.05)
 
-        cbar = plt.colorbar(WSClean_scale, cax)
-        plt.savefig(outfilename)
-        #plt.show()
+        WSClean_max = np.max(WSClean_image)
+        BB_max = np.max(I_lsq_eq.data)
+        BBs_max = np.max(I_lsq_S_eq.data)
+        
+        I_lsq_eq.draw( ax=ax[0, int(plot_index%5)], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
+        ax[0, int(plot_index%5)].set_title(outfilename+ f"\n{BB_max/WSClean_max:6.2f}")
+
+        if (sensitivity_calculation):
+            I_lsq_S_eq.draw( ax=ax[1, int(plot_index%5)], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
+            ax[1, int(plot_index%5)].set_title(outfilename + f"\n{BBs_max/WSClean_max:6.2f}")
 
         gaussian=np.exp(-(Lpix ** 2 + Mpix ** 2)/(4*lim))
         gridded_visibilities=np.sqrt(np.abs(np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(gaussian*bb_image)))))
         gridded_visibilities[int(gridded_visibilities.shape[0]/2)-2:int(gridded_visibilities.shape[0]/2)+2, int(gridded_visibilities.shape[1]/2)-2:int(gridded_visibilities.shape[1]/2)+2]=0
+        plot_index += 1
         #plt.figure()
         #plt.imshow(np.flipud(gridded_visibilities), cmap='cubehelix')
         #plt.show()
+WSClean_scale= ax[0, -1].imshow((WSClean_image), cmap='cubehelix')
+ax[0, -1].set_title(f"WSClean")
+divider = make_axes_locatable(ax[0, -1])
+cax = divider.append_axes("right", size="5%", pad=0.05)
+cbar = plt.colorbar(WSClean_scale, cax)
+
+WSClean_scale= ax[1, -1].imshow((WSClean_image), cmap='cubehelix')
+ax[1, -1].set_title(f"WSClean")
+divider = make_axes_locatable(ax[0, -1])
+cax = divider.append_axes("right", size="5%", pad=0.05)
+cbar = plt.colorbar(WSClean_scale, cax)
+fig.suptitle(f"Timesteps:{timestep}, visibilities:{visibilities},\n s timesteps:{s_timestep}, s_visibilities:{s_visibilities}, \n2pi/l:{1/baseline_rescaling}")
+fig.tight_layout()
+plt.savefig("eo2_187-188_channel_4.png")
     

@@ -13,21 +13,11 @@ Real data (.ms file) script based on lofar_bootes_nufft3 from ci-master
 
 primary beam correction
 
-
-# Without 2 pi/wl factor - the MWA image is NOT recreated - checking for LOFAR image - shape mismatch in ms.visibilities thrown during imaging step
-# LOFAR ERROR: UVW_baselines[uvw_indices['f0'],uvw_indices['f1']] = uvw
-ValueError: shape mismatch: value array of shape (666,3) could not be broadcast to indexing result of shape (276,3)
-
-# when filter data W passed in Sensitivity Imaging divide by zero error (306) multiply error (372)
-might not be an issue 
 TODO: 
 
 RASCIL FOR WSClean generation
 1) Check script and calibration and UVW baseline check for LOFAR 
  - check with old mean code
-LOFAR Baseline check shows 2-4 m difference between MS baselines and BB baselines
-LOFAR UVW does not need another -ive sign - 1 negative sign in measurement_set method visibilities gives correct-ish coordinates
-
  - check ratio by varying number of channels included in MWA images
  - simulation check 
  - TCLEAN Benchmarking
@@ -35,7 +25,7 @@ LOFAR UVW does not need another -ive sign - 1 negative sign in measurement_set m
 2) write code to separate images based on flux bins - test on LOFAR + MWA
 3) Read more WL papers
 6) Upload code to spk_dev branch or create new branch and upload !?!?\
-7) Conference applications : EAS?  (mid Jan?), cargese school (april 9), US Radio school. 
+7) Conference applications : cargese school (april 9), US Radio school. 
 
 Mock images using bluebild(Robert feldmann)
 - diffuse image reconstruction 
@@ -59,6 +49,23 @@ Bluebild for imaging in Weak Lensing
 
 
 8)_
+
+# Apply dirty weights
+    if mesh == "dcos":
+        jacobian = xyz[:, -1] + 1.0
+        dirty /= jacobian
+
+    # NUFFT Type 3
+    vis = _nufft.nufft_dirty2vis(xyz_, uvw_, dirty, epsilon, chunked, max_mem)
+
+    # Apply visibility weights
+    vis_ = vis * wgt if wgt is not None else vis
+
+    if normalisation is not None:
+        if normalisation in ["uvw", "both"]:
+            vis_ /= wgt.sum() if wgt is not None else len(uvw)
+        if normalisation in ["xyz", "both"]:
+            vis_ /= len(xyz)
 """
 import time as tt
 start_time = tt.time()
@@ -488,7 +495,7 @@ for use_raw_vis in True,False:
                 XYZ = ms.instrument(t)
                 W = ms.beamformer(XYZ, wl)
 
-                S, _ = measurement_set.filter_data(S, W)
+                S, _ = measurement_set.filter_data(S, W) # input and change W 
 
                 D, V = S_dp(XYZ, W, wl)
                 S_sensitivity = SV_dp(D, V, W, cluster_idx=np.zeros(N_eig, dtype=int))
