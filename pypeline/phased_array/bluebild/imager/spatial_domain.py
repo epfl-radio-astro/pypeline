@@ -122,7 +122,7 @@ class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
             wl=chk.is_real, pix_grid=chk.has_reals, N_level=chk.is_integer, precision=chk.is_integer
         )
     )
-    def __init__(self, wl, pix_grid, N_level, precision=64, ctx=None):
+    def __init__(self, wl, pix_grid, N_level, precision=64, ctx=None, filter_negative_eigenvalues=True):
         """
         Parameters
         ----------
@@ -152,7 +152,13 @@ class Spatial_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
 
         if N_level <= 0:
             raise ValueError("Parameter[N_level] must be positive.")
+
+        self._filter_negative_eigenvalues = filter_negative_eigenvalues
+
         self._N_level = N_level
+
+        if not self._filter_negative_eigenvalues:
+            self._N_level += 1
         
         self.timer = None
 
