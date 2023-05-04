@@ -23,7 +23,7 @@ import imot_tools.math.linalg as pylinalg
 import imot_tools.util.argcheck as chk
 import numpy as np
 import sklearn.cluster as skcl
-
+import scipy.linalg as linalg
 import pypeline.phased_array.data_gen.statistics as vis
 import pypeline.phased_array.bluebild.gram as gr
 
@@ -139,7 +139,7 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
     """
 
     @chk.check(dict(N_level=chk.is_integer, sigma=chk.is_real))
-    def __init__(self, N_level, sigma):
+    def __init__(self, N_level, sigma, filter_negative_eigenvalues=False):
         """
         Parameters
         ----------
@@ -157,6 +157,7 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         if not (0 < sigma <= 1):
             raise ValueError("Parameter[sigma] must lie in (0,1].")
         self._sigma = sigma
+        self._filter_negative_eigenvalues = filter_negative_eigenvalues
 
         # Collected data.
         self._visibilities = []
@@ -210,10 +211,21 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
 
             # Functional PCA
             if not np.allclose(S, 0):
-                D, _ = pylinalg.eigh(S, G, tau=self._sigma)
-                D_all[i, : len(D)] = D
-
-        D_all = D_all[D_all.nonzero()]
+                if self._filter_negative_eigenvalues:
+                    D, _ = pylinalg.eigh(S, G, tau=self._sigma)
+                    D_all[i, : len(D)] = D
+                # Copied from Imot_Tools but keeping all eigen pairs (=> no padding/selection required)
+                else:
+                    try:
+                        D_all = linalg.eigh(S, G, eigvals_only=True)
+                    except linalg.LinAlgError:
+                        raise ValueError("Parameter[B] is not PSD.")
+            else:
+                raise Exception("S, allclose to 0")
+                    
+        #EO: instead of clustering on non-zero eigenvalues, cluster on strictly
+        #    positive eigenvalues to also discard negative eigenvalues if kept in.
+        D_all = D_all[D_all > 0.0]
         kmeans = skcl.KMeans(n_clusters=self._N_level).fit(np.log(D_all).reshape(-1, 1))
 
         # For extremely small telescopes or datasets that are mostly 'broken', we can have (N_eig < N_level).
