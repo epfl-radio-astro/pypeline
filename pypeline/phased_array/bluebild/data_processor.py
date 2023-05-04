@@ -18,7 +18,9 @@ import pypeline.phased_array.bluebild.gram as gram
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.instrument as instrument
 import typing as typ
+import scipy.linalg as linalg
 import scipy.sparse as sparse
+
 
 
 class DataProcessorBlock(core.Block):
@@ -53,7 +55,7 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
     """
 
     @chk.check(dict(N_eig=chk.is_integer, cluster_centroids=chk.has_reals))
-    def __init__(self, N_eig, cluster_centroids, ctx=None):
+    def __init__(self, N_eig, cluster_centroids, ctx=None, filter_negative_eigenvalues=True):
         """
         Parameters
         ----------
@@ -78,6 +80,7 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
         self._N_eig = N_eig
         self._cluster_centroids = np.array(cluster_centroids, copy=False)
         self._ctx = ctx
+        self._filter_negative_eigenvalues = filter_negative_eigenvalues
 
     @chk.check(
         dict(
@@ -177,27 +180,56 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
 
         if self._ctx is not None:
             D, V, cluster_idx = self._ctx.intensity_field_data(self._N_eig, np.array(XYZ.data, order='F'), np.array(W.data, order='F'),
-                    wl, S, self._cluster_centroids)
+                                                               wl, S, self._cluster_centroids)
+           
         else:
             G = gram.GramBlock().compute(XYZ.data, W, wl)
 
             # Functional PCA
             if not np.allclose(S, 0):
-                D, V = pylinalg.eigh(S, G, tau=1, N=self._N_eig)
+
+                # Default case: use Imot_Tools wrapper for Scipy linalg eigh that filters out
+                #               negative eigen values
+                if self._filter_negative_eigenvalues:
+                    D, V = pylinalg.eigh(S, G, tau=1, N=self._N_eig)
+
+                # Copied from Imot_Tools but here keeping all eigen pairs (hence no padding/selection required)
+                else:
+                    tau = 1
+                    N=self._N_eig
+                    try:
+                        D, V = linalg.eigh(S, G)
+                        idx = np.argsort(D)[::-1]
+                        D, V = D[idx], V[:, idx]
+                    except linalg.LinAlgError:
+                        raise ValueError("Parameter[B] is not PSD.")
+
             else:  # S is broken beyond use
                 D, V = np.zeros(self._N_eig), 0
 
             # Determine energy-level clustering
-            cluster_dist = np.absolute(D.reshape(-1, 1) - self._cluster_centroids.reshape(1, -1))
-            cluster_idx = np.argmin(cluster_dist, axis=1)
+            if self._filter_negative_eigenvalues:
+                cluster_dist = np.absolute(D.reshape(-1, 1) - self._cluster_centroids.reshape(1, -1))
+                cluster_idx = np.argmin(cluster_dist, axis=1)
+            else:
+                # Cluster positive part as normal, then add an additional level to contain
+                # all negative eigenvalues
+                cluster_dist = np.absolute(D[D > 0.0].reshape(-1, 1) - self._cluster_centroids.reshape(1, -1))
+                cluster_idx_ = np.argmin(cluster_dist, axis=1)
+                cluster_idx  = np.zeros(D.shape[0], dtype=cluster_idx_.dtype)
+                np.put(cluster_idx, np.arange(cluster_idx_.shape[0]), cluster_idx_)
+                np.put(cluster_idx, np.arange(cluster_idx_.shape[0], cluster_idx.shape[0]), cluster_idx_[-1] + 1)
 
         # Add broken BEAM_IDs
         if broken_row_id.size:
-            V_aligned = np.zeros((N_beam, self._N_eig), dtype=np.complex)
+            V_aligned = np.zeros((N_beam, self._N_eig), dtype=V.dtype)
             V_aligned[working_row_id] = V
         else:
             V_aligned = V
 
+        # Scale D by the number of non-zero visibilities
+        D /= np.count_nonzero(S.data)
+   
         return D, V_aligned, cluster_idx
 
 
@@ -353,7 +385,7 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
         virtual_vis_stack: np.ndarray
          (N_filter, N_eig, N_antenna, N_antenna) stack of (N_antenna, N_antenna) virtual visibilities.
         """
-        Filtered_eigs = dict(lsq=D, std=np.ones(D.size, np.float), sqrt=np.sqrt(D), inv=1 / D)
+        Filtered_eigs = dict(lsq=D, std=np.ones(D.size, D.dtype), sqrt=np.sqrt(D), inv=1 / D)
         if W is not None:
             W = sparse.csr_matrix(W.data)
             V_unbeamformed = np.asarray(W * V)
