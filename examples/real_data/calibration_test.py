@@ -105,7 +105,6 @@ import sys
 np.set_printoptions(threshold=sys.maxsize)
 import pypeline.phased_array.measurement_set as measurement_set
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-import skimage.metrics
 import imot_tools.math.sphere.grid as grid
 import imot_tools.io.fits as ifits
 import astropy.io.fits as ap_fits
@@ -177,7 +176,7 @@ sampling = 1
 column_name = "DATA"
 
 # WSClean Grid: Use Coordinate grid from WSClean image if True
-WSClean_grid = False # try False
+WSClean_grid = True # try False
 
 #ms_fieldcenter: Use field center from MS file if True; only invoked if WSClean_grid is False
 ms_fieldcenter = True
@@ -191,8 +190,13 @@ time_end = -1
 time_slice = 1
 
 # channel
-channel_id = np.array([4], dtype = np.int)
-#channel_id = np.arange(64, dtype = np.int)
+channel_id = np.array([4], dtype = np.int32)
+#channel_id = np.arange(64, dtype = np.int32)
+
+# plot visibilities if bb vis do not match ms vis
+plot_vis_mismatch = False
+
+filter_tuple = ('lsq',)
 
 
 ###############################################################
@@ -211,8 +215,10 @@ try:
 except:
     frequency = ms.channels["FREQUENCY"][channel_id]
     print ("Single channel mode.")
-
-wl = constants.speed_of_light / frequency.to_value(u.Hz)[0]
+try:
+    wl = constants.speed_of_light / frequency.to_value(u.Hz)[0]
+except:
+    wl = constants.speed_of_light / frequency.to_value(u.Hz)
 print (f"wl:{wl}; f: {frequency}")
 
 # pixel grid; uses either i/p WSClean image, or ms.field_center & FoV or user.field_center & FoV
@@ -271,7 +277,7 @@ else:
     # and equally divide the data between them 
     N_eig, c_centroid = N_level, np.arange(N_level)
 
-fig, ax = plt.subplots(3, 3, figsize = (30, 40))
+fig, ax = plt.subplots(3, len(filter_tuple) + 1, figsize = (30, 40))
 plot_index = 0
 
 WSClean_image = ap_fits.getdata(WSClean_image_path)
@@ -279,17 +285,16 @@ WSClean_image = WSClean_image.reshape(WSClean_image.shape[-2:])
 
 print(f"Clustering: {clustering}")
 print (f"Number of Eigenvalues:{N_eig}, Centroids: {c_centroid}")
-for use_raw_vis in True,False:
+for use_raw_vis in False,:
     for use_ms_coord in False,:
-        for max_scaling in False,:
-            outfile_name = "Calibration_test_" + ("raw_vis_" if use_raw_vis else "bb_vis_") + ("ms_uvw_" if use_ms_coord else "bb_uvw_") + ("max_scaling" if max_scaling else "no_scaling")
+            outfile_name = "Calibration_test_" + ("raw_vis_" if use_raw_vis else "bb_vis_") + ("ms_uvw" if use_ms_coord else "bb_uvw")
             ####################################################################
             # Imaging
             # Here we feed the inputs from the Intensity Field Parameter Estimation to get images 
             # that are consistent with the Eigenvalues and Centroids produced in the previous step.
             ####################################################################
             I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
-            IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq',))
+            IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=filter_tuple)
 
             # should this be different for each block? or a single wl at the 
             # lowest resolution?
@@ -298,9 +303,6 @@ for use_raw_vis in True,False:
                                                 field_center=field_center, eps=eps,
                                                 n_trans=1, precision=precision)
 
-            multiply_counter = 0
-            nomultiply_counter = 0
-            ratio = 1
 
             time_index = 0 
             vis_count = 0
@@ -318,16 +320,6 @@ for use_raw_vis in True,False:
                 D, V, c_idx = I_dp(S, XYZ, W, wl)
 
                 S_corrected = IV_dp(D, V, W, c_idx)
-
-                if ((np.max(S.data) != 0) and max_scaling):
-                    ratio = np.max(S_corrected) / np.max(S.data)
-                    multiply_counter += 1
-                else:
-                    nomultiply_counter += 1
-
-                print (f'Visibility Ratio: {ratio}')
-
-                S_corrected *= ratio
 
                 uvw_frame = RX(np.pi/2 - field_center.dec.rad) @ RZ(np.pi/2 + field_center.ra.rad)
 
@@ -347,103 +339,114 @@ for use_raw_vis in True,False:
                         print (residual[residual != 0])
                     raise Exception("UVW Coordinates are inconsistent")
                 
-                if ((np.any(S.data - S_corrected[-2:]>1)) and time_index == 0):
-                    print ("Visibility mismatch between BB and MS")
-
-                    fig_vis, ax_vis = plt.subplots(2,4, figsize = (300,100))
-                    
-                    print (f"Max Ratio BB:OG Vis: {np.max(S_corrected) / np.max(S.data)}")
-                    print (f"   BB Vis max: {S_corrected.max():10.2f} min:{S_corrected.min():10.2f} mean:{S_corrected.mean():10.2f} std:{np.std(S_corrected):10.2f} median:{np.median(S_corrected):10.2f}")
-                    cMap = cm.get_cmap("cubehelix")
-                    cMap.set_bad("black")
-
-                    # Plot Bluebild Amplitude
-                    BBAmp=ax_vis[0, 0].imshow(np.absolute(S_corrected.reshape(S_corrected.shape[-2], S_corrected.shape[-1])), cmap=cMap)
-                    ax_vis[0, 0].set_title(f'Amp$_{{BB}}$')
-                    divider = make_axes_locatable(ax_vis[0, 0])
-                    cax = divider.append_axes("right", size="5%", pad=0.05)
-                    cbar = plt.colorbar(BBAmp, cax)
-
-                    # Plot Bluebild Phase
-                    BBPhase = ax_vis[1, 0].imshow(np.angle(S_corrected.reshape(S_corrected.shape[-2], S_corrected.shape[-1])), cmap = cMap)
-                    ax_vis[1, 0].set_title(f'Phase$_{{BB}}$')
-                    divider = make_axes_locatable(ax_vis[1, 0])
-                    cax = divider.append_axes("right", size="5%", pad=0.05)
-                    cbar = plt.colorbar(BBPhase, cax)
-
-                    # Plot OG Amplitude
-                    OGAmp=ax_vis[0, 1].imshow(np.absolute(S.data), cmap=cMap)
-                    ax_vis[0, 1].set_title(f'Amp$_{{OG}}$')
-                    divider = make_axes_locatable(ax_vis[0, 1])
-                    cax = divider.append_axes("right", size="5%", pad=0.05)
-                    cbar = plt.colorbar(OGAmp, cax)
-
-                    # Plot OG Phase
-                    OGPhase = ax_vis[1, 1].imshow(np.angle(S.data), cmap = cMap)
-                    ax_vis[1, 1].set_title(f'Phase$_{{OG}}$')
-                    divider = make_axes_locatable(ax_vis[1, 1])
-                    cax = divider.append_axes("right", size="5%", pad=0.05)
-                    cbar = plt.colorbar(OGPhase, cax)
-                    
-                    # Calculate amplitude ratio BB/OG, except where Amp_OG = 0
-                    ampVis = np.where((np.absolute(S.data)!= 0), np.absolute(S_corrected[-2:])/ np.absolute(S.data), 0)
-                    ampVis = ampVis.reshape(ampVis.shape[-2], ampVis.shape[-1])
-                    
-                    # Plot amplitude ratio
-                    ampScale=ax_vis[0, 2].imshow(ampVis, cmap=cMap)
-                    ax_vis[0, 2].set_title(f'Amp__${{BB}}$ / Amp_${{OG}}$')
-                    divider = make_axes_locatable(ax_vis[0, 2])
-                    cax = divider.append_axes("right", size="5%", pad=0.05)
-                    cbar = plt.colorbar(ampScale, cax)
-                    
-                    print (f"  Amp Vis max: {ampVis.max():10.2f} min:{ampVis.min():10.2f} mean:{ampVis.mean():10.2f} std:{np.std(ampVis):10.2f} median:{np.median(ampVis):10.2f}")
-
-                    # Calculate phase ratio BB/OG, except where Phase_OG = 0
-                    phaseVis = np.where(np.angle(S.data)!= 0, np.angle(S_corrected[-2:])/np.angle(S.data), 0)
-                    phaseVis = phaseVis.reshape(phaseVis.shape[-2], phaseVis.shape[-1])
-                    
-                    # Plot phase ratio
-                    phaseScale = ax_vis[1, 2].imshow(phaseVis, cmap=cMap)
-                    ax_vis[1, 2].set_title(f'Phase$_{{BB}} / Phase_{{OG}}$')
-                    divider = make_axes_locatable(ax_vis[1, 2])
-                    cax = divider.append_axes("right", size="5%", pad=0.05)
-                    cbar = plt.colorbar(phaseScale, cax)
-
-                    print (f"Phase Vis max: {phaseVis.max():10.2f} min:{phaseVis.min():10.2f} mean:{phaseVis.mean():10.2f} std:{np.std(phaseVis):10.2f} median:{np.median(phaseVis):10.2f}")
-
-                    # Calculate amplitude difference BB-OG
-                    ampVisD = np.absolute(S_corrected[-2:]) - np.absolute(S.data)
-                    ampVisD = ampVis.reshape(ampVisD.shape[-2], ampVisD.shape[-1])
-                    
-                    # Plot amplitude difference
-                    ampDiff=ax_vis[0, 3].imshow(ampVisD, cmap=cMap)
-                    ax_vis[0, 3].set_title(f'Amp__${{BB}}$ - Amp_${{OG}}$')
-                    divider = make_axes_locatable(ax_vis[0, 3])
-                    cax = divider.append_axes("right", size="5%", pad=0.05)
-                    cbar = plt.colorbar(ampDiff, cax)
-                    
-                    print (f"  Amp Vis max: {ampVisD.max():10.2f} min:{ampVisD.min():10.2f} mean:{ampVisD.mean():10.2f} std:{np.std(ampVisD):10.2f} median:{np.median(ampVisD):10.2f}")
-
-                    # Calculate phase difference BB-OG
-                    phaseVisD = np.angle(S_corrected[-2:]) - np.angle(S.data)
-                    phaseVisD = phaseVis.reshape(phaseVisD.shape[-2], phaseVisD.shape[-1])
-                    
-                    # Plot phase ratio
-                    phaseDiff = ax_vis[1, 3].imshow(phaseVisD, cmap=cMap)
-                    ax_vis[1, 3].set_title(f'Phase$_{{BB}} - Phase_{{OG}}$')
-                    divider = make_axes_locatable(ax_vis[1, 3])
-                    cax = divider.append_axes("right", size="5%", pad=0.05)
-                    cbar = plt.colorbar(phaseDiff, cax)
-
-                    print (f"Phase Vis max: {phaseVisD.max():10.2f} min:{phaseVisD.min():10.2f} mean:{phaseVisD.mean():10.2f} std:{np.std(phaseVisD):10.2f} median:{np.median(phaseVisD):10.2f}")
-                    fig_vis.tight_layout()
-                    fig_vis.savefig(output_dir+ f"Vis_{time_index}_maxScaling_{max_scaling}.png")
-                    plt.close(fig_vis)
-
                 time_index += 1
 
-                vis_count += np.count_nonzero(S.data)
+                vis_count = np.count_nonzero(S.data)
                 bb_vis_count += np.count_nonzero(S_corrected)
+                
+                diagonal_indices = np.diag_indices_from(S_corrected.reshape(S_corrected.shape[-2], S_corrected.shape[-1])) # Take indices of auto correlations
+
+                #set autocorrelations to 0 for each level and each filter
+                for level in np.arange(N_level): 
+                    for filter_no, filters in enumerate(filter_tuple):
+                        S_corrected_filter_level = S_corrected[filter_no, level, :, :].reshape(S_corrected.shape[-2], S_corrected.shape[-1])
+                        S_corrected_filter_level[diagonal_indices] = 0
+                        S_corrected[filter_no, level, :, :] = S_corrected_filter_level.reshape(1, 1, S_corrected.shape[-2], S_corrected.shape[-1])
+                
+                if ((np.any(S.data - S_corrected[-2:]>1)) and time_index == 0):
+                    print ("Visibility mismatch between BB and MS")
+                    
+                    if (plot_vis_mismatch):
+                        fig_vis, ax_vis = plt.subplots(2,4, figsize = (300,100))
+                        
+                        print (f"Max Ratio BB:OG Vis: {np.max(S_corrected) / np.max(S.data)}")
+                        print (f"   BB Vis max: {S_corrected.max():10.2f} min:{S_corrected.min():10.2f} mean:{S_corrected.mean():10.2f} std:{np.std(S_corrected):10.2f} median:{np.median(S_corrected):10.2f}")
+                        cMap = cm.get_cmap("cubehelix")
+                        cMap.set_bad("black")
+
+                        # Plot Bluebild Amplitude
+                        BBAmp=ax_vis[0, 0].imshow(np.absolute(S_corrected.reshape(S_corrected.shape[-2], S_corrected.shape[-1])), cmap=cMap)
+                        ax_vis[0, 0].set_title(f'Amp$_{{BB}}$')
+                        divider = make_axes_locatable(ax_vis[0, 0])
+                        cax = divider.append_axes("right", size="5%", pad=0.05)
+                        cbar = plt.colorbar(BBAmp, cax)
+
+                        # Plot Bluebild Phase
+                        BBPhase = ax_vis[1, 0].imshow(np.angle(S_corrected.reshape(S_corrected.shape[-2], S_corrected.shape[-1])), cmap = cMap)
+                        ax_vis[1, 0].set_title(f'Phase$_{{BB}}$')
+                        divider = make_axes_locatable(ax_vis[1, 0])
+                        cax = divider.append_axes("right", size="5%", pad=0.05)
+                        cbar = plt.colorbar(BBPhase, cax)
+
+                        # Plot OG Amplitude
+                        OGAmp=ax_vis[0, 1].imshow(np.absolute(S.data), cmap=cMap)
+                        ax_vis[0, 1].set_title(f'Amp$_{{OG}}$')
+                        divider = make_axes_locatable(ax_vis[0, 1])
+                        cax = divider.append_axes("right", size="5%", pad=0.05)
+                        cbar = plt.colorbar(OGAmp, cax)
+
+                        # Plot OG Phase
+                        OGPhase = ax_vis[1, 1].imshow(np.angle(S.data), cmap = cMap)
+                        ax_vis[1, 1].set_title(f'Phase$_{{OG}}$')
+                        divider = make_axes_locatable(ax_vis[1, 1])
+                        cax = divider.append_axes("right", size="5%", pad=0.05)
+                        cbar = plt.colorbar(OGPhase, cax)
+                        
+                        # Calculate amplitude ratio BB/OG, except where Amp_OG = 0
+                        ampVis = np.where((np.absolute(S.data)!= 0), np.absolute(S_corrected[-2:])/ np.absolute(S.data), 0)
+                        ampVis = ampVis.reshape(ampVis.shape[-2], ampVis.shape[-1])
+                        
+                        # Plot amplitude ratio
+                        ampScale=ax_vis[0, 2].imshow(ampVis, cmap=cMap)
+                        ax_vis[0, 2].set_title(f'Amp__${{BB}}$ / Amp_${{OG}}$')
+                        divider = make_axes_locatable(ax_vis[0, 2])
+                        cax = divider.append_axes("right", size="5%", pad=0.05)
+                        cbar = plt.colorbar(ampScale, cax)
+                        
+                        print (f"  Amp Vis max: {ampVis.max():10.2f} min:{ampVis.min():10.2f} mean:{ampVis.mean():10.2f} std:{np.std(ampVis):10.2f} median:{np.median(ampVis):10.2f}")
+
+                        # Calculate phase ratio BB/OG, except where Phase_OG = 0
+                        phaseVis = np.where(np.angle(S.data)!= 0, np.angle(S_corrected[-2:])/np.angle(S.data), 0)
+                        phaseVis = phaseVis.reshape(phaseVis.shape[-2], phaseVis.shape[-1])
+                        
+                        # Plot phase ratio
+                        phaseScale = ax_vis[1, 2].imshow(phaseVis, cmap=cMap)
+                        ax_vis[1, 2].set_title(f'Phase$_{{BB}} / Phase_{{OG}}$')
+                        divider = make_axes_locatable(ax_vis[1, 2])
+                        cax = divider.append_axes("right", size="5%", pad=0.05)
+                        cbar = plt.colorbar(phaseScale, cax)
+
+                        print (f"Phase Vis max: {phaseVis.max():10.2f} min:{phaseVis.min():10.2f} mean:{phaseVis.mean():10.2f} std:{np.std(phaseVis):10.2f} median:{np.median(phaseVis):10.2f}")
+
+                        # Calculate amplitude difference BB-OG
+                        ampVisD = np.absolute(S_corrected[-2:]) - np.absolute(S.data)
+                        ampVisD = ampVis.reshape(ampVisD.shape[-2], ampVisD.shape[-1])
+                        
+                        # Plot amplitude difference
+                        ampDiff=ax_vis[0, 3].imshow(ampVisD, cmap=cMap)
+                        ax_vis[0, 3].set_title(f'Amp__${{BB}}$ - Amp_${{OG}}$')
+                        divider = make_axes_locatable(ax_vis[0, 3])
+                        cax = divider.append_axes("right", size="5%", pad=0.05)
+                        cbar = plt.colorbar(ampDiff, cax)
+                        
+                        print (f"  Amp Vis max: {ampVisD.max():10.2f} min:{ampVisD.min():10.2f} mean:{ampVisD.mean():10.2f} std:{np.std(ampVisD):10.2f} median:{np.median(ampVisD):10.2f}")
+
+                        # Calculate phase difference BB-OG
+                        phaseVisD = np.angle(S_corrected[-2:]) - np.angle(S.data)
+                        phaseVisD = phaseVis.reshape(phaseVisD.shape[-2], phaseVisD.shape[-1])
+                        
+                        # Plot phase ratio
+                        phaseDiff = ax_vis[1, 3].imshow(phaseVisD, cmap=cMap)
+                        ax_vis[1, 3].set_title(f'Phase$_{{BB}} - Phase_{{OG}}$')
+                        divider = make_axes_locatable(ax_vis[1, 3])
+                        cax = divider.append_axes("right", size="5%", pad=0.05)
+                        cbar = plt.colorbar(phaseDiff, cax)
+
+                        print (f"Phase Vis max: {phaseVisD.max():10.2f} min:{phaseVisD.min():10.2f} mean:{phaseVisD.mean():10.2f} std:{np.std(phaseVisD):10.2f} median:{np.median(phaseVisD):10.2f}")
+                        fig_vis.tight_layout()
+                        fig_vis.savefig(output_dir+ f"Vis_{time_index}.png")
+                        plt.close(fig_vis)
+
                 if (use_raw_vis and use_ms_coord):
                     nufft_imager.collect(-uvw, S.data.reshape(1, 1, S.data.shape[0],S.data.shape[1]))
                     
@@ -455,12 +458,13 @@ for use_raw_vis in True,False:
                     
                 else:
                     nufft_imager.collect(UVW_t , S_corrected)
-
-            print (f'No. of non singular scalings: {multiply_counter}\n No. of singular scalings: {nomultiply_counter}')
+                
             print (f"Vis count = {vis_count}\nBB Vis count ={bb_vis_count}")
             # NUFFT Synthesis
             lsq_image = nufft_imager.get_statistic()
-            #"""
+            if (bb_vis_count > 0):
+                lsq_image = lsq_image/bb_vis_count# normalise visibilities to be processed by number of non-zero visibilities
+            """
             ###############################################################################
             ### Sensitivity Field Parameter Estimation
             # Determines Eigenvalues and Cluster centroids to feed to sensitivity imaging for 
@@ -524,7 +528,9 @@ for use_raw_vis in True,False:
 
             #plot output image
             #I_lsq_eq.draw( ax=ax[0, plot_index], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-            BBScale = ax[0, plot_index].imshow(I_lsq_eq.data.reshape(I_lsq_eq.data.shape[-2:]), cmap = "cubehelix")
+
+            lsq_image = np.flipud(I_lsq_eq.data.reshape(I_lsq_eq.data.shape[-2:]))
+            BBScale = ax[0, plot_index].imshow(lsq_image, cmap = "cubehelix")
             ax[0, plot_index].set_title(outfile_name)
             divider = make_axes_locatable(ax[0, plot_index])
             cax = divider.append_axes("right", size = "5%", pad = 0.05)
@@ -538,7 +544,7 @@ for use_raw_vis in True,False:
             cbar = plt.colorbar(WSCleanScale, cax)
 
             #plot output image - WSClean image
-            residual_image = [I_lsq_eq.data if use_raw_vis else np.flipud(I_lsq_eq.data)] - WSClean_image
+            residual_image = [I_lsq_eq.data if use_raw_vis else (lsq_image)] - WSClean_image
 
             residual_scale = ax[1, plot_index].imshow(residual_image.reshape(residual_image.shape[-2], residual_image.shape[-1]), cmap='cubehelix')
             ax[1, plot_index].set_title(f'LSQ - WSC Image\n max:{np.max(residual_image)}, min: {np.min(residual_image)} \
@@ -549,7 +555,7 @@ for use_raw_vis in True,False:
 
             #plot outputimage/WSClean Image
 
-            ratio_image = np.where(WSClean_image != 0, np.flipud(I_lsq_eq.data)/ WSClean_image, 0)
+            ratio_image = np.where(WSClean_image != 0, (lsq_image)/ WSClean_image, 0)
 
             ratio_scale = ax[2, plot_index].imshow(ratio_image.reshape(ratio_image.shape[-2], ratio_image.shape[-1]), cmap='cubehelix')
             ax[2, plot_index].set_title(f'LSQ/ WSC Image \nmax:{np.max(ratio_image)}, min: {np.min(ratio_image)} \

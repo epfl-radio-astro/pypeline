@@ -257,7 +257,7 @@ class MeasurementSet:
         if column not in ct.taql(f"select * from {self._msf}").colnames():
             raise ValueError(f"column={column} does not exist in {self._msf}::MAIN.")
 
-        channel_id = self.channels["CHANNEL_ID"][channel_id]
+        channel_id = self.channels["CHANNEL_ID"][tuple(channel_id)]
         if chk.is_integer(time_id):
             print("does this")
             time_id = slice(time_id, time_id + 1, 1)

@@ -353,7 +353,7 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
         virtual_vis_stack: np.ndarray
          (N_filter, N_eig, N_antenna, N_antenna) stack of (N_antenna, N_antenna) virtual visibilities.
         """
-        Filtered_eigs = dict(lsq=D, std=np.ones(D.size, np.float), sqrt=np.sqrt(D), inv=1 / D) # inv not needed?
+        Filtered_eigs = dict(lsq=D, std=np.ones(D.size, np.float), sqrt=np.sqrt(D)) # inv not needed?
         if W is not None:
             W = sparse.csr_matrix(W.data)
             V_unbeamformed = np.asarray(W * V)
