@@ -24,8 +24,6 @@ RASCIL FOR WSClean generation
 
 2) write code to separate images based on flux bins - test on LOFAR + MWA
 3) Read more WL papers
-6) Upload code to spk_dev branch or create new branch and upload !?!?\
-7) Conference applications : cargese school (april 9), US Radio school. 
 
 Mock images using bluebild(Robert feldmann)
 - diffuse image reconstruction 
@@ -35,7 +33,6 @@ predictions regarding dwarf galaxies (low mass end of lambda CDM)
 
 
 Solar data using bluebild (need to write add on for flux separation of eigenlevels)
-- Calibration (Single Channel and multi channel)
 - simulation comparison (v/s wsclean and bluebild)
 - psf separation for eigen decomposition 
 - separation of coronal features from other features
@@ -46,26 +43,6 @@ Bluebild for imaging in Weak Lensing
  - 10 SNR vs 10000 SNR sources - separation into different levels using BB 
  - PSF features isolated between images
  - 
-
-
-8)_
-
-# Apply dirty weights
-    if mesh == "dcos":
-        jacobian = xyz[:, -1] + 1.0
-        dirty /= jacobian
-
-    # NUFFT Type 3
-    vis = _nufft.nufft_dirty2vis(xyz_, uvw_, dirty, epsilon, chunked, max_mem)
-
-    # Apply visibility weights
-    vis_ = vis * wgt if wgt is not None else vis
-
-    if normalisation is not None:
-        if normalisation in ["uvw", "both"]:
-            vis_ /= wgt.sum() if wgt is not None else len(uvw)
-        if normalisation in ["xyz", "both"]:
-            vis_ /= len(xyz)
 """
 import time as tt
 start_time = tt.time()
@@ -98,6 +75,7 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+from matplotlib.colors import TwoSlopeNorm
 
 # spk edits
 
@@ -281,7 +259,7 @@ fig, ax = plt.subplots(3, len(filter_tuple) + 1, figsize = (30, 40))
 plot_index = 0
 
 WSClean_image = ap_fits.getdata(WSClean_image_path)
-WSClean_image = WSClean_image.reshape(WSClean_image.shape[-2:])
+WSClean_image = np.flipud(WSClean_image.reshape(WSClean_image.shape[-2:]))
 
 print(f"Clustering: {clustering}")
 print (f"Number of Eigenvalues:{N_eig}, Centroids: {c_centroid}")
@@ -341,10 +319,10 @@ for use_raw_vis in False,:
                 
                 time_index += 1
 
-                vis_count = np.count_nonzero(S.data)
+                vis_count += np.count_nonzero(S.data)
                 bb_vis_count += np.count_nonzero(S_corrected)
                 
-                diagonal_indices = np.diag_indices_from(S_corrected.reshape(S_corrected.shape[-2], S_corrected.shape[-1])) # Take indices of auto correlations
+                diagonal_indices = np.diag_indices_from(S_corrected[0, 0, :, :].reshape(S_corrected.shape[-2], S_corrected.shape[-1])) # Take indices of auto correlations
 
                 #set autocorrelations to 0 for each level and each filter
                 for level in np.arange(N_level): 
@@ -361,7 +339,7 @@ for use_raw_vis in False,:
                         
                         print (f"Max Ratio BB:OG Vis: {np.max(S_corrected) / np.max(S.data)}")
                         print (f"   BB Vis max: {S_corrected.max():10.2f} min:{S_corrected.min():10.2f} mean:{S_corrected.mean():10.2f} std:{np.std(S_corrected):10.2f} median:{np.median(S_corrected):10.2f}")
-                        cMap = cm.get_cmap("cubehelix")
+                        cMap = cm.get_cmap("RdBu_r")
                         cMap.set_bad("black")
 
                         # Plot Bluebild Amplitude
@@ -517,7 +495,7 @@ for use_raw_vis in False,:
             I_lsq_eq = s2image.Image(lsq_image.reshape(lsq_image.shape[-2:])/ sensitivity_image.reshape(sensitivity_image.shape[-2:]), nufft_imager._synthesizer.xyz_grid)
             """
             # Without sensitivity imaging output
-            I_lsq_eq = s2image.Image(lsq_image.reshape(lsq_image.shape[-2:]), nufft_imager._synthesizer.xyz_grid)
+            I_lsq_eq = s2image.Image(lsq_image.reshape(int(N_level), lsq_image.shape[-2], lsq_image.shape[-1]), nufft_imager._synthesizer.xyz_grid)
             t2 = tt.time()
 
             #"""
@@ -527,17 +505,17 @@ for use_raw_vis in False,:
             
 
             #plot output image
-            #I_lsq_eq.draw( ax=ax[0, plot_index], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
+            #I_lsq_eq.draw( ax=ax[0, plot_index], data_kwargs=dict(cmap='RdBu_r'), show_gridlines=True)
 
-            lsq_image = np.flipud(I_lsq_eq.data.reshape(I_lsq_eq.data.shape[-2:]))
-            BBScale = ax[0, plot_index].imshow(lsq_image, cmap = "cubehelix")
+            lsq_image = np.sum(I_lsq_eq.data, axis = -3).reshape(I_lsq_eq.data.shape[-2:])
+            BBScale = ax[0, plot_index].imshow(lsq_image, cmap = "RdBu_r")
             ax[0, plot_index].set_title(outfile_name)
             divider = make_axes_locatable(ax[0, plot_index])
             cax = divider.append_axes("right", size = "5%", pad = 0.05)
             cbar = plt.colorbar(BBScale, cax)
 
             #plot WSClean image
-            WSCleanScale = ax[0, -1].imshow(WSClean_image)
+            WSCleanScale = ax[0, -1].imshow(WSClean_image, cmap='RdBu_r')
             ax[0, -1].set_title(f"WSClean image")
             divider = make_axes_locatable(ax[0, -1])
             cax = divider.append_axes("right", size="5%", pad=0.05)
@@ -546,7 +524,9 @@ for use_raw_vis in False,:
             #plot output image - WSClean image
             residual_image = [I_lsq_eq.data if use_raw_vis else (lsq_image)] - WSClean_image
 
-            residual_scale = ax[1, plot_index].imshow(residual_image.reshape(residual_image.shape[-2], residual_image.shape[-1]), cmap='cubehelix')
+            residual_norm = TwoSlopeNorm(vmin=residual_image.min(), vcenter=0, vmax=residual_image.max())
+
+            residual_scale = ax[1, plot_index].imshow(residual_image.reshape(residual_image.shape[-2], residual_image.shape[-1]), cmap='RdBu_r',  norm=residual_norm)
             ax[1, plot_index].set_title(f'LSQ - WSC Image\n max:{np.max(residual_image)}, min: {np.min(residual_image)} \
                 \n mean:{np.mean(residual_image)}, std:{np.std(residual_image)},\n median :{np.median(residual_image)}')
             divider = make_axes_locatable(ax[1, plot_index])
@@ -557,14 +537,33 @@ for use_raw_vis in False,:
 
             ratio_image = np.where(WSClean_image != 0, (lsq_image)/ WSClean_image, 0)
 
-            ratio_scale = ax[2, plot_index].imshow(ratio_image.reshape(ratio_image.shape[-2], ratio_image.shape[-1]), cmap='cubehelix')
+
+
+            #"""
+            abs_ratio_image = np.clip(np.abs(ratio_image), 1e-5, 50)
+            abs_ratio_norm = TwoSlopeNorm(vmin = abs_ratio_image.min(), vcenter = 1, vmax = abs_ratio_image.max())
+
+            abs_ratio_scale = ax[2, plot_index + 1].imshow(abs_ratio_image, cmap='RdBu_r',norm=abs_ratio_norm)
+            ax[2, plot_index + 1].set_title(f'abs(LSQ/ WSC) Image \nmax:{np.max(abs_ratio_image)}, min: {np.min(abs_ratio_image)} \
+                \n mean:{np.mean(abs_ratio_image)}, std:{np.std(abs_ratio_image)},\n median :{np.median(abs_ratio_image)}')
+            divider = make_axes_locatable(ax[2, plot_index + 1])
+            cax = divider.append_axes("right", size="5%", pad=0.05)
+            cbar = plt.colorbar(abs_ratio_scale, cax)
+
+            
+            #"""
             ax[2, plot_index].set_title(f'LSQ/ WSC Image \nmax:{np.max(ratio_image)}, min: {np.min(ratio_image)} \
-                \n mean:{np.mean(ratio_image)}, std:{np.std(ratio_image)},\n median :{np.median(ratio_image)}')
+            \n mean:{np.mean(ratio_image)}, std:{np.std(ratio_image)},\n median :{np.median(ratio_image)}')
+
+            print (f'ratio Max: {np.max(ratio_image)}, Min: {np.min(ratio_image)}, Mean: {np.mean(ratio_image)}, Std: {np.std(ratio_image)}, Median: {np.median(ratio_image)}')
+            
+            ratio_image = np.clip(ratio_image, -2.5, 2.5)
+            ratio_norm = TwoSlopeNorm(vmin=ratio_image.min(), vcenter= 1, vmax=ratio_image.max())
+
+            ratio_scale = ax[2, plot_index].imshow(ratio_image, cmap='RdBu_r',norm = ratio_norm)
             divider = make_axes_locatable(ax[2, plot_index])
             cax = divider.append_axes("right", size="5%", pad=0.05)
             cbar = plt.colorbar(ratio_scale, cax)
-
-            print (f'ratio Max: {np.max(ratio_image)}, Min: {np.min(ratio_image)}, Mean: {np.mean(ratio_image)}, Std: {np.std(ratio_image)}, Median: {np.median(ratio_image)}')
             plot_index += 1
 fig.tight_layout()
 fig.savefig(output_dir + "Calibration.png")

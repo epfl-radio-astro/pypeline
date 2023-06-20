@@ -97,11 +97,11 @@ import sys
 np.set_printoptions(threshold=sys.maxsize)
 import pypeline.phased_array.measurement_set as measurement_set
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-import skimage.metrics
 import imot_tools.math.sphere.grid as grid
 import imot_tools.io.fits as ifits
 import astropy.io.fits as ap_fits
 import pypeline.util.frame as frame
+from matplotlib.colors import TwoSlopeNorm
 # for final figure text sizes
 #plt.rcParams.update({'font.size': 22})
 
@@ -169,7 +169,7 @@ sampling = 1
 column_name = "DATA"
 
 # WSClean Grid: Use Coordinate grid from WSClean image if True
-WSClean_grid = False
+WSClean_grid = True
 
 #ms_fieldcenter: Use field center from MS file if True; only invoked if WSClean_grid is False
 ms_fieldcenter = True
@@ -183,9 +183,14 @@ time_end = -1
 time_slice = 1
 
 # channel
-channel_id = np.array([4], dtype = np.int)
+channel_id = np.array([4], dtype = np.int32)
 #channel_id = np.arange(64, dtype = np.int)
 
+# list of filters for imaging
+filter_tuple = ('lsq', 'std',)
+
+# Sensitivity_boolean
+sensitivity_imaging = False
 
 ###############################################################
 # Observation set up
@@ -273,7 +278,7 @@ print (f"Number of Eigenvalues:{N_eig}, Centroids: {c_centroid}")
 # that are consistent with the Eigenvalues and Centroids produced in the previous step.
 ####################################################################
 I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
-IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq', 'std'))
+IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=filter_tuple)
 
 # should this be different for each block? or a single wl at the 
 # lowest resolution?
@@ -281,10 +286,9 @@ IV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq', 'std
 nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
                                       field_center=field_center, eps=eps,
                                       n_trans=1, precision=precision)
+vis_count = 0
+bb_vis_count = 0
 
-multiply_counter = 0
-nomultiply_counter = 0
-ratio = 1
 for t, f, S, uvw in ProgressBar(
         ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_slice), column=column_name, return_UVW = True)
 ):
@@ -298,16 +302,6 @@ for t, f, S, uvw in ProgressBar(
 
     S_corrected = IV_dp(D, V, W, c_idx)
 
-    if ((np.max(S.data) != 0)):
-        #ratio = np.max(S_corrected) / np.max(S.data)
-        multiply_counter += 1
-    else:
-        nomultiply_counter += 1
-
-    print (f'Visibility Ratio: {ratio}')
-
-    S_corrected *= ratio
-
     uvw_frame = RX(np.pi/2 - field_center.dec.rad) @ RZ(np.pi/2 + field_center.ra.rad)
 
     UVW_t = (uvw_frame @ XYZ.data.transpose()).transpose()
@@ -315,6 +309,9 @@ for t, f, S, uvw in ProgressBar(
     UVW_t =  (UVW_t[:, None, :] - UVW_t[None, ...])
 
     UVW_t[uvw == 0] = 0
+
+    vis_count += np.count_nonzero(S.data)
+    bb_vis_count += np.count_nonzero(S_corrected[0, :, :, :])
 
     if (np.any(-uvw - UVW_t>2e-1)):
         print (uvw.shape, UVW_t.shape)
@@ -325,134 +322,151 @@ for t, f, S, uvw in ProgressBar(
             print (np.count_nonzero(residual), residual.size)
             print (residual[residual != 0])
         raise Exception("UVW Coordinates are inconsistent")
+    
+    diagonal_indices = np.diag_indices_from(S_corrected[0, 0, :, :].reshape(S_corrected.shape[-2], S_corrected.shape[-1])) # Take indices of auto correlations
 
+    #set autocorrelations to 0 for each level and each filter
+    for level in np.arange(N_level): 
+        for filter_no, filters in enumerate(filter_tuple):
+            S_corrected_filter_level = S_corrected[filter_no, level, :, :].reshape(S_corrected.shape[-2], S_corrected.shape[-1])
+            S_corrected_filter_level[diagonal_indices] = 0
+            S_corrected[filter_no, level, :, :] = S_corrected_filter_level.reshape(1, 1, S_corrected.shape[-2], S_corrected.shape[-1])
 
-    #uvw baselines passed without 2pi/wl factor!
-    #nufft_imager.collect(-1 * uvw  , S_corrected)
-    #nufft_imager.collect(UVW_t , S_corrected)
-    nufft_imager.collect(2* np.pi / wl * - 1 * uvw, np.stack([S.data.reshape(1, S.data.shape[-2], S.data.shape[-1]), S.data.reshape(1, S.data.shape[-2], S.data.shape[-1])], axis = 0))
+    nufft_imager.collect(UVW_t, S_corrected)
 
-print (f'No. of non singular scalings: {multiply_counter}\n No. of singular scalings: {nomultiply_counter}')
 # NUFFT Synthesis
 lsq_image, std_image = nufft_imager.get_statistic()
+lsq_image = lsq_image/bb_vis_count
+std_image = std_image/bb_vis_count 
+I_lsq_eq = s2image.Image(lsq_image.reshape(int(N_level), lsq_image.shape[-2], lsq_image.shape[-1]), nufft_imager._synthesizer.xyz_grid)
+I_std_eq = s2image.Image(std_image.reshape(int(N_level), std_image.shape[-2], std_image.shape[-1]), nufft_imager._synthesizer.xyz_grid)
 
-###############################################################################
-### Sensitivity Field Parameter Estimation
-# Determines Eigenvalues and Cluster centroids to feed to sensitivity imaging for 
-# correcting for Primary Beam Shape? (ASK EMMA + MATTHIEU)
-###############################################################################
-if (clustering):
-    S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=1)
+if (sensitivity_imaging):
 
-    for t, f, S in ProgressBar(ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_slice), column=column_name)):
+    ###############################################################################
+    ### Sensitivity Field Parameter Estimation
+    # Determines Eigenvalues and Cluster centroids to feed to sensitivity imaging for 
+    # correcting for Primary Beam Shape? (ASK EMMA + MATTHIEU)
+    ###############################################################################
+    if (clustering):
+        S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=1)
+
+        for t, f, S in ProgressBar(ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_slice), column=column_name)):
+            wl = constants.speed_of_light / f.to_value(u.Hz)
+            XYZ = ms.instrument(t)
+            W = ms.beamformer(XYZ, wl)
+            G = gram(XYZ, W, wl)
+
+            S_est.collect(G)
+
+
+        N_eig = S_est.infer_parameters()
+    else: 
+        N_eig = N_level
+
+    # Imaging
+    nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
+                                        field_center=field_center, eps=eps,
+                                        n_trans=1, precision=precision)
+    S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
+    SV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq',))
+    for t, f, S, uvw in ProgressBar(
+            ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_slice), column=column_name, return_UVW = True)
+    ):
         wl = constants.speed_of_light / f.to_value(u.Hz)
         XYZ = ms.instrument(t)
         W = ms.beamformer(XYZ, wl)
-        G = gram(XYZ, W, wl)
 
-        S_est.collect(G)
+        S, _ = measurement_set.filter_data(S, W)
 
+        D, V = S_dp(XYZ, W, wl)
+        S_sensitivity = SV_dp(D, V, W, cluster_idx=np.zeros(N_eig, dtype=int))
 
-    N_eig = S_est.infer_parameters()
-else: 
-    N_eig = N_level
+        uvw_frame = RX(np.pi/2 - field_center.dec.rad) @ RZ(np.pi/2 + field_center.ra.rad)
 
-# Imaging
-nufft_imager = bb_im.NUFFT_IMFS_Block(wl=wl, grid_size=N_pix, FoV=FoV,
-                                      field_center=field_center, eps=eps,
-                                      n_trans=1, precision=precision)
-S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
-SV_dp = bb_dp.VirtualVisibilitiesDataProcessingBlock(N_eig, filters=('lsq',))
-for t, f, S, uvw in ProgressBar(
-        ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_slice), column=column_name, return_UVW = True)
-):
-    wl = constants.speed_of_light / f.to_value(u.Hz)
-    XYZ = ms.instrument(t)
-    W = ms.beamformer(XYZ, wl)
+        UVW_t = (uvw_frame @ XYZ.data.transpose()).transpose()
+        
+        UVW_t =  (UVW_t[:, None, :] - UVW_t[None, ...])
 
-    S, _ = measurement_set.filter_data(S, W)
+        #nufft_imager.collect(-1 * uvw , S_sensitivity)
+        nufft_imager.collect(UVW_t, S_sensitivity)
 
-    D, V = S_dp(XYZ, W, wl)
-    S_sensitivity = SV_dp(D, V, W, cluster_idx=np.zeros(N_eig, dtype=int))
+    sensitivity_image = nufft_imager.get_statistic()[0]
 
-    uvw_frame = RX(np.pi/2 - field_center.dec.rad) @ RZ(np.pi/2 + field_center.ra.rad)
+    I_lsq_eq = s2image.Image((lsq_image/sensitivity_image).reshape(int(N_level), lsq_image.shape[-2], lsq_image.shape[-1]), nufft_imager._synthesizer.xyz_grid)
+    I_std_eq = s2image.Image((std_image/sensitivity_image).reshape(int(N_level), std_image.shape[-2], std_image.shape[-1]), nufft_imager._synthesizer.xyz_grid)
 
-    UVW_t = (uvw_frame @ XYZ.data.transpose()).transpose()
-    
-    UVW_t =  (UVW_t[:, None, :] - UVW_t[None, ...])
+    print (lsq_image.shape, sensitivity_image.shape,nufft_imager._synthesizer.xyz_grid.shape)
 
-    #nufft_imager.collect(-1 * uvw , S_sensitivity)
-    nufft_imager.collect(UVW_t, S_sensitivity)
-
-sensitivity_image = nufft_imager.get_statistic()[0]
-
-print (lsq_image.shape, sensitivity_image.shape,nufft_imager._synthesizer.xyz_grid.shape)
-#"""
 # Without sensitivity imaging output
-I_lsq_eq = s2image.Image(lsq_image.reshape(lsq_image.shape[-2:]), nufft_imager._synthesizer.xyz_grid)
-I_std_eq = s2image.Image(std_image.reshape(std_image.shape[-2:]), nufft_imager._synthesizer.xyz_grid)
-t2 = tt.time()
+# For each filter - total, each level, wsclean, (wsclean comparison diff, wsclean comparison ratio)
+fig, ax = plt.subplots(int(len(filter_tuple)), N_level + 3, figsize = (40, 20))
 
-fig, ax = plt.subplots(2, N_level + 2, figsize = (40, 20))
+lsq_levels = I_lsq_eq.data # Nlevel, Npix, Npix
+std_levels = I_std_eq.data # Nlevel, Npix, Npix
 
-I_std_eq.draw(ax = ax[0,0], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-ax[0,0].set_title("Std")
-I_lsq_eq.draw( ax=ax[1, 0], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-ax[1, 0].set_title("Lsq")
+lsq_image = lsq_levels.sum(axis = 0)
+std_image = std_levels.sum(axis = 0)
 
-for i in np.arange(N_level):
-    I_std_eq.draw(index=i, ax = ax[0,i+1], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-    ax[0, i+1].set_title(f"Std lvl{i}")
-    I_lsq_eq.draw(index=i, ax = ax[1,i+1], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-    ax[1, i+1].set_title(f"Lsq lvl{i}")
+BBScale = ax[0, 0].imshow(lsq_image, cmap = "RdBu_r")
+ax[0, 0].set_title(r"LSQ IMG")
+divider = make_axes_locatable(ax[0, 0])
+cax = divider.append_axes("right", size = "5%", pad = 0.05)
+cbar = plt.colorbar(BBScale, cax)
 
+#plot WSClean image
 WSClean_image = ap_fits.getdata(WSClean_image_path)
-WSClean_image = WSClean_image.reshape(WSClean_image.shape[-2:])
-WSClean_scale= ax[0, -1].imshow((WSClean_image), cmap='cubehelix')
-ax[0, -1].set_title("WSClean Image")
+WSClean_image = np.flipud(WSClean_image.reshape(WSClean_image.shape[-2:]))
+WSCleanScale = ax[0, N_level + 1].imshow(WSClean_image, cmap='RdBu_r')
+ax[0, N_level+1].set_title(f"WSC IMG")
+divider = make_axes_locatable(ax[0, N_level+1])
+cax = divider.append_axes("right", size="5%", pad=0.05)
+cbar = plt.colorbar(WSCleanScale, cax)
+
+BBScale = ax[1, 0].imshow(std_image, cmap = "RdBu_r")
+ax[1, 0].set_title(r"STD IMG")
+divider = make_axes_locatable(ax[1, 0])
+cax = divider.append_axes("right", size = "5%", pad = 0.05)
+cbar = plt.colorbar(BBScale, cax)
+
+WSCleanScale = ax[1, N_level + 1].imshow(WSClean_image, cmap='RdBu_r')
+ax[1, N_level+1].set_title(f"WSC IMG")
+divider = make_axes_locatable(ax[1, N_level+1])
+cax = divider.append_axes("right", size="5%", pad=0.05)
+cbar = plt.colorbar(WSCleanScale, cax)
+
+for i in np.arange(1,N_level + 1):
+    lsqScale = ax[0, i].imshow(lsq_levels[i-1, :, :], cmap = 'RdBu_r')
+    ax[0, i].set_title(f"Lsq Lvl {i}")
+    divider = make_axes_locatable(ax[0, i])
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = plt.colorbar(lsqScale, cax)
+
+    stdScale = ax[1, i].imshow(std_levels[i-1, :, :], cmap = 'RdBu_r')
+    ax[1, i].set_title(f"Std Lvl {i}")
+    divider = make_axes_locatable(ax[1, i])
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = plt.colorbar(stdScale, cax)
+
+diff_image = lsq_image - WSClean_image
+diff_norm = TwoSlopeNorm(vmin=diff_image.min(), vcenter=0, vmax=diff_image.max())
+
+diffScale = ax[0, -1].imshow(diff_image, cmap = 'RdBu_r', norm=diff_norm)
+ax[0, -1].set_title("Diff IMG")
 divider = make_axes_locatable(ax[0, -1])
 cax = divider.append_axes("right", size="5%", pad=0.05)
-cbar = plt.colorbar(WSClean_scale, cax)
+cbar = plt.colorbar(diffScale, cax)
 
+ratio_image = lsq_image/WSClean_image
+ratio_image = np.clip(ratio_image, -2.5, 2.5)
+ratio_norm = TwoSlopeNorm(vmin=ratio_image.min(), vcenter=1, vmax=ratio_image.max())
 
-plt.savefig("spk_master_max_scaling_wos_op.png")
-#"""
-
-I_lsq_eq = s2image.Image(lsq_image.reshape(lsq_image.shape[-2:])/ sensitivity_image.reshape(sensitivity_image.shape[-2:]), nufft_imager._synthesizer.xyz_grid)
-I_std_eq = s2image.Image(std_image.reshape(std_image.shape[-2:])/ sensitivity_image.reshape(sensitivity_image.shape[-2:]), nufft_imager._synthesizer.xyz_grid)
-t2 = tt.time()
-
-fig, ax = plt.subplots(2, N_level + 2, figsize = (40, 20))
-
-I_std_eq.draw(ax = ax[0,0], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-ax[0,0].set_title("Std")
-I_lsq_eq.draw( ax=ax[1, 0], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-ax[1, 0].set_title("Lsq")
-
-for i in np.arange(N_level):
-    I_std_eq.draw(index=i, ax = ax[0,i+1], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-    ax[0, i+1].set_title(f"Std lvl{i}")
-    I_lsq_eq.draw(index=i, ax = ax[1,i+1], data_kwargs=dict(cmap='cubehelix'), show_gridlines=True)
-    ax[1, i+1].set_title(f"Lsq lvl{i}")
-
-WSClean_image = ap_fits.getdata(WSClean_image_path)
-WSClean_image = WSClean_image.reshape(WSClean_image.shape[-2:])
-WSClean_scale= ax[0, -1].imshow((WSClean_image), cmap='cubehelix')
-ax[0, -1].set_title("WSClean Image")
-divider = make_axes_locatable(ax[0, -1])
-cax = divider.append_axes("right", size="5%", pad=0.05)
-cbar = plt.colorbar(WSClean_scale, cax)
-
-residual_image = np.flipud(lsq_image.reshape(lsq_image.shape[-2:])/ sensitivity_image.reshape(sensitivity_image.shape[-2:])) - WSClean_image
-
-ratio_scale = ax[1, -1].imshow(residual_image, cmap='cubehelix')
-ax[1, -1].set_title(f'LSQ - WSC Image max:{np.max(residual_image)}, min: {np.min(residual_image)} \
-    \n mean:{np.mean(residual_image)}, std:{np.std(residual_image)}, median :{np.median(residual_image)}')
+ratioScale = ax[1, -1].imshow(ratio_image, cmap = 'RdBu_r', norm=ratio_norm)
+ax[1, -1].set_title("Ratio IMG")
 divider = make_axes_locatable(ax[1, -1])
 cax = divider.append_axes("right", size="5%", pad=0.05)
-cbar = plt.colorbar(ratio_scale, cax)
+cbar = plt.colorbar(ratioScale, cax)
 
-print (f'Residual Max: {np.max(residual_image)}, Min: {np.min(residual_image)}, Mean: {np.mean(residual_image)}, Std: {np.std(residual_image)}, Median: {np.median(residual_image)}')
+plt.savefig("spk_mwa_op.png")
 
-plt.savefig("spk_master_max_scaling_op.png")
 print(f'Elapsed time: {tt.time() - start_time} seconds.')
