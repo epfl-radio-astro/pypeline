@@ -213,17 +213,17 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
             if not np.allclose(S, 0):
                 if self._filter_negative_eigenvalues:
                     D, _ = pylinalg.eigh(S, G, tau=self._sigma)
-                    D_all[i, : len(D)] = D
                 # Copied from Imot_Tools but keeping all eigen pairs (=> no padding/selection required)
                 else:
                     try:
-                        D_all = linalg.eigh(S, G, eigvals_only=True)
+                        D = linalg.eigh(S, G, eigvals_only=True)
                     except linalg.LinAlgError:
                         raise ValueError("Parameter[B] is not PSD.")
+                D_all[i, : len(D)] = D
             else:
                 raise Exception("S, allclose to 0")
                     
-        #EO: instead of clustering on non-zero eigenvalues, cluster on strictly
+        # EO: instead of clustering on non-zero eigenvalues, cluster on strictly
         #    positive eigenvalues to also discard negative eigenvalues if kept in.
         D_all = D_all[D_all > 0.0]
         kmeans = skcl.KMeans(n_clusters=self._N_level).fit(np.log(D_all).reshape(-1, 1))
@@ -235,9 +235,15 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         # This has the disadvantage of increasing the computational load of Bluebild, but as the N_eig energy levels
         # are clustered together anyway, the trailing energy levels will be (close to) all-0 and can be discarded
         # on inspection.
-        N_eig = max(int(np.ceil(len(D_all) / N_data)), self._N_level)
+
+        # EO: keep cluster centroids for positive part
         cluster_centroid = np.sort(np.exp(kmeans.cluster_centers_)[:, 0])[::-1]
 
+        if self._filter_negative_eigenvalues:
+            N_eig = max(int(np.ceil(len(D_all) / N_data)), self._N_level)
+        else:
+            N_eig = N_eig_max
+            
         return N_eig, cluster_centroid
 
 
@@ -259,6 +265,7 @@ class SensitivityFieldParameterEstimator(ParameterEstimator):
         if not (0 < sigma <= 1):
             raise ValueError("Parameter[sigma] must lie in (0,1].")
         self._sigma = sigma
+        self._filter_negative_eigenvalues = filter_negative_eigenvalues
 
         # Collected data.
         self._grams = []
@@ -290,10 +297,16 @@ class SensitivityFieldParameterEstimator(ParameterEstimator):
         D_all = np.zeros((N_data, N_eig_max))
         for i, G in enumerate(self._grams):
             # Functional PCA
-            D, _ = pylinalg.eigh(G.data, np.eye(N_beam), tau=self._sigma)
+            if self._filter_negative_eigenvalues:
+                D, _ = pylinalg.eigh(G.data, np.eye(N_beam), tau=self._sigma)
+            else:
+                D = linalg.eigh(G.data, eigvals_only=True)
             D_all[i, : len(D)] = D
 
         D_all = D_all[D_all.nonzero()]
 
-        N_eig = int(np.ceil(len(D_all) / N_data))
+        if self._filter_negative_eigenvalues:
+            N_eig = int(np.ceil(len(D_all) / N_data))
+        else:
+            N_eig = N_eig_max
         return N_eig
