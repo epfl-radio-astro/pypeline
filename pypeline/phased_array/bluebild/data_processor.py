@@ -170,7 +170,8 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
         N_beam = len(S.data)
 
         # Remove broken BEAM_IDs
-        broken_row_id = np.flatnonzero(np.isclose(np.sum(S.data, axis=0), np.sum(S.data, axis=1)))
+        broken_row_id = np.flatnonzero(np.isclose(np.sum(S.data, axis=0), 0))
+        
         if broken_row_id.size:
             working_row_id = list(set(np.arange(N_beam)) - set(broken_row_id))
             idx = np.ix_(working_row_id, working_row_id)
@@ -226,9 +227,6 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
             V_aligned[working_row_id] = V
         else:
             V_aligned = V
-
-        # Scale D by the number of non-zero visibilities
-        D /= np.count_nonzero(S.data)
    
         return D, V_aligned, cluster_idx
 
