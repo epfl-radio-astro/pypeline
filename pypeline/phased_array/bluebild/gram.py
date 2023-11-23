@@ -177,6 +177,8 @@ class GramBlock(core.Block):
             baseline = linalg.norm(
                 XYZ.reshape(N_antenna, 1, 3) - XYZ.reshape(1, N_antenna, 3), axis=-1
             )
+
+            # Original 4 * pi scale factor removed
             G_1 = np.sinc((2 / wl) * baseline)
             G_2 = W.conj().T @ G_1 @ W
             return G_2
