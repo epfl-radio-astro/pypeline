@@ -202,9 +202,7 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         D_all = np.zeros((N_data, N_eig_max))
         for i, (S, G) in enumerate(zip(self._visibilities, self._grams)):
             # Remove broken BEAM_IDs
-            broken_row_id = np.flatnonzero(
-                np.isclose(np.sum(S.data, axis=0), np.sum(S.data, axis=1))
-            )
+            broken_row_id = np.flatnonzero(np.isclose(np.sum(S.data, axis=0), 0))
             working_row_id = list(set(np.arange(N_beam)) - set(broken_row_id))
             idx = np.ix_(working_row_id, working_row_id)
             S, G = S.data[idx], G.data[idx]
@@ -222,7 +220,11 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
                 D_all[i, : len(D)] = D
             else:
                 raise Exception("S, allclose to 0")
-                    
+
+        # With fne=0, count all non-zero D
+        # Overide N_eig below if fne=1 once D_all = D_all[D_all > 0.0]
+        N_eig = max(int(np.ceil(np.count_nonzero(D_all) / N_data)), self._N_level)
+
         # EO: instead of clustering on non-zero eigenvalues, cluster on strictly
         #    positive eigenvalues to also discard negative eigenvalues if kept in.
         D_all = D_all[D_all > 0.0]
@@ -241,8 +243,6 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
 
         if self._filter_negative_eigenvalues:
             N_eig = max(int(np.ceil(len(D_all) / N_data)), self._N_level)
-        else:
-            N_eig = N_eig_max
             
         return N_eig, cluster_centroid
 
