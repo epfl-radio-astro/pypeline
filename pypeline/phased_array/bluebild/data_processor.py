@@ -171,7 +171,6 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
 
         # Remove broken BEAM_IDs
         broken_row_id = np.flatnonzero(np.isclose(np.sum(S.data, axis=0), 0))
-        
         if broken_row_id.size:
             working_row_id = list(set(np.arange(N_beam)) - set(broken_row_id))
             idx = np.ix_(working_row_id, working_row_id)
@@ -197,7 +196,6 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
                 # Copied from Imot_Tools but here keeping all eigen pairs (hence no padding/selection required)
                 else:
                     tau = 1
-                    N=self._N_eig
                     try:
                         D, V = linalg.eigh(S, G)
                         idx = np.argsort(D)[::-1]
