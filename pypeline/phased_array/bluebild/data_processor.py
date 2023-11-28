@@ -221,7 +221,7 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
 
         # Add broken BEAM_IDs
         if broken_row_id.size:
-            V_aligned = np.zeros((N_beam, self._N_eig), dtype=V.dtype)
+            V_aligned = np.zeros((N_beam, D.size), dtype=V.dtype)
             V_aligned[working_row_id] = V
         else:
             V_aligned = V
