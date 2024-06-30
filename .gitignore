@@ -49,6 +49,7 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+_skbuild/
 
 # Unit test / coverage reports
 .pytest_cache/
