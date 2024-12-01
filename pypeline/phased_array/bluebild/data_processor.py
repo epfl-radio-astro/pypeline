@@ -8,7 +8,7 @@
 Data processors.
 """
 
-import imot_tools.math.linalg as pylinalg
+#import imot_tools.math.linalg as pylinalg
 import imot_tools.util.argcheck as chk
 import numpy as np
 
@@ -18,7 +18,104 @@ import pypeline.phased_array.bluebild.gram as gram
 import pypeline.phased_array.beamforming as beamforming
 import pypeline.phased_array.instrument as instrument
 import typing as typ
+import scipy.linalg as linalg
 import scipy.sparse as sparse
+
+@chk.check(
+    dict(
+        A=chk.accept_any(chk.has_reals, chk.has_complex),
+        B=chk.allow_None(chk.accept_any(chk.has_reals, chk.has_complex)),
+        tau=chk.is_real,
+        N=chk.allow_None(chk.is_integer),
+    )
+)
+def pylinalg_eigh(A, B=None, tau=1, N=None, check_hermitian=True):
+    """
+    Solve a generalized eigenvalue problem.
+
+    Finds :math:`(D, V)`, solution of the generalized eigenvalue problem
+
+    .. math::
+
+       A V = B V D.
+
+    This function is a wrapper around :py:func:`scipy.linalg.eigh` that adds energy truncation and
+    extra output formats.
+
+    Parameters
+    ----------
+    A : :py:class:`~numpy.ndarray`
+        (M, M) hermitian matrix.
+        If `A` is not positive-semidefinite (PSD), its negative spectrum is discarded.
+    B : :py:class:`~numpy.ndarray`, optional
+        (M, M) PSD hermitian matrix.
+        If unspecified, `B` is assumed to be the identity matrix.
+    tau : float, optional
+        Normalized energy ratio. (Default: 1)
+    N : int, optional
+        Number of eigenpairs to output. (Default: K, the minimum number of leading eigenpairs that
+        account for `tau` percent of the total energy.)
+
+        * If `N` is smaller than K, then the trailing eigenpairs are dropped.
+        * If `N` is greater that K, then the trailing eigenpairs are set to 0.
+
+    Returns
+    -------
+    D : :py:class:`~numpy.ndarray`
+        (N,) positive real-valued eigenvalues.
+
+    V : :py:class:`~numpy.ndarray`
+        (M, N) complex-valued eigenvectors.
+
+        The N eigenpairs are sorted in decreasing eigenvalue order.
+
+    """
+    A = np.array(A, copy=False)
+    M = len(A)
+    if check_hermitian:
+        if not (chk.has_shape([M, M])(A) and np.allclose(A, A.conj().T)):
+            raise ValueError("Parameter[A] must be hermitian symmetric.")
+
+    B = np.eye(M) if (B is None) else np.array(B, copy=False)
+    if not (chk.has_shape([M, M])(B) and np.allclose(B, B.conj().T)):
+        raise ValueError("Parameter[B] must be hermitian symmetric.")
+
+    if not (0 < tau <= 1):
+        raise ValueError("Parameter[tau] must be in [0, 1].")
+
+    if (N is not None) and (N <= 0):
+        raise ValueError(f"Parameter[N] must be a non-zero positive integer.")
+
+    # A: drop negative spectrum.
+    Ds, Vs = linalg.eigh(A)
+    idx = Ds > 0
+    Ds, Vs = Ds[idx], Vs[:, idx]
+    A = (Vs * Ds) @ Vs.conj().T
+
+    # A, B: generalized eigenvalue-decomposition.
+    try:
+        D, V = linalg.eigh(A, B)
+
+        # Discard near-zero D due to numerical precision.
+        idx = D > 0
+        D, V = D[idx], V[:, idx]
+        idx = np.argsort(D)[::-1]
+        D, V = D[idx], V[:, idx]
+    except linalg.LinAlgError:
+        raise ValueError("Parameter[B] is not PSD.")
+
+    # Energy selection / padding
+    idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= tau
+    D, V = D[idx], V[:, idx]
+    if N is not None:
+        M, K = V.shape
+        if N - K <= 0:
+            D, V = D[:N], V[:, :N]
+        else:
+            D = np.concatenate((D, np.zeros(N - K)), axis=0)
+            V = np.concatenate((V, np.zeros((M, N - K))), axis=1)
+
+    return D, V
 
 
 class DataProcessorBlock(core.Block):
@@ -53,7 +150,7 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
     """
 
     @chk.check(dict(N_eig=chk.is_integer, cluster_centroids=chk.has_reals))
-    def __init__(self, N_eig, cluster_centroids, ctx=None):
+    def __init__(self, N_eig, cluster_centroids, ctx=None, filter_negative_eigenvalues=True):
         """
         Parameters
         ----------
@@ -78,6 +175,7 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
         self._N_eig = N_eig
         self._cluster_centroids = np.array(cluster_centroids, copy=False)
         self._ctx = ctx
+        self._filter_negative_eigenvalues = filter_negative_eigenvalues
 
     @chk.check(
         dict(
@@ -87,7 +185,7 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
             wl=chk.is_real,
         )
     )
-    def __call__(self, S, XYZ, W, wl):
+    def __call__(self, S, XYZ, W, wl, check_hermitian=True):
         """
         fPCA decomposition and data formatting for
         :py:class:`~pypeline.phased_array.bluebild.field_synthesizer.FieldSynthesizerBlock` objects.
@@ -166,8 +264,10 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
 
         N_beam = len(S.data)
 
-        # Remove broken BEAM_IDs
-        broken_row_id = np.flatnonzero(np.isclose(np.sum(S.data, axis=0), np.sum(S.data, axis=1)))
+        # EO: DO NOT remove broken BEAM_IDs to mimic BIPP
+        #broken_row_id = np.flatnonzero(np.isclose(np.sum(S.data, axis=0), 0))
+        #print("-W- broken_row_id =", broken_row_id)
+        broken_row_id = np.array([])
         if broken_row_id.size:
             working_row_id = list(set(np.arange(N_beam)) - set(broken_row_id))
             idx = np.ix_(working_row_id, working_row_id)
@@ -177,27 +277,52 @@ class IntensityFieldDataProcessorBlock(DataProcessorBlock):
 
         if self._ctx is not None:
             D, V, cluster_idx = self._ctx.intensity_field_data(self._N_eig, np.array(XYZ.data, order='F'), np.array(W.data, order='F'),
-                    wl, S, self._cluster_centroids)
+                                                               wl, S, self._cluster_centroids)
+           
         else:
             G = gram.GramBlock().compute(XYZ.data, W, wl)
 
             # Functional PCA
             if not np.allclose(S, 0):
-                D, V = pylinalg.eigh(S, G, tau=1, N=self._N_eig)
+
+                # Default case: use Imot_Tools wrapper for Scipy linalg eigh that filters out
+                #               negative eigen values
+                if self._filter_negative_eigenvalues:
+                    D, V = pylinalg_eigh(S, G, tau=1, N=self._N_eig, check_hermitian=check_hermitian)
+
+                # Copied from Imot_Tools but here keeping all eigen pairs (hence no padding/selection required)
+                else:
+                    tau = 1
+                    try:
+                        D, V = linalg.eigh(S, G)
+                        idx = np.argsort(D)[::-1]
+                        D, V = D[idx], V[:, idx]
+                    except linalg.LinAlgError:
+                        raise ValueError("Parameter[B] is not PSD.")
+
             else:  # S is broken beyond use
                 D, V = np.zeros(self._N_eig), 0
 
             # Determine energy-level clustering
-            cluster_dist = np.absolute(D.reshape(-1, 1) - self._cluster_centroids.reshape(1, -1))
-            cluster_idx = np.argmin(cluster_dist, axis=1)
+            if self._filter_negative_eigenvalues:
+                cluster_dist = np.absolute(D.reshape(-1, 1) - self._cluster_centroids.reshape(1, -1))
+                cluster_idx = np.argmin(cluster_dist, axis=1)
+            else:
+                # Cluster positive part as normal, then add an additional level to contain
+                # all negative eigenvalues
+                cluster_dist = np.absolute(D[D > 0.0].reshape(-1, 1) - self._cluster_centroids.reshape(1, -1))
+                cluster_idx_ = np.argmin(cluster_dist, axis=1)
+                cluster_idx  = np.zeros(D.shape[0], dtype=cluster_idx_.dtype)
+                np.put(cluster_idx, np.arange(cluster_idx_.shape[0]), cluster_idx_)
+                np.put(cluster_idx, np.arange(cluster_idx_.shape[0], cluster_idx.shape[0]), cluster_idx_[-1] + 1)
 
         # Add broken BEAM_IDs
         if broken_row_id.size:
-            V_aligned = np.zeros((N_beam, self._N_eig), dtype=np.complex)
+            V_aligned = np.zeros((N_beam, D.size), dtype=V.dtype)
             V_aligned[working_row_id] = V
         else:
             V_aligned = V
-
+   
         return D, V_aligned, cluster_idx
 
 
@@ -302,7 +427,7 @@ class SensitivityFieldDataProcessorBlock(DataProcessorBlock):
         else:
             G = gram.GramBlock()(XYZ, W, wl)
             N_beam = len(G.data)
-            D, V = pylinalg.eigh(G.data, np.eye(N_beam), tau=1, N=self._N_eig)
+            D, V = pylinalg_eigh(G.data, np.eye(N_beam), tau=1, N=self._N_eig, check_hermitian=check_hermitian)
             Dg = 1 / (D ** 2)
             return Dg, V
 
@@ -353,7 +478,7 @@ class VirtualVisibilitiesDataProcessingBlock(DataProcessorBlock):
         virtual_vis_stack: np.ndarray
          (N_filter, N_eig, N_antenna, N_antenna) stack of (N_antenna, N_antenna) virtual visibilities.
         """
-        Filtered_eigs = dict(lsq=D, std=np.ones(D.size, np.float), sqrt=np.sqrt(D), inv=1 / D)
+        Filtered_eigs = dict(lsq=D, std=np.ones(D.size, D.dtype), sqrt=np.sqrt(D), inv=1 / D)
         if W is not None:
             W = sparse.csr_matrix(W.data)
             V_unbeamformed = np.asarray(W * V)

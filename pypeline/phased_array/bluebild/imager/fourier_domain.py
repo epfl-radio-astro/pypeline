@@ -302,7 +302,7 @@ class NUFFT_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
         self._V_collection = []
         self._UVW_collection = []
         self._nbytes = 0
-        self._max_colllect_bytes = max_collect_bytes
+        self._max_collect_bytes = max_collect_bytes
         super(NUFFT_IMFS_Block, self).__init__()
 
     def collect(self, UVW: np.ndarray, V: np.ndarray) -> np.ndarray:
@@ -323,7 +323,7 @@ class NUFFT_IMFS_Block(bim.IntegratingMultiFieldSynthesizerBlock):
         self._V_collection.append(V)
         self._UVW_collection.append(UVW)
 
-        if self._nbytes > self._max_colllect_bytes:
+        if self._nbytes > self._max_collect_bytes:
             self._compute()
 
     def as_image(self) -> list:

@@ -19,13 +19,110 @@ Subclasses of :py:class:`~pypeline.phased_array.bluebild.parameter_estimator.Par
 specifically tailored for such tasks.
 """
 
-import imot_tools.math.linalg as pylinalg
+#import imot_tools.math.linalg as pylinalg
 import imot_tools.util.argcheck as chk
 import numpy as np
 import sklearn.cluster as skcl
-
+import scipy.linalg as linalg
 import pypeline.phased_array.data_gen.statistics as vis
 import pypeline.phased_array.bluebild.gram as gr
+
+
+@chk.check(
+    dict(
+        A=chk.accept_any(chk.has_reals, chk.has_complex),
+        B=chk.allow_None(chk.accept_any(chk.has_reals, chk.has_complex)),
+        tau=chk.is_real,
+        N=chk.allow_None(chk.is_integer),
+    )
+)
+def pylinalg_eigh(A, B=None, tau=1, N=None, check_hermitian=True):
+    """
+    Solve a generalized eigenvalue problem.
+
+    Finds :math:`(D, V)`, solution of the generalized eigenvalue problem
+
+    .. math::
+
+       A V = B V D.
+
+    This function is a wrapper around :py:func:`scipy.linalg.eigh` that adds energy truncation and
+    extra output formats.
+
+    Parameters
+    ----------
+    A : :py:class:`~numpy.ndarray`
+        (M, M) hermitian matrix.
+        If `A` is not positive-semidefinite (PSD), its negative spectrum is discarded.
+    B : :py:class:`~numpy.ndarray`, optional
+        (M, M) PSD hermitian matrix.
+        If unspecified, `B` is assumed to be the identity matrix.
+    tau : float, optional
+        Normalized energy ratio. (Default: 1)
+    N : int, optional
+        Number of eigenpairs to output. (Default: K, the minimum number of leading eigenpairs that
+        account for `tau` percent of the total energy.)
+
+        * If `N` is smaller than K, then the trailing eigenpairs are dropped.
+        * If `N` is greater that K, then the trailing eigenpairs are set to 0.
+
+    Returns
+    -------
+    D : :py:class:`~numpy.ndarray`
+        (N,) positive real-valued eigenvalues.
+
+    V : :py:class:`~numpy.ndarray`
+        (M, N) complex-valued eigenvectors.
+
+        The N eigenpairs are sorted in decreasing eigenvalue order.
+
+    """
+    A = np.array(A, copy=False)
+    M = len(A)
+    if check_hermitian:
+        if not (chk.has_shape([M, M])(A) and np.allclose(A, A.conj().T)):
+            raise ValueError("Parameter[A] must be hermitian symmetric.")
+
+    B = np.eye(M) if (B is None) else np.array(B, copy=False)
+    if not (chk.has_shape([M, M])(B) and np.allclose(B, B.conj().T)):
+        raise ValueError("Parameter[B] must be hermitian symmetric.")
+
+    if not (0 < tau <= 1):
+        raise ValueError("Parameter[tau] must be in [0, 1].")
+
+    if (N is not None) and (N <= 0):
+        raise ValueError(f"Parameter[N] must be a non-zero positive integer.")
+
+    # A: drop negative spectrum.
+    Ds, Vs = linalg.eigh(A)
+    idx = Ds > 0
+    Ds, Vs = Ds[idx], Vs[:, idx]
+    A = (Vs * Ds) @ Vs.conj().T
+
+    # A, B: generalized eigenvalue-decomposition.
+    try:
+        D, V = linalg.eigh(A, B)
+
+        # Discard near-zero D due to numerical precision.
+        idx = D > 0
+        D, V = D[idx], V[:, idx]
+        idx = np.argsort(D)[::-1]
+        D, V = D[idx], V[:, idx]
+    except linalg.LinAlgError:
+        raise ValueError("Parameter[B] is not PSD.")
+
+    # Energy selection / padding
+    idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= tau
+    D, V = D[idx], V[:, idx]
+    if N is not None:
+        M, K = V.shape
+        if N - K <= 0:
+            D, V = D[:N], V[:, :N]
+        else:
+            D = np.concatenate((D, np.zeros(N - K)), axis=0)
+            V = np.concatenate((V, np.zeros((M, N - K))), axis=1)
+
+    return D, V
 
 
 class ParameterEstimator:
@@ -139,7 +236,7 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
     """
 
     @chk.check(dict(N_level=chk.is_integer, sigma=chk.is_real))
-    def __init__(self, N_level, sigma):
+    def __init__(self, N_level, sigma, filter_negative_eigenvalues=False):
         """
         Parameters
         ----------
@@ -157,6 +254,7 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         if not (0 < sigma <= 1):
             raise ValueError("Parameter[sigma] must lie in (0,1].")
         self._sigma = sigma
+        self._filter_negative_eigenvalues = filter_negative_eigenvalues
 
         # Collected data.
         self._visibilities = []
@@ -180,7 +278,7 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         self._visibilities.append(S)
         self._grams.append(G)
 
-    def infer_parameters(self):
+    def infer_parameters(self, check_hermitian=True):
         """
         Estimate parameters given ingested data.
 
@@ -201,20 +299,34 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         D_all = np.zeros((N_data, N_eig_max))
         for i, (S, G) in enumerate(zip(self._visibilities, self._grams)):
             # Remove broken BEAM_IDs
-            broken_row_id = np.flatnonzero(
-                np.isclose(np.sum(S.data, axis=0), np.sum(S.data, axis=1))
-            )
+            broken_row_id = np.flatnonzero(np.isclose(np.sum(S.data, axis=0), 0))
             working_row_id = list(set(np.arange(N_beam)) - set(broken_row_id))
             idx = np.ix_(working_row_id, working_row_id)
             S, G = S.data[idx], G.data[idx]
 
             # Functional PCA
             if not np.allclose(S, 0):
-                D, _ = pylinalg.eigh(S, G, tau=self._sigma)
+                if self._filter_negative_eigenvalues:
+                    D, _ = pylinalg_eigh(S, G, tau=self._sigma, check_hermitian=check_hermitian)
+                # Copied from Imot_Tools but keeping all eigen pairs (=> no padding/selection required)
+                else:
+                    try:
+                        D = linalg.eigh(S, G, eigvals_only=True)
+                    except linalg.LinAlgError:
+                        raise ValueError("Parameter[B] is not PSD.")
                 D_all[i, : len(D)] = D
+            else:
+                raise Exception("S, allclose to 0")
 
-        D_all = D_all[D_all.nonzero()]
-        kmeans = skcl.KMeans(n_clusters=self._N_level).fit(np.log(D_all).reshape(-1, 1))
+        # With fne=0, count all non-zero D
+        # Overide N_eig below if fne=1 once D_all = D_all[D_all > 0.0]
+        N_eig = max(int(np.ceil(np.count_nonzero(D_all) / N_data)), self._N_level)
+
+        # EO: instead of clustering on non-zero eigenvalues, cluster on strictly
+        #    positive eigenvalues to also discard negative eigenvalues if kept in.
+        D_all = np.sort(D_all[D_all > 0.0])
+
+        kmeans = skcl.KMeans(n_clusters=self._N_level, random_state=0).fit(np.log(D_all).reshape(-1, 1))
 
         # For extremely small telescopes or datasets that are mostly 'broken', we can have (N_eig < N_level).
         # In this case we have two options: (N_level = N_eig) or (N_eig = N_level).
@@ -223,8 +335,12 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         # This has the disadvantage of increasing the computational load of Bluebild, but as the N_eig energy levels
         # are clustered together anyway, the trailing energy levels will be (close to) all-0 and can be discarded
         # on inspection.
-        N_eig = max(int(np.ceil(len(D_all) / N_data)), self._N_level)
+
+        # EO: keep cluster centroids for positive part
         cluster_centroid = np.sort(np.exp(kmeans.cluster_centers_)[:, 0])[::-1]
+
+        if self._filter_negative_eigenvalues:
+            N_eig = max(int(np.ceil(len(D_all) / N_data)), self._N_level)
 
         return N_eig, cluster_centroid
 
@@ -247,6 +363,7 @@ class SensitivityFieldParameterEstimator(ParameterEstimator):
         if not (0 < sigma <= 1):
             raise ValueError("Parameter[sigma] must lie in (0,1].")
         self._sigma = sigma
+        self._filter_negative_eigenvalues = filter_negative_eigenvalues
 
         # Collected data.
         self._grams = []
@@ -278,10 +395,16 @@ class SensitivityFieldParameterEstimator(ParameterEstimator):
         D_all = np.zeros((N_data, N_eig_max))
         for i, G in enumerate(self._grams):
             # Functional PCA
-            D, _ = pylinalg.eigh(G.data, np.eye(N_beam), tau=self._sigma)
+            if self._filter_negative_eigenvalues:
+                D, _ = pylinalg_eigh(G.data, np.eye(N_beam), tau=self._sigma)
+            else:
+                D = linalg.eigh(G.data, eigvals_only=True)
             D_all[i, : len(D)] = D
 
         D_all = D_all[D_all.nonzero()]
 
-        N_eig = int(np.ceil(len(D_all) / N_data))
+        if self._filter_negative_eigenvalues:
+            N_eig = int(np.ceil(len(D_all) / N_data))
+        else:
+            N_eig = N_eig_max
         return N_eig
